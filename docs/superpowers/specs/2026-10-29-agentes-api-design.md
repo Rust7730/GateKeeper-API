@@ -94,7 +94,9 @@ Con un solo hallazgo de severidad **alta**, el resultado es `cambios requeridos`
 
 El veredicto también incluye la línea `Árbol revisado: <hash>`, que es el hash del árbol de trabajo que se revisó
 y lo calcula `.claude/skills/gatekeeper-guardian/scripts/arbol.py`. Así la aprobación queda atada a ese contenido
-exacto. Si después cambia un solo archivo, el veredicto deja de valer.
+exacto. Si después cambia un solo archivo, el veredicto deja de valer. El hash excluye `context/gatekeeper_kg.json`
+y `docs/decisiones.md`: gk-kg los escribe después de la revisión (paso 5 del flujo) y su validez la comprueba el
+control 6 de gk-commit.
 
 ### 4.4 Latencia mientras no exista `gk-performance`
 

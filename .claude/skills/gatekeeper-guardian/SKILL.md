@@ -128,6 +128,24 @@ Si una mejora de latencia exigiera debilitar la seguridad, o al revés, es una d
    usuario.
 4. `kg.py validar` debe terminar sin aristas rotas.
 
+## Trabajo con agentes
+
+Cuando el trabajo se reparte entre los agentes de `.claude/agents/` (diseño en
+`docs/superpowers/specs/2026-10-29-agentes-api-design.md`), el flujo de arriba se reparte así:
+
+- **Solo gk-kg escribe el KG y `docs/decisiones.md`.** Los demás agentes usan solo los comandos de lectura de
+  `kg.py` (`contexto`, `buscar`, `vecinos`, `pendientes`, `validar`) y ponen en su reporte, en "Para gk-kg", lo
+  que hay que registrar. `kg.py` reescribe el archivo completo en cada escritura, así que dos escritores
+  simultáneos se pisarían.
+- **Las pruebas de la matriz las escribe gk-security** en `tests/attack-matrix/`. gk-api-dev escribe sus pruebas
+  unitarias en `api/tests/` y no modifica las de ataque. Así el autor de un control no escribe la prueba que lo
+  aprueba.
+- **Orden de cada paso:** seguridad escribe las pruebas → api-dev implementa → seguridad revisa → commit. Entre
+  la revisión y el commit, gk-kg registra el estado y las propuestas.
+- **Orquestación (sesión principal):** nunca lances dos gk-kg a la vez. Permite como máximo 2 vueltas de
+  corrección entre gk-security y gk-api-dev; si a la tercera revisión no hay `aprobado`, la decisión pasa al
+  usuario. Un agente que responde `detenido` pausa el flujo hasta que el usuario decida.
+
 ## Cierre
 
 Termina tu respuesta con este bloque, para que el usuario vea de un vistazo qué se protegió:

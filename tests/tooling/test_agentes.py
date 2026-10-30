@@ -178,3 +178,11 @@ def test_gk_commit_staging_solo_al_final(agente):
     c = agente("gk-commit").cuerpo
     assert "no hagas `git add` hasta el control 7" in c
     assert "no ejecutes los siguientes" in c
+
+
+def test_sin_carpeta_de_agentes_se_omite(agente, monkeypatch, tmp_path):
+    import pytest
+
+    monkeypatch.setitem(agente.__globals__, "AGENTES", tmp_path / "no-existe")
+    with pytest.raises(pytest.skip.Exception):
+        agente("gk-kg")

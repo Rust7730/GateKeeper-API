@@ -5,6 +5,8 @@ Registro de las decisiones de F0.01, confirmadas el 2026-10-28. Complementa a `g
 decisión está en `context/gatekeeper_kg.json` (v1.3.0, nodos `D#` y `K##`). La evidencia de la revisión CoV y del
 adversario está en `context/revision_cov_adversarial.md`.
 
+**Aprobación:** este documento fue aprobado por el usuario el 2026-10-29: "docs/decisisones aprovada".
+
 ## 1. Resumen
 
 | Id | Tema | Elección |
@@ -162,6 +164,13 @@ páginas: 36 ms) están en el informe de revisión. Las latencias de ClamAV y VT
 - RBAC: admin ⊇ analista. Un analista recibe **403** en los endpoints de admin.
 - TOTP obligatorio para admin.
 - API keys guardadas como HMAC-SHA-256 con pepper, con un prefijo visible.
+- **K20 — Privacidad en el dashboard: detalle solo de cuarentena o malware** (*confirmada el 2026-10-29*).
+  Aprobación del usuario: "tomando en cuenta el tema de privacidad, no veremos los archivos al menos que contengan algun malicioso detectado o que estén en cuarentena"; ante la pregunta de qué se ve de un archivo sin cuarentena ni malware, eligió: "Solo metadatos mínimos".
+  - Desde el dashboard (analista y admin), de un archivo `limpio`, `rechazado`, `pendiente` o `error` sin detección de malware solo se ven metadatos mínimos: id, aplicación, estado, tipo detectado, tamaño y fechas. Nunca el contenido ni el nombre original.
+  - El detalle completo (nombre original, SHA-256, resultado por capa) solo se ve de archivos `en_cuarentena` o con malware detectado por alguna capa.
+  - El contenido nunca se sirve desde el dashboard salvo lo que ya define la liberación de cuarentena.
+  - Las funciones de lectura de admin van en un módulo separado del público y aplican esta restricción (resuelve la pregunta de gk-db en el piloto P9).
+  - Afecta: `GET /v1/admin/files`, `ent:archivo`, INV-10, `svc:api`, F5.07, F5.08, F5.09.
 
 ## 9. Limitaciones declaradas
 
@@ -172,3 +181,16 @@ páginas: 36 ms) están en el informe de revisión. Las latencias de ClamAV y VT
   lector.
 - Los nuevos resultados de VT no se aplican de forma retroactiva a archivos que ya se entregaron.
 - No se reutilizan resultados por hash entre aplicaciones, para evitar el canal lateral de tiempo (INV-10).
+
+## 10. Propuestas pendientes de confirmar
+
+Propuestas del piloto de agentes (2026-10-29). Ninguna está decidida; solo el usuario las confirma.
+
+| Id | Propuesta | Afecta | Estado |
+|---|---|---|---|
+| K14 | Contexto de transiciones de estado: `error → pendiente` exige `tipo_error` (transitorio\|final) y `reintentos` (int ≥ 0, < 2); `en_cuarentena → *` exige `usuario`, `motivo`, `liberado_en` (datetime con zona) y `resultado_cdr` coincidente con el destino; se rechazan claves faltantes o extra | F2.04 | *pendiente de confirmar* |
+| K15 | Tipos estrictos: `transicionar` y `es_descargable` solo aceptan miembros de `Estado`; la persistencia convierte con `Estado(valor)` | F2.04, F2.05 | *pendiente de confirmar* |
+| K16 | Evidencia del análisis en `pendiente → {limpio, en_cuarentena, rechazado}`: exigir el resultado del CDR y el veredicto antes de F3 | F2.04, INV-01, INV-09 | *pendiente de confirmar* |
+| K17 | Persistir el contador de reintentos en la BD y coordinarlo con `arq_max_tries` | F2.04, F1.07, param:arq_max_tries | *pendiente de confirmar* |
+| K18 | Tope de longitud y filtro de caracteres de control para `usuario` y `motivo` de la liberación. **El valor del tope no está definido: el usuario debe fijarlo** | F5.06 | *pendiente de confirmar* |
+| K19 | `liberado_en` lo genera el servidor, nunca se toma del cliente | F5.06, INV-08 | *pendiente de confirmar* |

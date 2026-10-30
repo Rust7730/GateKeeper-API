@@ -18,6 +18,9 @@ class Agente:
 
 
 def cargar_agente(nombre: str) -> Agente:
+    # .claude/agents/ está en .gitignore: en un clon limpio (CI) no existe y no hay contrato que probar.
+    if not AGENTES.is_dir():
+        pytest.skip(".claude/agents/ no existe en este clon (está en .gitignore)")
     texto = (AGENTES / f"{nombre}.md").read_text(encoding="utf-8")
     _, frontmatter, cuerpo = texto.split("---", 2)
     meta = yaml.safe_load(frontmatter)

@@ -172,3 +172,9 @@ def test_gk_commit_asigna_bd_a_gk_db(agente):
     c = agente("gk-commit").cuerpo
     assert "`api/db/` y `api/migrations/` → gk-db" in c
     assert "Docker" in c
+
+
+def test_gk_commit_staging_solo_al_final(agente):
+    c = agente("gk-commit").cuerpo
+    assert "no hagas `git add` hasta el control 7" in c
+    assert "no ejecutes los siguientes" in c

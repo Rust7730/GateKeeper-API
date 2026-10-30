@@ -2,9 +2,10 @@
 
 Complementan la matriz de ataque (tests/attack-matrix/test_vec15_descarga_pendiente.py, de gk-security) con
 casos de robustez: tipos inesperados en el contexto, valores que no son miembros de `Estado` y la garantía de
-que toda transición rechazada lanza `TransicionInvalida` y nunca otra excepción.
+que una transición rechazada lanza `TransicionInvalida`, con los límites que declara `transicionar`.
 
-No fijan K15 (tipos estrictos), K16 ni K24 (contexto de la liberación), que siguen pendientes de confirmar.
+K15 (tipos estrictos) sigue pendiente de confirmar, pero estas pruebas sí fijan su comportamiento estricto, que
+ya se aplica de forma provisional. No fijan K16 ni K24 (contexto de la liberación), también pendientes.
 """
 
 from datetime import UTC, date, datetime, timedelta, timezone, tzinfo
@@ -118,6 +119,70 @@ def test_valores_que_no_son_miembros_lanzan_transicion_invalida(actual, nuevo):
         transicionar(actual, nuevo)
 
 
+class _ImitaEstado:
+    """Se hace pasar por `miembro`: isinstance() lo acepta y en un dict cae en la misma clave."""
+
+    def __init__(self, miembro):
+        self.miembro = miembro
+
+    @property
+    def __class__(self):
+        return Estado
+
+    def __hash__(self):
+        return hash(self.miembro)
+
+    def __eq__(self, otro):
+        return otro is self.miembro
+
+
+class _ClaseQueLanza:
+    """isinstance() consulta `__class__` y propaga lo que lance."""
+
+    @property
+    def __class__(self):
+        raise RuntimeError("__class__ hostil")
+
+
+def test_el_imitador_engana_a_isinstance():
+    """Control de la prueba: sin esto, las de abajo no demostrarían nada sobre isinstance()."""
+    assert isinstance(_ImitaEstado(Estado.PENDIENTE), Estado)
+    with pytest.raises(RuntimeError):
+        isinstance(_ClaseQueLanza(), Estado)
+
+
+# Se parametrizan fábricas, no instancias: pytest usa isinstance() al generar los ids y _ClaseQueLanza lo rompería.
+@pytest.mark.parametrize(
+    "fabrica",
+    [lambda: _ImitaEstado(Estado.PENDIENTE), _ClaseQueLanza],
+    ids=["imita_pendiente", "clase_que_lanza"],
+)
+def test_actual_hostil_lanza_transicion_invalida(fabrica):
+    """Hallazgo de gk-security: el imitador pasaba isinstance() y salía el Estado.LIMPIO real (falla abierto)."""
+    with pytest.raises(TransicionInvalida):
+        transicionar(fabrica(), Estado.LIMPIO)
+
+
+@pytest.mark.parametrize(
+    "fabrica",
+    [lambda: _ImitaEstado(Estado.LIMPIO), _ClaseQueLanza],
+    ids=["imita_limpio", "clase_que_lanza"],
+)
+def test_nuevo_hostil_lanza_transicion_invalida(fabrica):
+    with pytest.raises(TransicionInvalida):
+        transicionar(Estado.PENDIENTE, fabrica())
+
+
+def test_actual_y_nuevo_en_el_contexto_son_claves_ordinarias():
+    """Son posicionales: como claves de contexto no chocan con los parámetros (antes, TypeError)."""
+    assert (
+        transicionar(Estado.PENDIENTE, Estado.LIMPIO, actual="x", nuevo="y")
+        is Estado.LIMPIO
+    )
+    with pytest.raises(TransicionInvalida):
+        transicionar(Estado.LIMPIO, Estado.PENDIENTE, actual="x", nuevo="y")
+
+
 # ---------------------------------------------------------------------------------------- pendiente -> error
 
 
@@ -188,6 +253,53 @@ def test_liberacion_invalida_se_rechaza(destino, campo, valor):
         transicionar(Estado.EN_CUARENTENA, destino, **{**LIBERACION, campo: valor})
 
 
+class _TextoHostil(str):
+    """Subclase de str cuyo strip() dice que hay texto aunque no lo haya."""
+
+    def strip(self, chars=None):
+        return "hay texto"
+
+
+@pytest.mark.parametrize("destino", [Estado.LIMPIO, Estado.RECHAZADO, Estado.ERROR])
+@pytest.mark.parametrize("campo", ["usuario", "motivo"])
+@pytest.mark.parametrize("valor", ["", "   ", "admin"])
+def test_liberacion_rechaza_subclases_de_str(destino, campo, valor):
+    """Solo `str` exacto: una subclase decide por sí misma qué devuelve strip() (INV-08)."""
+    with pytest.raises(TransicionInvalida):
+        transicionar(
+            Estado.EN_CUARENTENA,
+            destino,
+            **{**LIBERACION, campo: _TextoHostil(valor)},
+        )
+
+
+@pytest.mark.parametrize("tipo_error", ["transitorio", "final"])
+def test_liberacion_a_error_acepta_tipo_error_valido(tipo_error):
+    assert (
+        transicionar(
+            Estado.EN_CUARENTENA, Estado.ERROR, **LIBERACION, tipo_error=tipo_error
+        )
+        is Estado.ERROR
+    )
+
+
+@pytest.mark.parametrize(
+    "tipo_error", ["basura", "", "TRANSITORIO", None, 1, ["final"]]
+)
+def test_liberacion_a_error_con_tipo_error_desconocido_se_rechaza(tipo_error):
+    """Misma regla que `pendiente -> error`. Si no llega, se acepta: hacerlo obligatorio está por decidir."""
+    with pytest.raises(TransicionInvalida):
+        transicionar(
+            Estado.EN_CUARENTENA, Estado.ERROR, **LIBERACION, tipo_error=tipo_error
+        )
+
+
+def test_liberacion_a_error_sigue_exigiendo_la_liberacion():
+    """Un tipo_error válido no suple usuario, motivo ni liberado_en."""
+    with pytest.raises(TransicionInvalida):
+        transicionar(Estado.EN_CUARENTENA, Estado.ERROR, tipo_error="final")
+
+
 class _ZonaQueFalla(tzinfo):
     def utcoffset(self, dt):
         raise RuntimeError("tzinfo roto")
@@ -203,6 +315,22 @@ def test_liberado_en_con_tzinfo_roto_lanza_transicion_invalida(zona):
     """Una excepción dentro de la validación del contexto también sale como TransicionInvalida."""
     liberado_en = datetime(2026, 10, 30, 12, 0, tzinfo=zona)
     with pytest.raises(TransicionInvalida):
+        transicionar(
+            Estado.EN_CUARENTENA,
+            Estado.LIMPIO,
+            **{**LIBERACION, "liberado_en": liberado_en},
+        )
+
+
+class _ZonaQueInterrumpe(tzinfo):
+    def utcoffset(self, dt):
+        raise KeyboardInterrupt
+
+
+def test_base_exception_no_se_convierte_en_transicion_invalida():
+    """Límite que declara `transicionar`: solo atrapa Exception; un Ctrl-C o un SystemExit se propagan."""
+    liberado_en = datetime(2026, 10, 30, 12, 0, tzinfo=_ZonaQueInterrumpe())
+    with pytest.raises(KeyboardInterrupt):
         transicionar(
             Estado.EN_CUARENTENA,
             Estado.LIMPIO,

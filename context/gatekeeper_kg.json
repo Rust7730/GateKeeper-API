@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 416,
-   "aristas": 950,
+   "nodos": 422,
+   "aristas": 963,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 30,
+    "Observacion": 36,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 143,
+    "afecta": 156,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -4127,9 +4127,11 @@
    "props": {
     "propuesta": "Exigir el resultado del CDR y el veredicto antes de F3",
     "hallazgo": "Hallazgo media de gk-security (piloto)",
-    "decision": "pendiente",
+    "decision": "confirmada",
     "fecha_propuesta": "2026-10-29",
-    "origen": "gatekeeper-guardian"
+    "origen": "gatekeeper-guardian",
+    "eleccion": "La evidencia se exige en la BD: el UPDATE hacia 'limpio' solo se aplica si existe un resultado_analisis de ese archivo con capa='cdr' y veredicto='limpio'.",
+    "fecha_decision": "2026-10-30"
    }
   },
   {
@@ -4245,9 +4247,11 @@
    "props": {
     "propuesta": "definir si un nombre de más de 255 caracteres, vacío o con caracteres de control se trunca o se rechaza en POST /v1/files; nunca entra en rutas ni decisiones (INV-02, INV-03) y se escapa al mostrarse",
     "hallazgo": "hallazgo baja de gk-security sobre K22",
-    "decision": "pendiente",
+    "decision": "confirmada",
     "fecha_propuesta": "2026-10-30",
-    "origen": "gatekeeper-guardian"
+    "origen": "gatekeeper-guardian",
+    "eleccion": "En POST /v1/files el nombre original se sanea y se acepta: se quitan los caracteres de control, se trunca a 255 caracteres y, si queda vacío, se usa 'sin_nombre'. El archivo sigue su análisis. Coherente con vec:03.",
+    "fecha_decision": "2026-10-30"
    }
   },
   {
@@ -4318,6 +4322,82 @@
     "origen": "gatekeeper-guardian",
     "eleccion": "aplicacion.nombre de 1 a 100 caracteres, único sin distinguir mayúsculas, sin espacio en blanco en los bordes ni caracteres de control. Prefijo de API key: gk_ + 12 hex minúsculas. api_key.aplicacion_id con ON DELETE RESTRICT.",
     "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K31",
+   "tipo": "Observacion",
+   "label": "Límite de memoria del proceso hijo del CDR",
+   "props": {
+    "propuesta": "RLIMIT_AS = 1 GiB",
+    "hallazgo": "K09 exige el límite y el KG no definía el valor.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "RLIMIT_AS = 1 GiB",
+    "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K32",
+   "tipo": "Observacion",
+   "label": "Timeouts de conexión a PostgreSQL",
+   "props": {
+    "propuesta": "connect_timeout, statement_timeout y pool_timeout a 5 s",
+    "hallazgo": "Una BD colgada no debe retener una subida antes del 202.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "connect_timeout, statement_timeout y pool_timeout a 5 s",
+    "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K33",
+   "tipo": "Observacion",
+   "label": "Detalles del esquema de archivo y resultado_analisis",
+   "props": {
+    "propuesta": "ON DELETE RESTRICT en archivo.aplicacion_id y resultado_analisis.archivo_id; capa y veredicto NOT NULL; tope de detalle de 65536 bytes por octet_length(CAST(detalle AS text)); resultado_analisis.id como GENERATED ALWAYS AS IDENTITY.",
+    "hallazgo": "Propuesta de gk-db; sin aprobación del usuario.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K34",
+   "tipo": "Observacion",
+   "label": "cambiar_estado rechaza transiciones sin soporte persistido",
+   "props": {
+    "propuesta": "cambiar_estado rechaza error -> pendiente y en_cuarentena -> * mientras no existan el reintento persistido y la bitácora.",
+    "hallazgo": "Propuesta de gk-db; sin aprobación del usuario.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K35",
+   "tipo": "Observacion",
+   "label": "tipo_error obligatorio al entrar a error",
+   "props": {
+    "propuesta": "tipo_error es obligatorio en toda entrada a error, para alinear el dominio con ck_archivo_tipo_error_solo_en_error.",
+    "hallazgo": "Propuesta de gk-db; sin aprobación del usuario.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K36",
+   "tipo": "Observacion",
+   "label": "Serializador de ARQ distinto de pickle",
+   "props": {
+    "propuesta": "Serializador de ARQ distinto de pickle (JSON o msgpack) entre worker y coordinator: un worker comprometido no debe poder ejecutar código en el coordinator.",
+    "hallazgo": "Propuesta de gk-security; sin aprobación del usuario.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian"
    }
   }
  ],
@@ -9169,6 +9249,71 @@
    "de": "K30",
    "rel": "afecta",
    "a": "F1.07"
+  },
+  {
+   "de": "K31",
+   "rel": "afecta",
+   "a": "K09"
+  },
+  {
+   "de": "K31",
+   "rel": "afecta",
+   "a": "param:cdr_proceso_hijo"
+  },
+  {
+   "de": "K32",
+   "rel": "afecta",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "K32",
+   "rel": "afecta",
+   "a": "M1"
+  },
+  {
+   "de": "K33",
+   "rel": "afecta",
+   "a": "ent:archivo"
+  },
+  {
+   "de": "K33",
+   "rel": "afecta",
+   "a": "ent:resultado_analisis"
+  },
+  {
+   "de": "K34",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K34",
+   "rel": "afecta",
+   "a": "K17"
+  },
+  {
+   "de": "K34",
+   "rel": "afecta",
+   "a": "INV-08"
+  },
+  {
+   "de": "K35",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K35",
+   "rel": "afecta",
+   "a": "K14"
+  },
+  {
+   "de": "K36",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K36",
+   "rel": "afecta",
+   "a": "K08"
   }
  ]
 }

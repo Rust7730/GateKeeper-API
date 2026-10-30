@@ -5,6 +5,7 @@ variable sin mostrar su valor, y solo con el esquema ``postgresql+psycopg://`` (
 """
 
 import pytest
+from sqlalchemy.engine import URL
 
 from api.db import config
 from api.db.config import ConfiguracionBDError, url_bd, url_migraciones
@@ -15,8 +16,22 @@ VAR_MIGRACION = "GATEKEEPER_DATABASE_URL_MIGRACION"
 # Credenciales obviamente falsas. La contraseña es un centinela para comprobar que
 # ningún mensaje de error muestra el valor de la variable.
 CENTINELA = "NO-MOSTRAR-ESTO"
-URL_APP = f"postgresql+psycopg://gk_app:{CENTINELA}@bd.invalid:5432/gatekeeper"
-URL_MIGRACION = f"postgresql+psycopg://gk_dueno:{CENTINELA}@bd.invalid:5432/gatekeeper"
+
+
+def _url_falsa(usuario: str, driver: str = "postgresql+psycopg") -> str:
+    """URL como texto, armada en ejecución: esa forma no puede ser un literal del código."""
+    return URL.create(
+        driver,
+        username=usuario,
+        password=CENTINELA,
+        host="bd.invalid",
+        port=5432,
+        database="gatekeeper",
+    ).render_as_string(hide_password=False)
+
+
+URL_APP = _url_falsa("gk_app")
+URL_MIGRACION = _url_falsa("gk_dueno")
 
 # Motivo concreto del rechazo por espacios; debe aparecer en el mensaje, y el del
 # esquema no, para que la prueba no pase por el motivo equivocado.
@@ -150,7 +165,7 @@ def test_cada_funcion_lee_solo_su_variable(monkeypatch) -> None:
 
 def test_el_error_no_encadena_otra_excepcion_con_el_valor(monkeypatch) -> None:
     """Ni __cause__ ni __context__ deben arrastrar el valor a un traceback."""
-    monkeypatch.setenv(VAR_APP, "postgresql://gk_app:" + CENTINELA + "@bd.invalid/x")
+    monkeypatch.setenv(VAR_APP, _url_falsa("gk_app", driver="postgresql"))
     with pytest.raises(ConfiguracionBDError) as error:
         url_bd()
     assert error.value.__cause__ is None

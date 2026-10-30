@@ -9,6 +9,12 @@ SCRIPT = (
     / ".claude/skills/gatekeeper-guardian/scripts/arbol.py"
 )
 
+# La skill está en .gitignore: en un clon limpio no existe y no hay script que probar.
+if not SCRIPT.exists():
+    pytest.skip(
+        "la skill gatekeeper-guardian no está en este clon", allow_module_level=True
+    )
+
 
 def _modulo():
     spec = importlib.util.spec_from_file_location("arbol", SCRIPT)
@@ -116,3 +122,12 @@ def test_sello_cambia_solo_con_las_pruebas_de_ataque(repo):
     assert arbol.sello(repo, "tests/attack-matrix") == antes
     (repo / "tests/attack-matrix/test_vec01.py").write_text("assert True\n")
     assert arbol.sello(repo, "tests/attack-matrix") != antes
+
+
+def test_archivos_revisados_lista_las_dos_rutas_de_un_renombrado(repo):
+    arbol = _modulo()
+    (repo / "viejo.py").write_text("")
+    _commit_inicial(repo)
+    (repo / "viejo.py").unlink()
+    (repo / "nuevo.py").write_text("")
+    assert arbol.archivos_revisados(repo) == ["nuevo.py", "viejo.py"]

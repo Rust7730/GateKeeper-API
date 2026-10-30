@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 406,
-   "aristas": 918,
+   "nodos": 411,
+   "aristas": 933,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 20,
+    "Observacion": 25,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 111,
+    "afecta": 126,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -2806,7 +2806,7 @@
    "props": {
     "meta": "Todo el sistema levanta en Compose y una prueba demuestra que el worker no tiene salida a internet.",
     "criterio_salida": "docker compose up levanta todos los servicios, la especificación OpenAPI y el modelo ER están en docs/ y la prueba de aislamiento pasa en CI.",
-    "estado": "pendiente"
+    "estado": "en_progreso"
    }
   },
   {
@@ -2870,8 +2870,16 @@
    "tipo": "Paso",
    "label": "Diseñar el modelo ER con las entidades de modelo_datos y crear la primera migración con Alembic.",
    "props": {
-    "estado": "pendiente",
-    "orden": 7
+    "estado": "en_progreso",
+    "orden": 7,
+    "historial": [
+     {
+      "fecha": "2026-10-30",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "diseño aprobado (spec 2026-10-30-bd-modelo-er-design); implementación con gk-db en la rama f1/f1.07-modelo-er"
+     }
+    ]
    }
   },
   {
@@ -4079,9 +4087,11 @@
    "props": {
     "propuesta": "error→pendiente exige tipo_error (transitorio|final) y reintentos (int ≥ 0, < 2); en_cuarentena→* exige usuario, motivo, liberado_en (datetime con zona) y resultado_cdr coincidente con el destino; claves faltantes o extra se rechazan",
     "hallazgo": "Propuesta de gk-api-dev (piloto)",
-    "decision": "pendiente",
+    "decision": "confirmada",
     "fecha_propuesta": "2026-10-29",
-    "origen": "gatekeeper-guardian"
+    "origen": "gatekeeper-guardian",
+    "eleccion": "archivo guarda tipo_error (transitorio|final, solo si estado=error) y reintentos (0..2) con CHECK en la BD; el contexto de en_cuarentena→* sigue pendiente",
+    "fecha_decision": "2026-10-30"
    }
   },
   {
@@ -4115,9 +4125,11 @@
    "props": {
     "propuesta": "Persistir el contador de reintentos en la BD y coordinarlo con arq_max_tries",
     "hallazgo": "Propuesta de gk-security (piloto)",
-    "decision": "pendiente",
+    "decision": "confirmada",
     "fecha_propuesta": "2026-10-29",
-    "origen": "gatekeeper-guardian"
+    "origen": "gatekeeper-guardian",
+    "eleccion": "el contador de reintentos se persiste en archivo.reintentos (0..2, CHECK) y el dominio deja de confiar en el valor que pasa quien llama",
+    "fecha_decision": "2026-10-30"
    }
   },
   {
@@ -4156,6 +4168,72 @@
     "origen": "gatekeeper-guardian",
     "eleccion": "Desde el dashboard (analista y admin), de un archivo limpio, rechazado, pendiente o error sin detección de malware solo se ven metadatos mínimos: id, aplicación, estado, tipo detectado, tamaño y fechas; nunca el contenido ni el nombre original. El detalle completo (nombre original, SHA-256, resultado por capa) solo se ve de archivos en_cuarentena o con malware detectado por alguna capa. El contenido nunca se sirve desde el dashboard salvo lo que ya define la liberación de cuarentena. Las funciones de lectura de admin van en un módulo separado del público y aplican esta restricción (resuelve la pregunta de gk-db en P9).",
     "fecha_decision": "2026-10-29"
+   }
+  },
+  {
+   "id": "K21",
+   "tipo": "Observacion",
+   "label": "Refresh tokens en PostgreSQL (resuelve V19)",
+   "props": {
+    "propuesta": "tabla refresh_token (jti, usuario_id, familia, expira_en, revocado); revocar una familia es un UPDATE transaccional",
+    "hallazgo": "Respuesta del usuario: PostgreSQL",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "tabla refresh_token (jti, usuario_id, familia, expira_en, revocado); revocar una familia es un UPDATE transaccional",
+    "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K22",
+   "tipo": "Observacion",
+   "label": "nombre_original se guarda siempre",
+   "props": {
+    "propuesta": "archivo.nombre_original NOT NULL varchar(255) para todos los archivos; K20 solo limita quién lo ve",
+    "hallazgo": "Respuesta del usuario: Guardarlo siempre",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "archivo.nombre_original NOT NULL varchar(255) para todos los archivos; K20 solo limita quién lo ve",
+    "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K23",
+   "tipo": "Observacion",
+   "label": "Capa de datos: SQLAlchemy 2.0 ORM con repositorios explícitos",
+   "props": {
+    "propuesta": "modelos ORM + Alembic; consultas explícitas en repositorios; sesiones asíncronas con psycopg 3 (postgresql+psycopg)",
+    "hallazgo": "Respuesta del usuario: A: ORM + repos explícitos",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "modelos ORM + Alembic; consultas explícitas en repositorios; sesiones asíncronas con psycopg 3 (postgresql+psycopg)",
+    "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K24",
+   "tipo": "Observacion",
+   "label": "Contexto de la liberación de cuarentena (resto de K14)",
+   "props": {
+    "propuesta": "en_cuarentena→limpio|rechazado|error exige usuario, motivo, liberado_en (datetime con zona) y resultado_cdr coincidente con el destino; claves faltantes o extra se rechazan",
+    "hallazgo": "se separa de K14, cuya confirmación del 2026-10-30 cubre solo las columnas tipo_error y reintentos (hallazgo de gk-security)",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K25",
+   "tipo": "Observacion",
+   "label": "Política para nombre_original fuera de rango",
+   "props": {
+    "propuesta": "definir si un nombre de más de 255 caracteres, vacío o con caracteres de control se trunca o se rechaza en POST /v1/files; nunca entra en rutas ni decisiones (INV-02, INV-03) y se escapa al mostrarse",
+    "hallazgo": "hallazgo baja de gk-security sobre K22",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian"
    }
   }
  ],
@@ -8847,6 +8925,81 @@
    "de": "K20",
    "rel": "afecta",
    "a": "F5.09"
+  },
+  {
+   "de": "K21",
+   "rel": "afecta",
+   "a": "ent:refresh_token"
+  },
+  {
+   "de": "K21",
+   "rel": "afecta",
+   "a": "V19"
+  },
+  {
+   "de": "K21",
+   "rel": "afecta",
+   "a": "F5.03"
+  },
+  {
+   "de": "K22",
+   "rel": "afecta",
+   "a": "ent:archivo"
+  },
+  {
+   "de": "K22",
+   "rel": "afecta",
+   "a": "K20"
+  },
+  {
+   "de": "K23",
+   "rel": "afecta",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "K23",
+   "rel": "afecta",
+   "a": "F1.07"
+  },
+  {
+   "de": "K23",
+   "rel": "afecta",
+   "a": "ent:archivo"
+  },
+  {
+   "de": "K24",
+   "rel": "afecta",
+   "a": "K14"
+  },
+  {
+   "de": "K24",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K24",
+   "rel": "afecta",
+   "a": "F5.06"
+  },
+  {
+   "de": "K24",
+   "rel": "afecta",
+   "a": "INV-08"
+  },
+  {
+   "de": "K25",
+   "rel": "afecta",
+   "a": "K22"
+  },
+  {
+   "de": "K25",
+   "rel": "afecta",
+   "a": "ent:archivo"
+  },
+  {
+   "de": "K25",
+   "rel": "afecta",
+   "a": "ep:POST /v1/files"
   }
  ]
 }

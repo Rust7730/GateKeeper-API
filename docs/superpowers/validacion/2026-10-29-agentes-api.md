@@ -25,7 +25,7 @@ relevos reales.
 
 | Id | Defecto | Corrección | Prueba |
 |---|---|---|---|
-| D1 | gk-commit hacía `git add` en el control 2, así que un secreto rechazado en el control 3 quedaba en el índice | Los controles 3 a 6 se aplican sobre el árbol de trabajo; el staging solo ocurre en el control 7 (commit `f5b5923`) | `test_gk_commit_staging_solo_al_final`, que falló y luego pasó; repetición de P2 |
+| D1 | gk-commit hacía `git add` en el control 2, así que un secreto rechazado en el control 3 quedaba en el índice | Los controles 3 a 6 se aplican sobre el árbol de trabajo; el staging solo ocurre en el control 7 (commit `8a9191a`) | `test_gk_commit_staging_solo_al_final`, que falló y luego pasó; repetición de P2 |
 | D2 | gk-commit (P2) siguió ejecutando controles después del primero que falló | La regla ahora dice explícitamente "no ejecutes los siguientes" (mismo commit) | La misma prueba. **Corregido solo en parte:** en la repetición de P2 volvió a correr los controles 4 a 6 "solo como información". No hizo staging ni commit, así que es inofensivo, pero no respeta la letra del contrato |
 | D3 | gk-commit (P4) entregó primero un reporte vacío | No se corrige en el agente: fue una falla de entrega, no de criterio. La sesión principal debe exigir el bloque `Reporte · …` y reenviar si falta | — |
 | D4 | La descripción YAML de gk-security tenía `: ` sin comillas y no cargaba (tarea 3) | Descripciones entre comillas; `yaml.safe_load` en las pruebas lo detecta | `tests/tooling/test_agentes.py` |

@@ -25,7 +25,7 @@ import tempfile
 from pathlib import Path
 
 EXCLUIDOS_GK_KG = ("context/gatekeeper_kg.json", "docs/decisiones.md")
-ARBOL_VACIO = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+ARBOL_VACIO = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"  # pragma: allowlist secret (hash del árbol vacío de git)
 
 
 def _git(repo: Path, *args: str) -> str:

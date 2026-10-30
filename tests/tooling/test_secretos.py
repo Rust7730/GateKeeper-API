@@ -29,7 +29,8 @@ def test_detecta_llave_hex_con_nombre_en_espanol(tmp_path):
 
 def test_detecta_contrasena_en_dsn(tmp_path):
     assert _escanear(
-        tmp_path, 'DSN = "postgresql://gk:S3cr3t0-Larg0-9x@db:5432/gatekeeper"\n'
+        tmp_path,
+        'DSN = "postgresql://gk:S3cr3t0-Larg0-9x@db:5432/gatekeeper"\n',  # pragma: allowlist secret (dato de prueba inventado)
     )
 
 

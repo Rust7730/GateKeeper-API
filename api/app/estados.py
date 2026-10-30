@@ -12,9 +12,11 @@ Toda transición pasa por `transicionar`, que la valida. Solo `limpio` es descar
 K15 (tipos estrictos) sigue pendiente de confirmar, pero su comportamiento estricto ya se aplica de forma
 provisional: `transicionar` solo acepta el tipo exacto `Estado` y `es_descargable`, el miembro `Estado.LIMPIO`.
 
-Pendientes de confirmar y NO aplicadas aquí: K16 (evidencia del análisis en `pendiente -> *`) y K24
-(`resultado_cdr` coincidente y rechazo de claves extra en la liberación). Las claves de contexto que esta
-versión no usa se ignoran.
+K16 (evidencia del CDR para `pendiente -> limpio`) está confirmada, pero no se comprueba aquí: la exige el
+`UPDATE` de `cambiar_estado`, en api/db/repositorios.py, con los datos de la BD.
+
+Pendiente de confirmar y NO aplicada aquí: K24 (`resultado_cdr` coincidente y rechazo de claves extra en la
+liberación). Las claves de contexto que esta versión no usa se ignoran.
 """
 
 from collections.abc import Callable, Mapping
@@ -71,8 +73,8 @@ def _reintento(contexto: Mapping[str, object]) -> str | None:
     """K11 + K14 + K17: solo un error transitorio con reintentos (int) en [0, MAX_REINTENTOS).
 
     Es un filtro previo, no la garantía: el contexto lo escribe quien llama, así que `tipo_error` y `reintentos`
-    de aquí no son la fuente de verdad. K17 y K11 las cumple el `UPDATE` atómico de `cambiar_estado` (repositorio
-    de gk-db, aún por implementar) con los datos de la fila.
+    de aquí no son la fuente de verdad. K17 y K11 las debe cumplir un `UPDATE` atómico con los datos de la fila.
+    Ese `UPDATE` todavía no existe: `cambiar_estado` (api/db/repositorios.py) rechaza el reintento hasta tenerlo.
     """
     tipo_error = contexto.get("tipo_error")
     if not _es_tipo_error(tipo_error) or tipo_error != "transitorio":

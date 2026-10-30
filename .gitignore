@@ -7,3 +7,6 @@ __pycache__/
 .claude/agents/
 .env.*
 !.env.example
+docs/
+.claude/skills/gatekeeper-guardian/
+.superpowers/

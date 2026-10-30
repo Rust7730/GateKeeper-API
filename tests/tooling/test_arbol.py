@@ -9,6 +9,12 @@ SCRIPT = (
     / ".claude/skills/gatekeeper-guardian/scripts/arbol.py"
 )
 
+# La skill está en .gitignore: en un clon limpio no existe y no hay script que probar.
+if not SCRIPT.exists():
+    pytest.skip(
+        "la skill gatekeeper-guardian no está en este clon", allow_module_level=True
+    )
+
 
 def _modulo():
     spec = importlib.util.spec_from_file_location("arbol", SCRIPT)

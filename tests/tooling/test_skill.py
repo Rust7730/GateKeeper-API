@@ -1,8 +1,16 @@
 from pathlib import Path
 
+import pytest
+
 SKILL = (
     Path(__file__).resolve().parents[2] / ".claude/skills/gatekeeper-guardian/SKILL.md"
 )
+
+# La skill está en .gitignore: en un clon limpio no existe y no hay script que probar.
+if not SKILL.exists():
+    pytest.skip(
+        "la skill gatekeeper-guardian no está en este clon", allow_module_level=True
+    )
 
 
 def test_skill_trabajo_con_agentes():

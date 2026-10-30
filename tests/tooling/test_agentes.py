@@ -55,3 +55,30 @@ def test_gk_security_veredicto(agente):
 
 def test_gk_security_reporte(agente):
     assert "Reporte · gk-security · <paso>" in agente("gk-security").cuerpo
+
+
+def test_gk_api_dev_frontmatter(agente):
+    a = agente("gk-api-dev")
+    assert a.tools == {"Read", "Grep", "Glob", "Edit", "Write", "Bash"}
+    assert a.model == "opus"
+
+
+def test_gk_api_dev_reglas(agente):
+    c = agente("gk-api-dev").cuerpo
+    for x in (
+        "gatekeeper-guardian",
+        "api/tests/",
+        "no modifiques tests/attack-matrix/",
+        "detenido",
+        "Para gk-kg",
+    ):
+        assert x in c
+
+
+def test_gk_api_dev_latencia(agente):
+    c = agente("gk-api-dev").cuerpo
+    assert "M1" in c and "p95 < 1 s" in c and "números" in c
+
+
+def test_gk_api_dev_reporte(agente):
+    assert "Reporte · gk-api-dev · <paso>" in agente("gk-api-dev").cuerpo

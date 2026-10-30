@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 411,
-   "aristas": 933,
+   "nodos": 416,
+   "aristas": 950,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 25,
+    "Observacion": 30,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 126,
+    "afecta": 143,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -2878,6 +2878,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "diseño aprobado (spec 2026-10-30-bd-modelo-er-design); implementación con gk-db en la rama f1/f1.07-modelo-er"
+     },
+     {
+      "fecha": "2026-10-30",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "modelos de aplicacion y api_key integrados por el PR #2; el resto llega con la rebanada vertical"
      }
     ]
    }
@@ -2887,8 +2893,16 @@
    "tipo": "Paso",
    "label": "Crear el esqueleto de FastAPI con /health y el proyecto Angular con la skill angular-new-app.",
    "props": {
-    "estado": "pendiente",
-    "orden": 8
+    "estado": "en_progreso",
+    "orden": 8,
+    "historial": [
+     {
+      "fecha": "2026-10-30",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "esqueleto de FastAPI con /health integrado en main por el PR #3; falta el proyecto Angular"
+     }
+    ]
    }
   },
   {
@@ -4234,6 +4248,76 @@
     "decision": "pendiente",
     "fecha_propuesta": "2026-10-30",
     "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K26",
+   "tipo": "Observacion",
+   "label": "Rebanada vertical local como primera entrega funcional",
+   "props": {
+    "propuesta": "Subir un archivo con API key, recibir 202 con id, consultar el estado y descargar la versión reconstruida. Firma con python-magic, CDR con Pillow y pikepdf en segundo plano, estado en PostgreSQL. Sin ClamAV, VirusTotal, Redis ni dashboard. Corre con uvicorn y PostgreSQL en Docker.",
+    "hallazgo": "El usuario prioriza tener algo funcional antes de seguir refinando.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Subir un archivo con API key, recibir 202 con id, consultar el estado y descargar la versión reconstruida. Firma con python-magic, CDR con Pillow y pikepdf en segundo plano, estado en PostgreSQL. Sin ClamAV, VirusTotal, Redis ni dashboard. Corre con uvicorn y PostgreSQL en Docker.",
+    "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K27",
+   "tipo": "Observacion",
+   "label": "Revisión de seguridad por funcionalidad",
+   "props": {
+    "propuesta": "Se mantienen TDD y commits pequeños; gk-security revisa al cerrar cada funcionalidad y gk-commit aplica sus controles automáticos en cada commit.",
+    "hallazgo": "Acelerar la entrega sin perder la revisión independiente.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Se mantienen TDD y commits pequeños; gk-security revisa al cerrar cada funcionalidad y gk-commit aplica sus controles automáticos en cada commit.",
+    "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K28",
+   "tipo": "Observacion",
+   "label": "Desviación TEMPORAL de INV-04, solo para uso local",
+   "props": {
+    "propuesta": "En la rebanada local no hay worker aislado; el CDR corre en un proceso hijo por archivo, con RLIMIT_AS, timeout con kill (K09) y sin acceso a la BD. Se cierra cuando llegue el worker en contenedor. No es apta para producción.",
+    "hallazgo": "No hay contenedores de worker en la rebanada; INV-04 sigue vigente como invariante del sistema final.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "En la rebanada local no hay worker aislado; el CDR corre en un proceso hijo por archivo, con RLIMIT_AS, timeout con kill (K09) y sin acceso a la BD. Se cierra cuando llegue el worker en contenedor. No es apta para producción.",
+    "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K29",
+   "tipo": "Observacion",
+   "label": "Superficie pública de la API",
+   "props": {
+    "propuesta": "Con GATEKEEPER_DOCS=1 solo se expone /openapi.json (Swagger y ReDoc no, por la CSP estricta); errores genéricos {\"detail\": \"<texto estándar HTTP>\"} y el 500 nunca expone tipo, mensaje ni traza; uvicorn siempre con --no-server-header y Nginx con server_tokens off.",
+    "hallazgo": "No anunciar el servidor ni filtrar detalles internos.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Con GATEKEEPER_DOCS=1 solo se expone /openapi.json (Swagger y ReDoc no, por la CSP estricta); errores genéricos {\"detail\": \"<texto estándar HTTP>\"} y el 500 nunca expone tipo, mensaje ni traza; uvicorn siempre con --no-server-header y Nginx con server_tokens off.",
+    "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K30",
+   "tipo": "Observacion",
+   "label": "Reglas de aplicacion y api_key",
+   "props": {
+    "propuesta": "aplicacion.nombre de 1 a 100 caracteres, único sin distinguir mayúsculas, sin espacio en blanco en los bordes ni caracteres de control. Prefijo de API key: gk_ + 12 hex minúsculas. api_key.aplicacion_id con ON DELETE RESTRICT.",
+    "hallazgo": "Propuestas de gk-db y endurecimiento antes de la migración.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "aplicacion.nombre de 1 a 100 caracteres, único sin distinguir mayúsculas, sin espacio en blanco en los bordes ni caracteres de control. Prefijo de API key: gk_ + 12 hex minúsculas. api_key.aplicacion_id con ON DELETE RESTRICT.",
+    "fecha_decision": "2026-10-30"
    }
   }
  ],
@@ -9000,6 +9084,91 @@
    "de": "K25",
    "rel": "afecta",
    "a": "ep:POST /v1/files"
+  },
+  {
+   "de": "K26",
+   "rel": "afecta",
+   "a": "F1.07"
+  },
+  {
+   "de": "K26",
+   "rel": "afecta",
+   "a": "F1.08"
+  },
+  {
+   "de": "K26",
+   "rel": "afecta",
+   "a": "F2.02"
+  },
+  {
+   "de": "K26",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K26",
+   "rel": "afecta",
+   "a": "F2.06"
+  },
+  {
+   "de": "K26",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K27",
+   "rel": "afecta",
+   "a": "F1.08"
+  },
+  {
+   "de": "K27",
+   "rel": "afecta",
+   "a": "F2.02"
+  },
+  {
+   "de": "K28",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K28",
+   "rel": "afecta",
+   "a": "K09"
+  },
+  {
+   "de": "K28",
+   "rel": "afecta",
+   "a": "param:cdr_proceso_hijo"
+  },
+  {
+   "de": "K28",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K29",
+   "rel": "afecta",
+   "a": "F1.08"
+  },
+  {
+   "de": "K29",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K30",
+   "rel": "afecta",
+   "a": "ent:aplicacion"
+  },
+  {
+   "de": "K30",
+   "rel": "afecta",
+   "a": "ent:api_key"
+  },
+  {
+   "de": "K30",
+   "rel": "afecta",
+   "a": "F1.07"
   }
  ]
 }

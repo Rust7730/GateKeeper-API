@@ -102,7 +102,6 @@ def test_gk_commit_controles(agente):
         "kg.py validar",
         "Árbol revisado",
         "arbol.py",
-        "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
     ):
         assert x in c
 
@@ -218,3 +217,9 @@ def test_gk_kg_reporta_hash_y_pide_aprobacion_con_id(agente):
 def test_implementadores_no_hacen_staging(agente):
     for nombre in ("gk-api-dev", "gk-db", "gk-security"):
         assert "no hagas `git add`" in agente(nombre).cuerpo
+
+
+def test_gk_commit_sin_atribucion_a_claude(agente):
+    c = agente("gk-commit").cuerpo
+    assert "noreply@anthropic.com" not in c
+    assert "Sin líneas `Co-Authored-By`" in c

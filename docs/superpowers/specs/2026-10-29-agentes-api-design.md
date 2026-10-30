@@ -136,8 +136,8 @@ Se aplican en orden. El primero que falla detiene el commit y el reporte explica
 6. **KG.** `kg.py validar` sin aristas rotas. Una decisión que aparece `confirmada` en el diff solo pasa si la
    sesión principal declara que el usuario la aprobó.
 7. **Mensaje.** Conventional Commits, con el paso en el asunto (p. ej. `feat(api): rate limit por API key [F2.07]`),
-   y un cuerpo con invariantes tocadas, vectores en verde, latencia medida y decisiones pendientes. Termina con:
-   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
+   y un cuerpo con invariantes tocadas, vectores en verde, latencia medida y decisiones pendientes. Sin líneas
+   `Co-Authored-By` ni atribución a Claude (decisión del usuario del 2026-10-30).
 
 **Nunca:** `--no-verify`, `--amend` sobre commits ajenos, `push`, `--force`, `reset --hard`.
 

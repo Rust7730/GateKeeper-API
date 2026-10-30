@@ -7,6 +7,7 @@ No hay valor por defecto: una URL inventada en el código sería una credencial 
 repositorio o una conexión silenciosa a la base equivocada. Los mensajes de error
 nombran la variable pero nunca muestran su valor, porque la URL lleva la contraseña.
 El único esquema aceptado es ``postgresql+psycopg://`` (K23: psycopg 3, asíncrono).
+Un valor con espacio en blanco al inicio o al final se rechaza; no se recorta.
 """
 
 import os
@@ -26,6 +27,15 @@ def _leer_url(variable: str) -> str:
         raise ConfiguracionBDError(
             f"Falta la variable de entorno {variable} o está vacía; "
             "no hay valor por defecto para la URL de la base de datos."
+        )
+    if valor != valor.strip():
+        # Se rechaza en vez de recortar: un salto de línea final suele venir de un
+        # archivo de secretos mal escrito, y recortarlo en silencio ocultaría el error.
+        # Va antes de la del esquema para que un espacio al inicio se reporte como tal.
+        raise ConfiguracionBDError(
+            f"La variable de entorno {variable} tiene espacios en blanco al inicio o al "
+            "final (espacios, tabuladores o saltos de línea) "
+            "(el valor no se muestra porque puede contener credenciales)."
         )
     if not valor.startswith(ESQUEMA_PERMITIDO):
         raise ConfiguracionBDError(

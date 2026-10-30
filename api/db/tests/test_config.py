@@ -18,6 +18,11 @@ CENTINELA = "NO-MOSTRAR-ESTO"
 URL_APP = f"postgresql+psycopg://gk_app:{CENTINELA}@bd.invalid:5432/gatekeeper"
 URL_MIGRACION = f"postgresql+psycopg://gk_dueno:{CENTINELA}@bd.invalid:5432/gatekeeper"
 
+# Motivo concreto del rechazo por espacios; debe aparecer en el mensaje, y el del
+# esquema no, para que la prueba no pase por el motivo equivocado.
+MOTIVO_ESPACIOS = "espacios en blanco al inicio o al final"
+MOTIVO_ESQUEMA = "debe empezar con"
+
 FUNCIONES = [
     pytest.param(url_bd, VAR_APP, URL_APP, id="url_bd"),
     pytest.param(url_migraciones, VAR_MIGRACION, URL_MIGRACION, id="url_migraciones"),
@@ -73,7 +78,6 @@ def test_variable_vacia_falla_y_la_nombra(
         "POSTGRESQL+PSYCOPG://",
         "sqlite+aiosqlite:///",
         "mysql+aiomysql://",
-        " postgresql+psycopg://",
     ],
 )
 @pytest.mark.parametrize(("funcion", "variable", "url"), FUNCIONES)
@@ -88,6 +92,48 @@ def test_rechaza_otro_esquema_sin_mostrar_el_valor(
     assert "postgresql+psycopg://" in mensaje
     assert CENTINELA not in mensaje
     assert resto not in mensaje
+
+
+@pytest.mark.parametrize(
+    "sufijo",
+    [" ", "\n", "\t", "\r\n", " \n", "\n\n"],
+    ids=["espacio", "salto", "tabulador", "crlf", "espacio_salto", "dos_saltos"],
+)
+@pytest.mark.parametrize(("funcion", "variable", "url"), FUNCIONES)
+def test_rechaza_espacio_en_blanco_al_final_sin_mostrar_el_valor(
+    monkeypatch, funcion, variable, url, sufijo
+) -> None:
+    """Un salto de línea final (p. ej. de un archivo de secretos) no se cuela en la URL."""
+    monkeypatch.setenv(variable, url + sufijo)
+    with pytest.raises(ConfiguracionBDError, match=variable) as error:
+        funcion()
+    mensaje = str(error.value)
+    assert MOTIVO_ESPACIOS in mensaje
+    assert MOTIVO_ESQUEMA not in mensaje
+    assert CENTINELA not in mensaje
+    assert CENTINELA not in repr(error.value.args)
+    assert error.value.__cause__ is None
+    assert error.value.__context__ is None
+
+
+@pytest.mark.parametrize(
+    "prefijo", [" ", "\n", "\t"], ids=["espacio", "salto", "tabulador"]
+)
+@pytest.mark.parametrize(("funcion", "variable", "url"), FUNCIONES)
+def test_rechaza_espacio_en_blanco_al_inicio_sin_mostrar_el_valor(
+    monkeypatch, funcion, variable, url, prefijo
+) -> None:
+    """El rechazo se debe al espacio, no a que el valor "no empieza con" el esquema."""
+    monkeypatch.setenv(variable, prefijo + url)
+    with pytest.raises(ConfiguracionBDError, match=variable) as error:
+        funcion()
+    mensaje = str(error.value)
+    assert MOTIVO_ESPACIOS in mensaje
+    assert MOTIVO_ESQUEMA not in mensaje
+    assert CENTINELA not in mensaje
+    assert CENTINELA not in repr(error.value.args)
+    assert error.value.__cause__ is None
+    assert error.value.__context__ is None
 
 
 def test_cada_funcion_lee_solo_su_variable(monkeypatch) -> None:

@@ -10,3 +10,4 @@ __pycache__/
 docs/
 .claude/skills/gatekeeper-guardian/
 .superpowers/
+.claude/worktrees/

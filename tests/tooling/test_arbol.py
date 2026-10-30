@@ -74,3 +74,45 @@ def test_archivos_de_gk_kg_no_cambian_hash(repo):
     (repo / "context/gatekeeper_kg.json").write_text('{"estado": "en_progreso"}\n')
     (repo / "docs/decisiones.md").write_text("# v2\n")
     assert arbol.hash_arbol(repo) == antes
+
+
+def _commit_inicial(repo):
+    _git(repo, "add", "-A")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base")
+
+
+def test_diff_incluye_archivo_en_staging(repo):
+    arbol = _modulo()
+    _commit_inicial(repo)
+    (repo / "nuevo.py").write_text("VALOR = 'en_staging'\n")
+    _git(repo, "add", "nuevo.py")
+    assert "en_staging" in arbol.diff_revisado(repo)
+
+
+def test_diff_incluye_sin_seguimiento_y_omite_ignorado(repo):
+    arbol = _modulo()
+    _commit_inicial(repo)
+    (repo / "suelto.py").write_text("VALOR = 'sin_seguimiento'\n")
+    (repo / ".env").write_text("SECRETO=ignorado\n")
+    d = arbol.diff_revisado(repo)
+    assert "sin_seguimiento" in d and "ignorado" not in d
+
+
+def test_archivos_revisados_lista_staging_y_sin_seguimiento(repo):
+    arbol = _modulo()
+    _commit_inicial(repo)
+    (repo / "a.py").write_text("x = 3\n")
+    (repo / "b.py").write_text("y = 1\n")
+    _git(repo, "add", "b.py")
+    assert arbol.archivos_revisados(repo) == ["a.py", "b.py"]
+
+
+def test_sello_cambia_solo_con_las_pruebas_de_ataque(repo):
+    arbol = _modulo()
+    (repo / "tests/attack-matrix").mkdir(parents=True)
+    (repo / "tests/attack-matrix/test_vec01.py").write_text("assert 1\n")
+    antes = arbol.sello(repo, "tests/attack-matrix")
+    (repo / "a.py").write_text("x = 9\n")
+    assert arbol.sello(repo, "tests/attack-matrix") == antes
+    (repo / "tests/attack-matrix/test_vec01.py").write_text("assert True\n")
+    assert arbol.sello(repo, "tests/attack-matrix") != antes

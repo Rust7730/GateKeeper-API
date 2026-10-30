@@ -16,7 +16,7 @@ def test_gk_kg_es_unico_escritor(agente):
 
 def test_gk_kg_confirma_solo_con_aprobacion(agente):
     c = agente("gk-kg").cuerpo
-    assert 'Aprobación del usuario: "' in c and "kg.py confirmar" in c
+    assert 'Aprobación del usuario (<id>): "' in c and "kg.py confirmar" in c
 
 
 def test_gk_kg_reporte(agente):
@@ -186,3 +186,35 @@ def test_sin_carpeta_de_agentes_se_omite(agente, monkeypatch, tmp_path):
     monkeypatch.setitem(agente.__globals__, "AGENTES", tmp_path / "no-existe")
     with pytest.raises(pytest.skip.Exception):
         agente("gk-kg")
+
+
+def test_gk_security_revisa_lo_que_se_hashea_y_sella(agente):
+    c = agente("gk-security").cuerpo
+    for x in ("arbol.py --diff", "Pruebas de ataque:", "--sello tests/attack-matrix"):
+        assert x in c
+
+
+def test_gk_commit_correcciones_de_la_revision_final(agente):
+    c = agente("gk-commit").cuerpo
+    for x in (
+        "arbol.py --diff",
+        "arbol.py --archivos",
+        "detect-secrets scan --all-files",
+        "kg.py diff-permitido HEAD",
+        "KG registrado:",
+        "Aprobación del usuario (<id>)",
+        "Pruebas de ataque",
+        "gk-api-dev y/o gk-db",
+        "solo documentación",
+    ):
+        assert x in c
+
+
+def test_gk_kg_reporta_hash_y_pide_aprobacion_con_id(agente):
+    c = agente("gk-kg").cuerpo
+    assert "KG registrado:" in c and "Aprobación del usuario (<id>)" in c
+
+
+def test_implementadores_no_hacen_staging(agente):
+    for nombre in ("gk-api-dev", "gk-db", "gk-security"):
+        assert "no hagas `git add`" in agente(nombre).cuerpo

@@ -198,3 +198,19 @@ del agente.
 
 La iteración 2 de la evaluación de `gatekeeper-guardian` quedó incompleta: dos ejecuciones, máquina de estados y
 rate limit, ambas con la skill, no terminaron al cerrarse la sesión. Se retoma aparte; no bloquea este diseño.
+
+## 11. Correcciones de la revisión final (2026-10-29)
+
+La revisión de toda la rama encontró un hallazgo crítico y cuatro importantes. Se corrigieron así; donde esta
+sección contradice a las anteriores, manda esta.
+
+| Id | Problema | Corrección |
+|---|---|---|
+| C1 | La revisión y la búsqueda de secretos usaban `git diff`, que no muestra lo que ya está en staging, aunque el hash sí lo incluía | `arbol.py --diff` y `--archivos` muestran de HEAD al árbol exactamente lo que cubre el hash; seguridad revisa eso y gk-commit lo escanea. Ningún agente salvo gk-commit hace `git add` |
+| I1 | Los archivos de gk-kg, excluidos del hash, no tenían lista blanca | `kg.py diff-permitido HEAD`: solo pasan estado, historial y nota de pasos y fases (con las reglas de `hecho`), propuestas K## nuevas en `pendiente` con sus aristas `afecta`, y `meta.conteos`. Todo lo demás exige `Aprobación del usuario (<id>): "…"` con el id exacto. gk-kg cierra con `KG registrado: <hashes>` y gk-commit los compara |
+| I2 | Las pruebas de ataque no tenían sello | En la fase A, gk-security reporta `Pruebas de ataque: <arbol.py --sello tests/attack-matrix>`; la fase B y gk-commit verifican que no cambió |
+| I3 | Huecos en la búsqueda de secretos | `detect-secrets scan --all-files` (determinista) sobre los archivos del diff, más nombres en español, contraseñas, DSN y URLs con credenciales; `.gitignore` cubre `.env.*` excepto `.env.example` |
+| I4 | El control 5 exigía siempre un reporte de gk-api-dev | Se exige el reporte del implementador real (gk-api-dev y/o gk-db). Un commit de solo documentación o KG no requiere reporte de implementador, pero sí el veredicto de seguridad |
+
+Además, desde el 2026-10-29 `.claude/agents/` está en `.gitignore` por decisión del usuario. Las pruebas de contrato
+de `tests/tooling/` se omiten si la carpeta no existe.

@@ -14,6 +14,8 @@ Uso:
                                         Registra una decisión nueva como K## PROPUESTA (pendiente)
   kg.py confirmar <id> [--eleccion T]   Marca como confirmada una D#/K## que el usuario aprobó
   kg.py validar                         Aristas rotas, huérfanos y conteos
+  kg.py diff-permitido <ref>            Compara el KG contra <ref> (p. ej. HEAD) y rechaza todo cambio que
+                                        no esté en la lista blanca de gk-kg (ver diff_permitido)
 
 Opciones globales: --kg RUTA (por defecto busca context/gatekeeper_kg.json subiendo desde el cwd).
 """
@@ -22,6 +24,7 @@ import argparse
 import datetime
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from collections import Counter, defaultdict
@@ -379,6 +382,105 @@ def validar(kg):
     sys.exit(1 if rotas else 0)
 
 
+CAMPOS_DE_ESTADO = {"estado", "historial", "nota"}
+
+
+def _kg_en(ref, ruta):
+    top = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=ruta.resolve().parent,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    rel = ruta.resolve().relative_to(top).as_posix()
+    r = subprocess.run(
+        ["git", "show", f"{ref}:{rel}"],
+        cwd=top,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return json.loads(r.stdout) if r.returncode == 0 else {"nodos": [], "aristas": []}
+
+
+def diff_permitido(kg, ref):
+    """Lista blanca de lo que gk-kg puede cambiar sin aprobación del usuario.
+
+    Pasa: estado/historial/nota de pasos y fases (respetando las reglas de 'hecho'), propuestas nuevas K## en
+    'pendiente' con sus aristas 'afecta', y meta.conteos. Todo lo demás (parámetros, decisiones, confirmaciones,
+    borrados, aristas entre nodos existentes) requiere 'Aprobación del usuario (<id>)' y se reporta.
+    """
+    base = _kg_en(ref, kg.path)
+    nb = {n["id"]: n for n in base["nodos"]}
+    na = kg.N
+    malos = []
+    for i in sorted(set(nb) - set(na)):
+        malos.append(f"{i}: nodo borrado")
+    nuevos_ok = set()
+    for i in sorted(set(na) - set(nb)):
+        p = na[i]["props"]
+        if (
+            na[i]["tipo"] == "Observacion"
+            and p.get("decision") == "pendiente"
+            and not p.get("eleccion")
+        ):
+            nuevos_ok.add(i)
+        else:
+            malos.append(f"{i}: nodo nuevo que no es una propuesta pendiente")
+    for i in sorted(set(na) & set(nb)):
+        a, b = na[i], nb[i]
+        if a == b:
+            continue
+        claves = {
+            k
+            for k in set(a["props"]) | set(b["props"])
+            if a["props"].get(k) != b["props"].get(k)
+        }
+        if (
+            a["tipo"] not in ("Paso", "Fase")
+            or a["tipo"] != b["tipo"]
+            or a["label"] != b["label"]
+            or not claves <= CAMPOS_DE_ESTADO
+        ):
+            malos.append(f"{i}: cambia {sorted(claves) or ['tipo/label']}")
+            continue
+        if a["props"].get("estado") == "hecho" and b["props"].get("estado") != "hecho":
+            if a["tipo"] == "Paso":
+                fase = next(iter(kg.src(i, "contiene")), None)
+                deps = [
+                    d
+                    for d in (kg.tgt(fase, "depende_de") if fase else [])
+                    if na[d]["props"].get("estado") != "hecho"
+                ]
+                if deps:
+                    malos.append(f"{i}: 'hecho' con dependencias abiertas {deps}")
+            else:
+                faltan = [
+                    x
+                    for x in kg.tgt(i, "contiene")
+                    if na[x]["props"].get("estado") != "hecho"
+                ]
+                if faltan:
+                    malos.append(f"{i}: fase 'hecho' con pasos sin terminar {faltan}")
+    eb = {(e["de"], e["rel"], e["a"]) for e in base["aristas"]}
+    ea = {(e["de"], e["rel"], e["a"]) for e in kg.data["aristas"]}
+    for e in sorted(eb - ea):
+        malos.append(f"{e[0]}: arista borrada {e}")
+    for e in sorted(ea - eb):
+        if not (e[0] in nuevos_ok and e[1] == "afecta"):
+            malos.append(f"{e[0]}: arista nueva fuera de la lista blanca {e}")
+    mb = {k: v for k, v in base.get("meta", {}).items() if k != "conteos"}
+    ma = {k: v for k, v in kg.data.get("meta", {}).items() if k != "conteos"}
+    if mb and mb != ma:
+        malos.append("meta: cambia fuera de meta.conteos")
+    for m in malos:
+        print(f"REQUIERE Aprobación del usuario — {m}")
+    if not malos:
+        print("sin cambios fuera de la lista blanca")
+    sys.exit(1 if malos else 0)
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -403,6 +505,7 @@ def main():
     s.add_argument("id")
     s.add_argument("--eleccion")
     sub.add_parser("validar")
+    sub.add_parser("diff-permitido").add_argument("ref")
     a = ap.parse_args()
     kg = KG(find_kg(a.kg))
     {
@@ -414,6 +517,7 @@ def main():
         "decision": lambda: decision(kg, a.label, a.eleccion, a.afecta, a.motivo),
         "confirmar": lambda: confirmar(kg, a.id, a.eleccion),
         "validar": lambda: validar(kg),
+        "diff-permitido": lambda: diff_permitido(kg, a.ref),
     }[a.cmd]()
 
 

@@ -1,0 +1,8631 @@
+{
+ "meta": {
+  "archivo": "gatekeeper_kg.json",
+  "version": "1.3.0",
+  "fecha": "2026-10-28",
+  "autor": "Rodolfo Ramírez Reyes",
+  "generado_desde": [
+   "gatekeeper_contexto.json v1.0.0",
+   "gatekeeper_plan.json v1.0.0"
+  ],
+  "proposito": "Knowledge graph del proyecto Gatekeeper. Es la base de trabajo: el estado de fases, pasos, decisiones, vectores y observaciones se actualiza aquí.",
+  "convenciones": {
+   "ids": "Los ids originales se conservan (O1, INV-04, V07, D2, F3, F3.04, R1, CHK1). El resto lleva prefijo por tipo: svc:, red:, vol:, ep:, ent:, estado:, vec:, vecx:, ctrl:, tec:, param:, lim:, auth:, http:, dir:, entg:, skill:, patron:, flujo:, actor:, fuente:, dato:. K## son observaciones nuevas.",
+   "origen": "Cada nodo conserva el 'origen' del contexto (documento | inferido | recomendacion | contexto_usuario); 'kg_observacion' marca hallazgos nuevos detectados al construir el grafo.",
+   "estado_trabajo": [
+    "pendiente",
+    "en_progreso",
+    "hecho",
+    "bloqueado"
+   ],
+   "reglas_de_trabajo": [
+    "Trabaja las fases en el orden de 'fases'. Una fase empieza solo cuando todas las de su 'depende_de' cumplen su 'criterio_salida'.",
+    "Antes de implementar un control, escribe la prueba del vector que lo comprueba.",
+    "Respeta siempre los invariantes INV-01 a INV-10 de gatekeeper_contexto.json. Si un paso parece contradecirlos, detente y pregunta al usuario.",
+    "Las decisiones de 'decisiones_previas' en estado 'pendiente' se confirman con el usuario antes de la fase F1. No tomes la recomendación como aprobada.",
+    "No amplíes el alcance: solo JPEG, PNG y PDF.",
+    "Al terminar un paso, actualiza su 'estado' y registra cualquier decisión nueva en docs/decisiones.md.",
+    "Los vectores de la matriz asignados a la fase pasan en CI.",
+    "Se cumple el criterio del objetivo específico (O1 a O7) que cubre la fase.",
+    "Las decisiones tomadas durante la fase quedan escritas en docs/decisiones.md."
+   ]
+  },
+  "conteos": {
+   "nodos": 399,
+   "aristas": 899,
+   "por_tipo": {
+    "Actor": 4,
+    "CWE": 6,
+    "CodigoHTTP": 7,
+    "Componente": 1,
+    "Control": 16,
+    "CriterioCierre": 4,
+    "DatoExterno": 4,
+    "DatoRedis": 4,
+    "Decision": 6,
+    "Directorio": 8,
+    "Endpoint": 16,
+    "Entidad": 7,
+    "Entregable": 24,
+    "Estado": 5,
+    "Externo": 1,
+    "Fase": 7,
+    "Fuente": 4,
+    "FueraDeAlcance": 4,
+    "Impacto": 4,
+    "Invariante": 10,
+    "Limitacion": 7,
+    "MetodoAuth": 5,
+    "Metrica": 5,
+    "Objetivo": 7,
+    "Observacion": 13,
+    "Parametro": 16,
+    "Paso": 66,
+    "PasoFlujo": 10,
+    "PatronSeguridad": 4,
+    "Proyecto": 1,
+    "Red": 4,
+    "Riesgo": 7,
+    "Servicio": 10,
+    "Skill": 10,
+    "Tecnologia": 34,
+    "TipoArchivo": 3,
+    "VectorPrueba": 21,
+    "VeredictoCapa": 1,
+    "Verificacion": 29,
+    "Volumen": 4
+   },
+   "por_relacion": {
+    "afecta": 92,
+    "almacenada_como": 1,
+    "bloquea": 6,
+    "cita": 6,
+    "codigo_en": 29,
+    "compuesto_por": 9,
+    "conectado_a": 13,
+    "confirma": 6,
+    "consulta": 2,
+    "consume": 2,
+    "consumido_por": 1,
+    "contiene": 66,
+    "crea": 4,
+    "cumple": 8,
+    "debe_pasar_desde": 21,
+    "decidido_en": 16,
+    "definida_en": 5,
+    "depende_de": 12,
+    "detenido_por": 22,
+    "documentado_en": 5,
+    "ejecutado_por": 9,
+    "ejercita": 13,
+    "equivale_a": 1,
+    "es": 1,
+    "escribe": 5,
+    "escribe_en": 6,
+    "espera_estado": 9,
+    "espera_http": 5,
+    "excluye": 4,
+    "exige": 10,
+    "expuesta_en": 5,
+    "falla_con": 5,
+    "fuente": 6,
+    "hace_cumplir": 22,
+    "implementa": 20,
+    "implementado_en": 18,
+    "insuficiente_responde": 1,
+    "interactua_con": 4,
+    "lee": 5,
+    "medido_por": 4,
+    "mide": 6,
+    "mitigada_por": 1,
+    "mitigado_por": 3,
+    "permite": 3,
+    "persiste_en": 1,
+    "persistida_en": 7,
+    "persistido_en": 4,
+    "produce": 15,
+    "producido_en": 16,
+    "protege": 4,
+    "puede_responder": 6,
+    "reemplaza": 1,
+    "referencia": 5,
+    "requiere": 20,
+    "restringe": 14,
+    "resuelve": 9,
+    "se_autentica_con": 8,
+    "servido_por": 16,
+    "siguiente": 67,
+    "sirve": 1,
+    "sube_archivos_a": 1,
+    "sustenta": 4,
+    "tiene_estado": 1,
+    "tiene_objetivo": 7,
+    "transiciona": 1,
+    "transiciona_a": 8,
+    "usa": 46,
+    "usa_parametro": 19,
+    "usa_skill": 13,
+    "verifica_con": 1,
+    "verifica_todos": 1,
+    "verificado_en": 111
+   }
+  }
+ },
+ "nodos": [
+  {
+   "id": "proyecto:gatekeeper",
+   "tipo": "Proyecto",
+   "label": "Gatekeeper",
+   "props": {
+    "titulo": "API de Validación, Saneamiento y Análisis Multicapa de Archivos para Prevenir la Ejecución Remota de Código",
+    "descripcion": "Servicio intermediario entre una aplicación cliente y su almacenamiento de archivos. Recibe cada archivo que sube un usuario, verifica qué es en realidad, lo reconstruye para eliminar contenido oculto, lo analiza contra malware conocido y solo entonces entrega a la aplicación la versión reconstruida. Un dashboard web permite a analistas de seguridad supervisar amenazas bloqueadas y gestionar la cuarentena.",
+    "tipo_proyecto": "Proyecto académico de ciberseguridad: solución web integrada con una API RESTful",
+    "duracion_semanas": 6,
+    "requisito_curso": {
+     "texto": "Solución web o móvil integrada con una API RESTful o GraphQL",
+     "cumplimiento": "Dashboard web en Angular + API RESTful en FastAPI",
+     "origen": "contexto_usuario"
+    },
+    "objetivo_general": "Desarrollar un servicio API RESTful con dashboard web que reciba, valide, sanee y analice archivos antes de entregarlos a las aplicaciones cliente, para prevenir la ejecución remota de código, la distribución de malware y la fuga de metadatos a través de las funciones de carga de archivos.",
+    "problema": "La subida de archivos sin restricciones es una de las debilidades de software más peligrosas. La validación típica solo revisa la extensión o el header Content-Type, ambos controlados por el atacante, por lo que un script renombrado como foto.jpg o una imagen válida con código incrustado (polyglot) llega al servidor. Implementar defensa en profundidad en cada aplicación es costoso, así que desarrolladores independientes, PyMEs e instituciones educativas rara vez lo hacen.",
+    "justificacion": [
+     "Impacto máximo: un ejecutable que llega al servidor permite ejecución remota de código (RCE) y control total del servidor y sus datos.",
+     "Ataque barato: basta con renombrar un archivo o modificar un header; existen herramientas públicas que lo automatizan.",
+     "Daño a terceros: un SVG o PDF con contenido activo puede ejecutar código en el navegador de quien lo abre, incluido el personal administrativo.",
+     "Privacidad: los archivos contienen metadatos sensibles (p. ej., GPS en fotos) que se publican sin que el usuario lo sepa.",
+     "No hay solución accesible y reutilizable: las soluciones CDR comerciales apuntan a grandes empresas; los equipos pequeños dependen de validaciones escritas a mano."
+    ],
+    "autor": "Rodolfo Ramírez Reyes"
+   }
+  },
+  {
+   "id": "actor:usuario_final",
+   "tipo": "Actor",
+   "label": "Usuario final",
+   "props": {
+    "descripcion": "Sube archivos a la aplicación cliente; no interactúa directamente con Gatekeeper.",
+    "origen": "inferido"
+   }
+  },
+  {
+   "id": "actor:aplicacion_cliente",
+   "tipo": "Actor",
+   "label": "Aplicación cliente",
+   "props": {
+    "descripcion": "Consume la API con API key: sube archivos, consulta estado y descarga la versión reconstruida.",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "actor:analista_de_seguridad",
+   "tipo": "Actor",
+   "label": "Analista de seguridad",
+   "props": {
+    "descripcion": "Usa el dashboard con JWT (rol analista): lista archivos, métricas y alertas en tiempo real.",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "actor:administrador",
+   "tipo": "Actor",
+   "label": "Administrador",
+   "props": {
+    "descripcion": "Usa el dashboard con JWT + TOTP (rol admin): libera falsos positivos, consulta bitácora y gestiona API keys.",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "fuente:mitre_top25",
+   "tipo": "Fuente",
+   "label": "MITRE — 2025 CWE Top 25 Most Dangerous Software Weaknesses",
+   "props": {
+    "url": "https://cwe.mitre.org/top25/archive/2025/2025_cwe_top25.html"
+   }
+  },
+  {
+   "id": "fuente:owasp_upload",
+   "tipo": "Fuente",
+   "label": "OWASP — File Upload Cheat Sheet",
+   "props": {
+    "url": "https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html"
+   }
+  },
+  {
+   "id": "fuente:virustotal_api",
+   "tipo": "Fuente",
+   "label": "VirusTotal — Public vs Premium API",
+   "props": {
+    "url": "https://docs.virustotal.com/reference/public-vs-premium-api"
+   }
+  },
+  {
+   "id": "fuente:pillow_docs",
+   "tipo": "Fuente",
+   "label": "Documentación de Pillow",
+   "props": {
+    "nota": "Conocimiento técnico; no consultada en la sesión CoV"
+   }
+  },
+  {
+   "id": "dato:1",
+   "tipo": "DatoExterno",
+   "label": "CWE-434 (Unrestricted Upload of File with Dangerous Type) ocupa el lugar 12 del CWE Top 25 de 2025.",
+   "props": {
+    "estado": "verificado"
+   }
+  },
+  {
+   "id": "dato:2",
+   "tipo": "DatoExterno",
+   "label": "4 CVE asociadas a CWE-434 figuran en el catálogo KEV de CISA.",
+   "props": {
+    "estado": "verificado_con_matiz",
+    "redaccion_sugerida": "4 de los CVE del conjunto de datos del Top 25 de 2025 mapeados a CWE-434 están en el catálogo KEV de CISA."
+   }
+  },
+  {
+   "id": "dato:3",
+   "tipo": "DatoExterno",
+   "label": "XSS (CWE-79) lugar 1; path traversal (CWE-22) lugar 6; lugar 25 para la asignación de recursos sin límites.",
+   "props": {
+    "estado": "verificado_con_matiz",
+    "redaccion_sugerida": "El lugar 25 es CWE-770 'Allocation of Resources Without Limits or Throttling' (asignación de recursos sin límites ni regulación); conviene citar el identificador."
+   }
+  },
+  {
+   "id": "dato:4",
+   "tipo": "DatoExterno",
+   "label": "OWASP indica que ninguna técnica aislada basta, que la validación de firma por sí sola se evade con facilidad y recomienda defensa en profundidad (lista blanca, nombres generados por el servidor, almacenamiento fuera del webroot, antivirus y CDR).",
+   "props": {
+    "estado": "verificado_con_matiz"
+   }
+  },
+  {
+   "id": "CWE-434",
+   "tipo": "CWE",
+   "label": "CWE-434 Unrestricted Upload of File with Dangerous Type",
+   "props": {
+    "nombre": "Unrestricted Upload of File with Dangerous Type",
+    "lugar_top25_2025": 12
+   }
+  },
+  {
+   "id": "CWE-79",
+   "tipo": "CWE",
+   "label": "CWE-79 Cross-site Scripting",
+   "props": {
+    "nombre": "Cross-site Scripting",
+    "lugar_top25_2025": 1
+   }
+  },
+  {
+   "id": "CWE-22",
+   "tipo": "CWE",
+   "label": "CWE-22 Path Traversal",
+   "props": {
+    "nombre": "Path Traversal",
+    "lugar_top25_2025": 6
+   }
+  },
+  {
+   "id": "CWE-770",
+   "tipo": "CWE",
+   "label": "CWE-770 Allocation of Resources Without Limits or Throttling",
+   "props": {
+    "nombre": "Allocation of Resources Without Limits or Throttling",
+    "lugar_top25_2025": 25
+   }
+  },
+  {
+   "id": "CWE-639",
+   "tipo": "CWE",
+   "label": "CWE-639 Authorization Bypass Through User-Controlled Key (IDOR)",
+   "props": {
+    "nombre": "Authorization Bypass Through User-Controlled Key (IDOR)"
+   }
+  },
+  {
+   "id": "CWE-862",
+   "tipo": "CWE",
+   "label": "CWE-862 Missing Authorization",
+   "props": {
+    "nombre": "Missing Authorization",
+    "lugar_top25_2025": 4
+   }
+  },
+  {
+   "id": "V01",
+   "tipo": "Verificacion",
+   "label": "¿Son 7 los servicios de Docker Compose y coinciden con el diagrama?",
+   "props": {
+    "tipo_verificacion": "consistencia_interna",
+    "estado": "verificado",
+    "severidad": "ninguna",
+    "respuesta": "Sí: nginx, api, redis, postgres, worker, clamav y reputacion. El dashboard Angular lo sirve Nginx, los almacenamientos son volúmenes y VirusTotal es externo.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V02",
+   "tipo": "Verificacion",
+   "label": "¿La especificación tiene 11 endpoints?",
+   "props": {
+    "tipo_verificacion": "consistencia_interna",
+    "estado": "verificado_con_matiz",
+    "severidad": "baja",
+    "respuesta": "La tabla tiene 11 filas, pero son 12 operaciones porque POST y DELETE de /v1/admin/api-keys comparten fila. Además, DELETE no incluye el {id} de la key a revocar.",
+    "correccion": "Declarar '11 rutas / 12 operaciones' o separar la fila; usar DELETE /v1/admin/api-keys/{id} y considerar GET /v1/admin/api-keys.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V03",
+   "tipo": "Verificacion",
+   "label": "¿La matriz tiene 15 vectores y cubre todo lo prometido en el impacto esperado?",
+   "props": {
+    "tipo_verificacion": "consistencia_interna",
+    "estado": "verificado_con_matiz",
+    "severidad": "media",
+    "respuesta": "Tiene 15 casos, coherentes con O7 e I1. I1 habla de 'bombas de descompresión' en plural, pero solo se prueba la bomba de píxeles; no hay caso para flujos comprimidos en PDF, que pikepdf/qpdf también descomprime.",
+    "correccion": "Añadir un caso de bomba de flujos en PDF o reformular I1 para que solo mencione bombas de píxeles.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V04",
+   "tipo": "Verificacion",
+   "label": "¿El cronograma es coherente con los 7 objetivos y las 6 semanas?",
+   "props": {
+    "tipo_verificacion": "consistencia_interna",
+    "estado": "verificado",
+    "severidad": "ninguna",
+    "respuesta": "Sí: O1 en semana 1, O2 en 1–2, O3 a O7 en las semanas 2 a 6, sin huecos. La semana 6 concentra pruebas y correcciones, por lo que conviene reservar tiempo para corregir hallazgos.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V05",
+   "tipo": "Verificacion",
+   "label": "¿La lista blanca es la misma en todo el documento?",
+   "props": {
+    "tipo_verificacion": "consistencia_interna",
+    "estado": "verificado",
+    "severidad": "ninguna",
+    "respuesta": "Sí: JPEG, PNG y PDF en O3 y en el anexo D; SVG y ZIP rechazados en la matriz.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V06",
+   "tipo": "Verificacion",
+   "label": "¿Los 4 estados cubren todos los resultados posibles del análisis?",
+   "props": {
+    "tipo_verificacion": "completitud",
+    "estado": "no_definido",
+    "severidad": "media",
+    "respuesta": "No. Falta un estado para fallos o timeouts del worker o de VirusTotal, y no se define a qué estado pasa un archivo liberado de cuarentena.",
+    "correccion": "Agregar el estado 'error' (nunca descargable, con reintento) y definir la transición en_cuarentena → limpio tras la liberación y el CDR. Aplicar fail-closed (INV-09).",
+    "prioritario": true
+   }
+  },
+  {
+   "id": "V07",
+   "tipo": "Verificacion",
+   "label": "Con el orden del worker (firma → reconstrucción → ClamAV), ¿puede detectarse EICAR en ambas capas?",
+   "props": {
+    "tipo_verificacion": "viabilidad_tecnica",
+    "estado": "inconsistente",
+    "severidad": "alta",
+    "respuesta": "No. El archivo EICAR estándar es texto ASCII de 68 bytes: la lista blanca lo rechaza antes de llegar a ClamAV. Si se incrusta en un PDF, el CDR elimina los archivos embebidos y el hash resultante es único, así que VirusTotal no lo reconocería. El criterio de O5 y el caso 11 no son alcanzables tal como están.",
+    "correccion": "Calcular el SHA-256 y escanear con ClamAV el ORIGINAL antes de la lista blanca (flujo_recomendado). El SHA-256 del EICAR estándar (275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f) es conocido por VirusTotal, de modo que ambas capas lo detectan. Si hay malware, prevalece en_cuarentena sobre rechazado.",
+    "prioritario": true
+   }
+  },
+  {
+   "id": "V08",
+   "tipo": "Verificacion",
+   "label": "¿Puede ClamAV estar en la zona sin internet y a la vez actualizar sus firmas automáticamente?",
+   "props": {
+    "tipo_verificacion": "viabilidad_tecnica",
+    "estado": "inconsistente",
+    "severidad": "media",
+    "respuesta": "No sin un ajuste: freshclam necesita salida a internet para descargar las firmas. El diagrama ubica a ClamAV dentro de la zona aislada.",
+    "correccion": "Opción A: contenedor freshclam separado, con salida a internet, que escribe las firmas en un volumen montado como solo lectura en clamd (8 servicios). Opción B: permitir a clamav salida únicamente hacia el espejo de firmas mediante un proxy de egreso, manteniendo al worker sin salida. En ambos casos clamd no debe compartir red con internet y con el worker a la vez.",
+    "prioritario": true
+   }
+  },
+  {
+   "id": "V09",
+   "tipo": "Verificacion",
+   "label": "¿El stack garantiza que los PDF entregados no tengan metadatos?",
+   "props": {
+    "tipo_verificacion": "viabilidad_tecnica",
+    "estado": "no_definido",
+    "severidad": "media",
+    "respuesta": "No está especificado. pikepdf se describe para quitar JavaScript, acciones y archivos embebidos, pero no el diccionario /Info ni los metadatos XMP. Tampoco se contemplan imágenes JPEG embebidas en el PDF, que pueden conservar EXIF/GPS.",
+    "correccion": "Incluir en el CDR de PDF la eliminación de /Info y /Metadata (XMP) y decidir si se recodifican las imágenes embebidas o se declara como limitación.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V10",
+   "tipo": "Verificacion",
+   "label": "¿El inicio de sesión exige TOTP a todos los usuarios?",
+   "props": {
+    "tipo_verificacion": "consistencia_interna",
+    "estado": "verificado_con_matiz",
+    "severidad": "baja",
+    "respuesta": "Ambiguo: el endpoint de login indica 'Credenciales + TOTP', pero el stack dice que el MFA con TOTP es para administradores. No hay endpoint para dar de alta el TOTP.",
+    "correccion": "Definir: TOTP obligatorio para admin y opcional (o también obligatorio) para analista; agregar POST /v1/auth/totp/enroll.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V11",
+   "tipo": "Verificacion",
+   "label": "¿Las alertas por SSE pueden autenticarse con el JWT y los interceptores de HttpClient?",
+   "props": {
+    "tipo_verificacion": "viabilidad_tecnica",
+    "estado": "inconsistente",
+    "severidad": "media",
+    "respuesta": "No con EventSource nativo: no permite enviar el header Authorization y los interceptores de HttpClient no se aplican a EventSource. Poner el token en la query string lo expone en logs.",
+    "correccion": "Consumir el SSE con fetch y ReadableStream (o una librería tipo fetch-event-source) enviando Authorization, envuelto en un Observable de RxJS; alternativa: HttpClient con withFetch() y reportProgress para leer texto parcial. En Nginx, desactivar proxy_buffering en /v1/admin/events.",
+    "prioritario": true
+   }
+  },
+  {
+   "id": "V12",
+   "tipo": "Verificacion",
+   "label": "¿La protección CSRF 'integrada' de Angular basta?",
+   "props": {
+    "tipo_verificacion": "viabilidad_tecnica",
+    "estado": "verificado_con_matiz",
+    "severidad": "baja",
+    "respuesta": "Parcialmente. HttpClient envía el header X-XSRF-TOKEN leído de una cookie, pero el backend debe emitir y validar ese token; FastAPI no lo hace por defecto. El endpoint expuesto a CSRF es /v1/auth/refresh, que usa cookie; el resto usa el header Authorization.",
+    "correccion": "En /v1/auth/refresh: cookie SameSite=Strict con Path=/v1/auth, validación de Origin y token double-submit.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V13",
+   "tipo": "Verificacion",
+   "label": "¿Está definido cómo se hashean las API keys y es correcta la categoría 'Cifrado'?",
+   "props": {
+    "tipo_verificacion": "precision_tecnica",
+    "estado": "verificado_con_matiz",
+    "severidad": "baja",
+    "respuesta": "No se indica el algoritmo para las API keys. Argon2 es adecuado para contraseñas pero costoso por petición; para keys aleatorias de alta entropía basta HMAC-SHA-256 con un secreto del servidor. Argon2 y SHA-256 son funciones hash, no cifrado.",
+    "correccion": "API keys: HMAC-SHA-256 con pepper y prefijo visible para identificarlas. Renombrar la categoría a 'Criptografía: cifrado (TLS 1.3) y hash (Argon2, SHA-256)'.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V14",
+   "tipo": "Verificacion",
+   "label": "¿Están definidos los límites numéricos necesarios para probar la matriz?",
+   "props": {
+    "tipo_verificacion": "completitud",
+    "estado": "no_definido",
+    "severidad": "media",
+    "respuesta": "No: falta el tamaño máximo de archivo, el umbral de rate limit, el límite de píxeles, el máximo de páginas de PDF, los timeouts y el umbral de detecciones de VirusTotal.",
+    "correccion": "Ver 'parametros_por_definir'.",
+    "prioritario": true
+   }
+  },
+  {
+   "id": "V15",
+   "tipo": "Verificacion",
+   "label": "¿Liberar un archivo de cuarentena respeta que 'ningún original llega a la aplicación'?",
+   "props": {
+    "tipo_verificacion": "consistencia_interna",
+    "estado": "no_definido",
+    "severidad": "media",
+    "respuesta": "No está definido. En cuarentena se guarda el original; si se libera sin pasar por CDR se entregaría el original, lo que viola INV-01.",
+    "correccion": "La liberación reencola el archivo en el paso de CDR con el veredicto antimalware anulado y registrado; solo la versión reconstruida queda disponible.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V16",
+   "tipo": "Verificacion",
+   "label": "¿Se define la retención de originales fuera de la cuarentena?",
+   "props": {
+    "tipo_verificacion": "completitud",
+    "estado": "no_definido",
+    "severidad": "baja",
+    "respuesta": "Solo para cuarentena (30 días). No se indica qué pasa con los originales de archivos limpios o rechazados, lo cual importa para el argumento de privacidad.",
+    "correccion": "Borrar el original al terminar el CDR; de los rechazados conservar solo hash y metadatos.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V17",
+   "tipo": "Verificacion",
+   "label": "¿Un worker con sistema de archivos de solo lectura puede escribir la versión reconstruida?",
+   "props": {
+    "tipo_verificacion": "viabilidad_tecnica",
+    "estado": "verificado_con_matiz",
+    "severidad": "baja",
+    "respuesta": "Sí, siempre que se monte un tmpfs y un volumen de salida escribibles; el resto del sistema de archivos permanece de solo lectura.",
+    "correccion": "Declarar en Compose read_only: true, un tmpfs para /tmp y el volumen de salida como únicos puntos escribibles.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V18",
+   "tipo": "Verificacion",
+   "label": "¿El modelo de datos permite verificar la propiedad de los archivos (caso 13)?",
+   "props": {
+    "tipo_verificacion": "completitud",
+    "estado": "verificado_con_matiz",
+    "severidad": "baja",
+    "respuesta": "Implícitamente: el filtro 'por aplicación' y la prueba de IDOR requieren una entidad aplicación ligada a API keys y archivos, aunque la sección de base de datos no la menciona.",
+    "correccion": "Incluir la entidad 'aplicacion' en el modelo ER y filtrar toda consulta por aplicacion_id de la API key.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V19",
+   "tipo": "Verificacion",
+   "label": "¿Se especifica cómo se implementa la rotación del refresh token?",
+   "props": {
+    "tipo_verificacion": "completitud",
+    "estado": "no_definido",
+    "severidad": "baja",
+    "respuesta": "No. La rotación con detección de reutilización requiere persistir el identificador y la familia de cada token, y no se indica dónde.",
+    "correccion": "Tabla refresh_token (jti, familia, expiración, revocado) en PostgreSQL o en Redis con TTL; si un token rotado se reutiliza, revocar toda la familia.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V20",
+   "tipo": "Verificacion",
+   "label": "¿El criterio de 202 en menos de 1 s es medible?",
+   "props": {
+    "tipo_verificacion": "precision_tecnica",
+    "estado": "verificado_con_matiz",
+    "severidad": "baja",
+    "respuesta": "Es alcanzable porque el análisis es asíncrono, pero el tiempo total depende de cuánto tarde en subirse el archivo; falta definir desde qué momento se mide.",
+    "correccion": "Medir desde que termina la recepción del cuerpo hasta la respuesta, con archivos dentro del tamaño máximo.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V21",
+   "tipo": "Verificacion",
+   "label": "¿CWE-434 ocupa el lugar 12 del CWE Top 25 de 2025?",
+   "props": {
+    "tipo_verificacion": "fuente_externa",
+    "estado": "verificado",
+    "severidad": "ninguna",
+    "respuesta": "Sí, según la lista oficial de MITRE (bajó 2 lugares respecto a 2024).",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V22",
+   "tipo": "Verificacion",
+   "label": "¿Hay 4 vulnerabilidades de este tipo en el catálogo KEV de CISA?",
+   "props": {
+    "tipo_verificacion": "fuente_externa",
+    "estado": "verificado_con_matiz",
+    "severidad": "baja",
+    "respuesta": "El 4 es correcto, pero se refiere a los CVE del conjunto de datos del Top 25 de 2025 que están en KEV, no al total de CVE de CWE-434 en todo el catálogo.",
+    "correccion": "Usar la redacción sugerida en problema.datos_externos.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V23",
+   "tipo": "Verificacion",
+   "label": "¿XSS es el lugar 1, path traversal el 6 y 'consumo de recursos sin límite' el 25?",
+   "props": {
+    "tipo_verificacion": "fuente_externa",
+    "estado": "verificado_con_matiz",
+    "severidad": "baja",
+    "respuesta": "Sí: CWE-79 en el 1, CWE-22 en el 6 y CWE-770 en el 25. El nombre exacto de CWE-770 es 'Allocation of Resources Without Limits or Throttling', distinto de CWE-400 'Uncontrolled Resource Consumption'.",
+    "correccion": "Citar los identificadores CWE junto a cada nombre.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V24",
+   "tipo": "Verificacion",
+   "label": "¿La guía de OWASP dice lo que el documento le atribuye?",
+   "props": {
+    "tipo_verificacion": "fuente_externa",
+    "estado": "verificado_con_matiz",
+    "severidad": "baja",
+    "respuesta": "Sí: afirma que no existe una solución única, recomienda defensa en profundidad y advierte que la validación de firma no debe usarse sola porque evadirla es común. Entre sus controles también figuran lista blanca de extensiones, límite de longitud del nombre, actualización de librerías y protección CSRF. Además advierte que reescribir imágenes no garantiza eliminar todo el contenido malicioso y que el procesador también maneja entrada no confiable, lo que respalda el worker aislado.",
+    "correccion": "Ignorar la extensión en las decisiones es defendible porque el servidor reasigna nombre y tipo, pero conviene registrar la discordancia extensión/firma como indicador para el dashboard y mencionar las demás recomendaciones de OWASP que sí se cubren.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V25",
+   "tipo": "Verificacion",
+   "label": "¿La API de VirusTotal es viable para el uso descrito?",
+   "props": {
+    "tipo_verificacion": "fuente_externa",
+    "estado": "verificado_con_matiz",
+    "severidad": "media",
+    "respuesta": "Técnicamente sí: se puede consultar la reputación por hash sin subir el archivo. Pero la API pública está limitada a 4 peticiones por minuto y 500 por día, no puede usarse en productos o servicios comerciales ni en flujos de negocio que no aporten archivos nuevos. Sirve para el proyecto académico, pero choca con el impacto planteado para PyMEs y limita el rendimiento a unos 4 archivos nuevos por minuto. El documento no define qué pasa cuando se agota la cuota.",
+    "correccion": "Declarar el uso de la API pública como limitación académica (en producción, API Premium), apoyarse en la caché por hash y definir el comportamiento ante cuota agotada (ver arquitectura.flujo_recomendado.reglas_decision).",
+    "prioritario": true
+   }
+  },
+  {
+   "id": "V26",
+   "tipo": "Verificacion",
+   "label": "¿El límite de píxeles de Pillow detiene las bombas por defecto?",
+   "props": {
+    "tipo_verificacion": "precision_tecnica",
+    "estado": "verificado_con_matiz",
+    "severidad": "media",
+    "respuesta": "Solo en parte. Por defecto Image.MAX_IMAGE_PIXELS es 89 478 485: por encima emite DecompressionBombWarning y solo lanza DecompressionBombError al superar el doble. Una imagen entre ambos valores pasaría con una simple advertencia.",
+    "correccion": "Fijar MAX_IMAGE_PIXELS de forma explícita, convertir la advertencia en error y validar dimensiones antes de llamar a load().",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V27",
+   "tipo": "Verificacion",
+   "label": "¿pikepdf realiza un CDR completo del PDF?",
+   "props": {
+    "tipo_verificacion": "precision_tecnica",
+    "estado": "verificado_con_matiz",
+    "severidad": "baja",
+    "respuesta": "Realiza un saneamiento estructural: reescribe el archivo con qpdf y permite eliminar objetos activos, pero conserva los flujos de contenido. Un CDR completo implicaría re-renderizar o rasterizar. El documento ya lo llama 'saneamiento de PDF' en la matriz.",
+    "correccion": "Usar 'saneamiento estructural' para PDF y 'reconstrucción' para imágenes; eliminar al menos /JavaScript, /OpenAction, /AA, /Launch, /EmbeddedFiles, /URI y /SubmitForm, además de /Info y XMP.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V28",
+   "tipo": "Verificacion",
+   "label": "¿Angular escapa por defecto los nombres y metadatos maliciosos?",
+   "props": {
+    "tipo_verificacion": "precision_tecnica",
+    "estado": "verificado",
+    "severidad": "ninguna",
+    "respuesta": "Sí: la interpolación escapa el contenido y [innerHTML] pasa por el sanitizador. La protección se pierde si se usan los métodos bypassSecurityTrust* o manipulación directa del DOM.",
+    "correccion": "Regla de código: prohibir bypassSecurityTrust* y ElementRef.nativeElement.innerHTML; verificarlo en revisión.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "V29",
+   "tipo": "Verificacion",
+   "label": "¿La decisión de descartar Next.js es coherente con la arquitectura?",
+   "props": {
+    "tipo_verificacion": "consistencia_interna",
+    "estado": "verificado",
+    "severidad": "ninguna",
+    "respuesta": "Sí: un dashboard interno no necesita SEO ni SSR, y servirlo como estático desde Nginx elimina un servidor Node con exposición propia.",
+    "prioritario": false
+   }
+  },
+  {
+   "id": "I1",
+   "tipo": "Impacto",
+   "label": "Bloquear el 100% de los vectores del conjunto de pruebas (15 casos): evasión de extensión, polyglots, contenido activo en PDF, bombas de descompresión y malware conocido.",
+   "props": {}
+  },
+  {
+   "id": "I2",
+   "tipo": "Impacto",
+   "label": "Garantizar que ningún archivo original llegue a la aplicación cliente: solo la versión reconstruida y sin metadatos.",
+   "props": {}
+  },
+  {
+   "id": "I3",
+   "tipo": "Impacto",
+   "label": "Reducir la integración segura de archivos a una sola llamada a la API.",
+   "props": {}
+  },
+  {
+   "id": "I4",
+   "tipo": "Impacto",
+   "label": "Dar visibilidad a seguridad con dashboard de alertas, cuarentena y bitácora de auditoría.",
+   "props": {}
+  },
+  {
+   "id": "O1",
+   "tipo": "Objetivo",
+   "label": "Diseñar la arquitectura en contenedores: endpoints, modelo de datos y flujo de análisis por capas.",
+   "props": {
+    "semana": "1",
+    "criterio": "Docker Compose funcional con 7 servicios; especificación OpenAPI de 11 endpoints; modelo entidad-relación."
+   }
+  },
+  {
+   "id": "O2",
+   "tipo": "Objetivo",
+   "label": "API de recepción con autenticación por API key y JWT, cola asíncrona y máquina de estados (pendiente, limpio, en cuarentena, rechazado).",
+   "props": {
+    "semana": "1-2",
+    "criterio": "Ningún archivo es descargable antes de terminar su análisis; respuesta 202 en menos de 1 s."
+   }
+  },
+  {
+   "id": "O3",
+   "tipo": "Objetivo",
+   "label": "Motor de validación: lista blanca (JPEG, PNG, PDF) por firma real, límites de tamaño y almacenamiento con nombres UUID fuera del directorio público.",
+   "props": {
+    "semana": "2",
+    "criterio": "Se ignoran extensión, Content-Type y nombre original en todas las decisiones."
+   }
+  },
+  {
+   "id": "O4",
+   "tipo": "Objetivo",
+   "label": "Saneamiento por reconstrucción (CDR) en un worker aislado sin internet: recodificación de imágenes, eliminación de EXIF y limpieza de elementos activos en PDF.",
+   "props": {
+    "semana": "3",
+    "criterio": "100% de los archivos entregados son reconstruidos y sin metadatos."
+   }
+  },
+  {
+   "id": "O5",
+   "tipo": "Objetivo",
+   "label": "Análisis antimalware en dos capas: ClamAV local y consulta del SHA-256 en VirusTotal API, con caché y cuarentena.",
+   "props": {
+    "semana": "4",
+    "criterio": "Archivo de prueba EICAR detectado por ambas capas; ningún archivo se sube a VirusTotal.",
+    "alerta": "Con el orden de pipeline documentado, el criterio no es alcanzable. Ver V07."
+   }
+  },
+  {
+   "id": "O6",
+   "tipo": "Objetivo",
+   "label": "Dashboard en Angular con RBAC, gestión de cuarentena, métricas, bitácora de auditoría y alertas en tiempo real.",
+   "props": {
+    "semana": "5",
+    "criterio": "Toda liberación de cuarentena queda registrada con usuario, fecha y motivo."
+   }
+  },
+  {
+   "id": "O7",
+   "tipo": "Objetivo",
+   "label": "Validar la seguridad contra una matriz de 15 vectores y auditar la API con OWASP ZAP y Trivy.",
+   "props": {
+    "semana": "6",
+    "criterio": "15 de 15 vectores bloqueados; cero hallazgos de severidad alta sin corregir."
+   }
+  },
+  {
+   "id": "INV-01",
+   "tipo": "Invariante",
+   "label": "Ningún archivo original llega a la aplicación cliente: solo se entrega la versión reconstruida y únicamente en estado limpio.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "INV-02",
+   "tipo": "Invariante",
+   "label": "Extensión, Content-Type y nombre original se ignoran en todas las decisiones de seguridad.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "INV-03",
+   "tipo": "Invariante",
+   "label": "Los archivos se almacenan con nombre UUID generado por el servidor, fuera del directorio público.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "INV-04",
+   "tipo": "Invariante",
+   "label": "El worker, único componente que abre archivos, no tiene salida a internet, corre como usuario no root, con sistema de archivos de solo lectura y límites de CPU/memoria.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "INV-05",
+   "tipo": "Invariante",
+   "label": "A VirusTotal solo se envía el hash SHA-256; nunca el archivo.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "INV-06",
+   "tipo": "Invariante",
+   "label": "Ningún archivo es descargable antes de terminar su análisis.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "INV-07",
+   "tipo": "Invariante",
+   "label": "La cuarentena nunca se expone por la API pública.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "INV-08",
+   "tipo": "Invariante",
+   "label": "Toda liberación de cuarentena registra usuario, fecha y motivo obligatorio.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "INV-09",
+   "tipo": "Invariante",
+   "label": "Fail-closed: un error, timeout o caída de una capa nunca produce el estado limpio.",
+   "props": {
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "INV-10",
+   "tipo": "Invariante",
+   "label": "Cada archivo solo es accesible por la aplicación (API key) que lo subió; ante acceso ajeno se responde 404 para no revelar su existencia.",
+   "props": {
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "tec:angular_typescript",
+   "tipo": "Tecnologia",
+   "label": "Angular + TypeScript",
+   "props": {
+    "capa": "frontend",
+    "uso": "Dashboard de SecOps",
+    "justificacion": "Sanitización nativa contra XSS, necesaria porque el dashboard muestra nombres y metadatos de archivos maliciosos."
+   }
+  },
+  {
+   "id": "tec:httpclient_de_angular",
+   "tipo": "Tecnologia",
+   "label": "HttpClient de Angular",
+   "props": {
+    "capa": "frontend",
+    "uso": "Comunicación con la API",
+    "justificacion": "Soporte XSRF integrado e interceptores para adjuntar y renovar tokens."
+   }
+  },
+  {
+   "id": "tec:angular_material",
+   "tipo": "Tecnologia",
+   "label": "Angular Material",
+   "props": {
+    "capa": "frontend",
+    "uso": "Tablas de cuarentena y auditoría",
+    "justificacion": "Paginación, filtros y ordenamiento listos."
+   }
+  },
+  {
+   "id": "tec:rxjs_server_sent_events",
+   "tipo": "Tecnologia",
+   "label": "RxJS + Server-Sent Events",
+   "props": {
+    "capa": "frontend",
+    "uso": "Alertas en tiempo real",
+    "justificacion": "Consume el flujo de eventos de la API sin un servidor adicional."
+   }
+  },
+  {
+   "id": "tec:python_fastapi",
+   "tipo": "Tecnologia",
+   "label": "Python + FastAPI",
+   "props": {
+    "capa": "backend",
+    "uso": "API RESTful",
+    "justificacion": "OpenAPI automática y validación estricta de entradas con Pydantic."
+   }
+  },
+  {
+   "id": "tec:arq_cola_sobre_redis",
+   "tipo": "Tecnologia",
+   "label": "ARQ (cola sobre Redis)",
+   "props": {
+    "capa": "backend",
+    "uso": "Procesamiento asíncrono",
+    "justificacion": "La API responde de inmediato y los análisis no la bloquean."
+   }
+  },
+  {
+   "id": "tec:python_magic",
+   "tipo": "Tecnologia",
+   "label": "python-magic",
+   "props": {
+    "capa": "backend",
+    "uso": "Validación de firma",
+    "justificacion": "Identifica el tipo real por magic numbers (requiere libmagic en la imagen)."
+   }
+  },
+  {
+   "id": "tec:pillow",
+   "tipo": "Tecnologia",
+   "label": "Pillow",
+   "props": {
+    "capa": "backend",
+    "uso": "CDR de imágenes",
+    "justificacion": "Decodifica y recodifica desde los píxeles, elimina EXIF y limita píxeles contra bombas de descompresión."
+   }
+  },
+  {
+   "id": "tec:pikepdf",
+   "tipo": "Tecnologia",
+   "label": "pikepdf",
+   "props": {
+    "capa": "backend",
+    "uso": "Saneamiento de PDF",
+    "justificacion": "Elimina JavaScript, acciones automáticas y archivos embebidos."
+   }
+  },
+  {
+   "id": "tec:httpx",
+   "tipo": "Tecnologia",
+   "label": "httpx",
+   "props": {
+    "capa": "backend",
+    "uso": "Cliente de VirusTotal API v3",
+    "justificacion": "Cliente HTTP asíncrono con tiempos de espera."
+   }
+  },
+  {
+   "id": "tec:postgresql",
+   "tipo": "Tecnologia",
+   "label": "PostgreSQL",
+   "props": {
+    "capa": "datos",
+    "uso": "Metadatos y hashes, resultados de análisis, usuarios, API keys hasheadas y bitácora de auditoría."
+   }
+  },
+  {
+   "id": "tec:redis",
+   "tipo": "Tecnologia",
+   "label": "Redis",
+   "props": {
+    "capa": "datos",
+    "uso": "Cola de trabajos, rate limiting por API key e IP, caché de VirusTotal."
+   }
+  },
+  {
+   "id": "tec:docker_docker_compose",
+   "tipo": "Tecnologia",
+   "label": "Docker + Docker Compose",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Contenedores",
+    "uso": "7 servicios aislados; worker sin internet, no root, FS de solo lectura y límites de CPU/memoria."
+   }
+  },
+  {
+   "id": "tec:nginx",
+   "tipo": "Tecnologia",
+   "label": "Nginx",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Proxy",
+    "uso": "TLS, límite de tamaño de petición y headers CSP, nosniff y HSTS."
+   }
+  },
+  {
+   "id": "tec:clamav",
+   "tipo": "Tecnologia",
+   "label": "ClamAV",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Antimalware",
+    "uso": "Escaneo local con firmas actualizadas automáticamente."
+   }
+  },
+  {
+   "id": "tec:virustotal_api_v3",
+   "tipo": "Tecnologia",
+   "label": "VirusTotal API v3",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Threat intelligence",
+    "uso": "Reputación por hash SHA-256 sin subir archivos."
+   }
+  },
+  {
+   "id": "tec:api_keys",
+   "tipo": "Tecnologia",
+   "label": "API keys",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Autenticación de apps",
+    "uso": "Hasheadas en base de datos, revocables y rotables."
+   }
+  },
+  {
+   "id": "tec:jwt_refresh_token",
+   "tipo": "Tecnologia",
+   "label": "JWT + refresh token",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Autenticación del dashboard",
+    "uso": "Access token de 15 min; refresh en cookie HttpOnly y SameSite con rotación; MFA TOTP para administradores."
+   }
+  },
+  {
+   "id": "tec:rbac",
+   "tipo": "Tecnologia",
+   "label": "RBAC",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Autorización",
+    "uso": "Roles administrador y analista."
+   }
+  },
+  {
+   "id": "tec:tls_1_3",
+   "tipo": "Tecnologia",
+   "label": "TLS 1.3",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Criptografía",
+    "uso": "Tráfico en tránsito, hash de contraseñas y huella de archivos."
+   }
+  },
+  {
+   "id": "tec:argon2",
+   "tipo": "Tecnologia",
+   "label": "Argon2",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Criptografía",
+    "uso": "Tráfico en tránsito, hash de contraseñas y huella de archivos."
+   }
+  },
+  {
+   "id": "tec:sha_256",
+   "tipo": "Tecnologia",
+   "label": "SHA-256",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Criptografía",
+    "uso": "Tráfico en tránsito, hash de contraseñas y huella de archivos."
+   }
+  },
+  {
+   "id": "tec:owasp_zap",
+   "tipo": "Tecnologia",
+   "label": "OWASP ZAP",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Pruebas dinámicas",
+    "uso": "Auditoría de la API."
+   }
+  },
+  {
+   "id": "tec:bandit",
+   "tipo": "Tecnologia",
+   "label": "Bandit",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Análisis estático",
+    "uso": "Código Python."
+   }
+  },
+  {
+   "id": "tec:trivy",
+   "tipo": "Tecnologia",
+   "label": "Trivy",
+   "props": {
+    "capa": "seguridad_e_infraestructura",
+    "categoria": "Dependencias e imágenes",
+    "uso": "Vulnerabilidades conocidas en librerías y contenedores."
+   }
+  },
+  {
+   "id": "tec:next_js",
+   "tipo": "Tecnologia",
+   "label": "Next.js",
+   "props": {
+    "estado": "descartado",
+    "motivo": "El dashboard no requiere SEO ni renderizado en servidor; esa capa ampliaría la superficie de ataque."
+   }
+  },
+  {
+   "id": "tec:alembic",
+   "tipo": "Tecnologia",
+   "label": "Alembic",
+   "props": {
+    "capa": "herramienta_de_plan"
+   }
+  },
+  {
+   "id": "tec:hypothesis",
+   "tipo": "Tecnologia",
+   "label": "Hypothesis",
+   "props": {
+    "capa": "herramienta_de_plan"
+   }
+  },
+  {
+   "id": "tec:exiftool",
+   "tipo": "Tecnologia",
+   "label": "exiftool",
+   "props": {
+    "capa": "herramienta_de_plan"
+   }
+  },
+  {
+   "id": "tec:github_actions",
+   "tipo": "Tecnologia",
+   "label": "GitHub Actions",
+   "props": {
+    "capa": "herramienta_de_plan"
+   }
+  },
+  {
+   "id": "tec:ruff",
+   "tipo": "Tecnologia",
+   "label": "ruff",
+   "props": {
+    "capa": "herramienta_de_plan"
+   }
+  },
+  {
+   "id": "tec:pytest",
+   "tipo": "Tecnologia",
+   "label": "pytest",
+   "props": {
+    "capa": "herramienta_de_plan"
+   }
+  },
+  {
+   "id": "tec:uv",
+   "tipo": "Tecnologia",
+   "label": "uv",
+   "props": {
+    "capa": "herramienta_de_plan"
+   }
+  },
+  {
+   "id": "tec:freshclam",
+   "tipo": "Tecnologia",
+   "label": "freshclam",
+   "props": {
+    "capa": "herramienta_de_plan"
+   }
+  },
+  {
+   "id": "svc:nginx",
+   "tipo": "Servicio",
+   "label": "nginx",
+   "props": {
+    "tecnologia": "Nginx",
+    "rol": "Proxy inverso: TLS, límite de tamaño de petición, headers de seguridad (CSP, nosniff, HSTS). Sirve el dashboard Angular compilado como estático.",
+    "zona": "perimetro",
+    "internet": "entrada (HTTPS)",
+    "estado": "documentado"
+   }
+  },
+  {
+   "id": "svc:api",
+   "tipo": "Servicio",
+   "label": "api",
+   "props": {
+    "tecnologia": "Python + FastAPI",
+    "rol": "Autenticación (API key / JWT), rate limiting, máquina de estados, encolado de trabajos y flujo de eventos SSE.",
+    "zona": "interna",
+    "internet": "no",
+    "estado": "documentado"
+   }
+  },
+  {
+   "id": "svc:redis",
+   "tipo": "Servicio",
+   "label": "redis-main",
+   "props": {
+    "tecnologia": "Redis",
+    "rol": "Rate limiting, caché de VirusTotal y cola ARQ lookup de reputation",
+    "zona": "interna",
+    "internet": "no",
+    "estado": "documentado",
+    "nombre_compose": "redis-main",
+    "cambio": "K02"
+   }
+  },
+  {
+   "id": "svc:postgres",
+   "tipo": "Servicio",
+   "label": "postgres",
+   "props": {
+    "tecnologia": "PostgreSQL",
+    "rol": "Metadatos y hashes de archivos, resultados de análisis, usuarios, API keys hasheadas y bitácora de auditoría.",
+    "zona": "interna",
+    "internet": "no",
+    "estado": "documentado"
+   }
+  },
+  {
+   "id": "svc:worker",
+   "tipo": "Servicio",
+   "label": "worker",
+   "props": {
+    "tecnologia": "Python + ARQ + python-magic + Pillow + pikepdf",
+    "rol": "Validación de firma real, reconstrucción (CDR) y envío a escaneo ClamAV.",
+    "zona": "aislada",
+    "internet": "no",
+    "restricciones": [
+     "sin salida a internet",
+     "usuario no root",
+     "sistema de archivos de solo lectura",
+     "límites de CPU y memoria"
+    ],
+    "estado": "documentado"
+   }
+  },
+  {
+   "id": "svc:clamav",
+   "tipo": "Servicio",
+   "label": "clamav",
+   "props": {
+    "tecnologia": "ClamAV (clamd)",
+    "rol": "Escaneo local con firmas actualizadas automáticamente.",
+    "zona": "aislada",
+    "internet": "no (según diagrama)",
+    "alerta": "La actualización automática de firmas requiere salida a internet. Ver V08.",
+    "estado": "documentado"
+   }
+  },
+  {
+   "id": "svc:reputacion",
+   "tipo": "Servicio",
+   "label": "reputation",
+   "props": {
+    "tecnologia": "Python + httpx",
+    "rol": "Consulta la reputación del hash SHA-256 en VirusTotal API v3 con tiempos de espera y caché.",
+    "zona": "interna",
+    "internet": "solo salida hacia VirusTotal",
+    "alias_en_plan": "reputation",
+    "estado": "documentado"
+   }
+  },
+  {
+   "id": "svc:freshclam",
+   "tipo": "Servicio",
+   "label": "freshclam",
+   "props": {
+    "rol": "Descarga firmas de ClamAV y las escribe en clamav_db",
+    "zona": "egreso",
+    "internet": "salida al espejo de firmas",
+    "estado": "adoptado (D2 = A)"
+   }
+  },
+  {
+   "id": "comp:dashboard",
+   "tipo": "Componente",
+   "label": "Dashboard Angular",
+   "props": {
+    "rol": "Dashboard SecOps; estático servido por Nginx",
+    "despliegue": "Compilado como aplicación estática servida por Nginx."
+   }
+  },
+  {
+   "id": "ext:virustotal",
+   "tipo": "Externo",
+   "label": "VirusTotal API v3",
+   "props": {
+    "uso": "Reputación por hash SHA-256 sin subir archivos",
+    "cuota_publica": "4 peticiones/min, 500/día; sin uso comercial"
+   }
+  },
+  {
+   "id": "red:frontend",
+   "tipo": "Red",
+   "label": "frontend",
+   "props": {
+    "internal": false,
+    "definida_en": "F1.02"
+   }
+  },
+  {
+   "id": "red:backend",
+   "tipo": "Red",
+   "label": "backend",
+   "props": {
+    "internal": true,
+    "definida_en": "F1.02"
+   }
+  },
+  {
+   "id": "red:isolated",
+   "tipo": "Red",
+   "label": "isolated",
+   "props": {
+    "internal": true,
+    "definida_en": "F1.02"
+   }
+  },
+  {
+   "id": "red:egress",
+   "tipo": "Red",
+   "label": "egress",
+   "props": {
+    "internal": false,
+    "definida_en": "F1.02"
+   }
+  },
+  {
+   "id": "vol:uploads_tmp",
+   "tipo": "Volumen",
+   "label": "uploads_tmp",
+   "props": {
+    "contenido": "Originales recién recibidos, con nombre UUID",
+    "definido_en": "F1.04"
+   }
+  },
+  {
+   "id": "vol:clean_store",
+   "tipo": "Volumen",
+   "label": "clean_store",
+   "props": {
+    "contenido": "Solo versiones reconstruidas en estado limpio",
+    "definido_en": "F1.04",
+    "expuesto_por_api": "sí, vía GET /v1/files/{id}/content"
+   }
+  },
+  {
+   "id": "vol:quarantine",
+   "tipo": "Volumen",
+   "label": "quarantine",
+   "props": {
+    "contenido": "Originales sospechosos; retención 30 días; nunca expuesto por la API",
+    "definido_en": "F1.04",
+    "retencion": "30 días",
+    "expuesto_por_api": "nunca"
+   }
+  },
+  {
+   "id": "vol:clamav_db",
+   "tipo": "Volumen",
+   "label": "clamav_db",
+   "props": {
+    "contenido": "Firmas de ClamAV",
+    "definido_en": "F1.04"
+   }
+  },
+  {
+   "id": "flujo:R1",
+   "tipo": "PasoFlujo",
+   "label": "Nginx: TLS y client_max_body_size; peticiones mayores se cortan con 413.",
+   "props": {
+    "orden": 1,
+    "flujo": "recomendado"
+   }
+  },
+  {
+   "id": "flujo:R2",
+   "tipo": "PasoFlujo",
+   "label": "API: autentica API key, aplica rate limit, guarda el original en almacenamiento temporal con nombre UUID calculando el SHA-256 mientras recibe, estado = pendiente, encola y responde 202.",
+   "props": {
+    "orden": 2,
+    "flujo": "recomendado"
+   }
+  },
+  {
+   "id": "flujo:R3",
+   "tipo": "PasoFlujo",
+   "label": "Reputación: consulta el hash en caché Redis; si no existe, en VirusTotal (respetando la cuota).",
+   "props": {
+    "orden": 3,
+    "flujo": "recomendado"
+   }
+  },
+  {
+   "id": "flujo:R4",
+   "tipo": "PasoFlujo",
+   "label": "Worker: escanea el ORIGINAL con ClamAV (clamd INSTREAM) antes de aplicar la lista blanca.",
+   "props": {
+    "orden": 4,
+    "flujo": "recomendado"
+   }
+  },
+  {
+   "id": "flujo:R5",
+   "tipo": "PasoFlujo",
+   "label": "Worker: valida la firma real (python-magic) contra la lista blanca y aplica políticas (PDF cifrado, límites de píxeles y páginas).",
+   "props": {
+    "orden": 5,
+    "flujo": "recomendado"
+   }
+  },
+  {
+   "id": "flujo:R6",
+   "tipo": "PasoFlujo",
+   "label": "Worker: reconstrucción (CDR) del archivo permitido y eliminación de metadatos.",
+   "props": {
+    "orden": 6,
+    "flujo": "recomendado"
+   }
+  },
+  {
+   "id": "flujo:R7",
+   "tipo": "PasoFlujo",
+   "label": "Worker (opcional): re-escaneo del archivo reconstruido.",
+   "props": {
+    "orden": 7,
+    "flujo": "recomendado"
+   }
+  },
+  {
+   "id": "flujo:R8",
+   "tipo": "PasoFlujo",
+   "label": "Decisión con prioridad: malware (ClamAV o VirusTotal ≥ umbral) → en_cuarentena; tipo o política no permitidos → rechazado; error o timeout → error (nunca limpio); todo correcto → limpio.",
+   "props": {
+    "orden": 8,
+    "flujo": "recomendado",
+    "prioridad": [
+     "en_cuarentena",
+     "rechazado",
+     "error",
+     "limpio"
+    ],
+    "ejecutor": "coordinator (K01 + K08)"
+   }
+  },
+  {
+   "id": "flujo:R9",
+   "tipo": "PasoFlujo",
+   "label": "Limpio: se guarda solo la versión reconstruida y se elimina el original; se emite evento SSE.",
+   "props": {
+    "orden": 9,
+    "flujo": "recomendado"
+   }
+  },
+  {
+   "id": "flujo:documentado",
+   "tipo": "PasoFlujo",
+   "label": "Orden documentado del worker: firma → reconstrucción → ClamAV",
+   "props": {
+    "pasos": [
+     "1. La aplicación cliente envía el archivo con API key a través de Nginx.",
+     "2. La API autentica, aplica rate limiting, registra el estado pendiente, encola el trabajo en Redis y responde 202 con el ID.",
+     "3. El worker (zona aislada): (a) firma real con python-magic, (b) reconstrucción con Pillow/pikepdf, (c) escaneo con ClamAV.",
+     "4. El servicio de reputación recibe solo el hash SHA-256 y consulta VirusTotal.",
+     "5. Limpio: la versión reconstruida va al almacenamiento limpio. Sospechoso: el original va a cuarentena.",
+     "6. La aplicación cliente consulta el estado y descarga la versión reconstruida solo si está limpio."
+    ],
+    "flujo": "documentado",
+    "estado": "inconsistente (V07)"
+   }
+  },
+  {
+   "id": "estado:pendiente",
+   "tipo": "Estado",
+   "label": "pendiente",
+   "props": {
+    "origen": "documento",
+    "descargable": false
+   }
+  },
+  {
+   "id": "estado:limpio",
+   "tipo": "Estado",
+   "label": "limpio",
+   "props": {
+    "origen": "documento",
+    "descargable": true
+   }
+  },
+  {
+   "id": "estado:en_cuarentena",
+   "tipo": "Estado",
+   "label": "en_cuarentena",
+   "props": {
+    "origen": "documento",
+    "descargable": false
+   }
+  },
+  {
+   "id": "estado:rechazado",
+   "tipo": "Estado",
+   "label": "rechazado",
+   "props": {
+    "origen": "documento",
+    "descargable": false
+   }
+  },
+  {
+   "id": "estado:error",
+   "tipo": "Estado",
+   "label": "error",
+   "props": {
+    "origen": "decision D4",
+    "motivo": "Fallo o timeout del análisis; nunca descargable; permite reintento.",
+    "descargable": false
+   }
+  },
+  {
+   "id": "veredicto:no_evaluada",
+   "tipo": "VeredictoCapa",
+   "label": "no_evaluada",
+   "props": {
+    "motivo": "VirusTotal sin cuota o sin respuesta (D3 = a)"
+   }
+  },
+  {
+   "id": "ent:aplicacion",
+   "tipo": "Entidad",
+   "label": "aplicacion",
+   "props": {
+    "campos": [
+     "id",
+     "nombre",
+     "activa"
+    ],
+    "origen": "inferido"
+   }
+  },
+  {
+   "id": "ent:api_key",
+   "tipo": "Entidad",
+   "label": "api_key",
+   "props": {
+    "campos": [
+     "id",
+     "aplicacion_id",
+     "prefijo",
+     "hash",
+     "creada_en",
+     "revocada_en"
+    ],
+    "origen": "inferido"
+   }
+  },
+  {
+   "id": "ent:archivo",
+   "tipo": "Entidad",
+   "label": "archivo",
+   "props": {
+    "campos": [
+     "id (UUID)",
+     "aplicacion_id",
+     "nombre_original (solo para mostrar)",
+     "tipo_detectado",
+     "tamano_bytes",
+     "sha256",
+     "estado",
+     "creado_en",
+     "analizado_en"
+    ],
+    "origen": "inferido"
+   }
+  },
+  {
+   "id": "ent:resultado_analisis",
+   "tipo": "Entidad",
+   "label": "resultado_analisis",
+   "props": {
+    "campos": [
+     "archivo_id",
+     "capa (firma | cdr | clamav | virustotal)",
+     "veredicto",
+     "detalle",
+     "duracion_ms"
+    ],
+    "origen": "inferido"
+   }
+  },
+  {
+   "id": "ent:usuario",
+   "tipo": "Entidad",
+   "label": "usuario",
+   "props": {
+    "campos": [
+     "id",
+     "email",
+     "hash_password (Argon2)",
+     "rol (admin | analista)",
+     "totp_secreto_cifrado",
+     "activo"
+    ],
+    "origen": "inferido"
+   }
+  },
+  {
+   "id": "ent:refresh_token",
+   "tipo": "Entidad",
+   "label": "refresh_token",
+   "props": {
+    "campos": [
+     "jti",
+     "usuario_id",
+     "familia",
+     "expira_en",
+     "revocado"
+    ],
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "ent:evento_auditoria",
+   "tipo": "Entidad",
+   "label": "evento_auditoria",
+   "props": {
+    "campos": [
+     "id",
+     "usuario_id",
+     "accion",
+     "objetivo_id",
+     "motivo",
+     "ip",
+     "fecha"
+    ],
+    "origen": "inferido"
+   }
+  },
+  {
+   "id": "dato_redis:cola_arq",
+   "tipo": "DatoRedis",
+   "label": "Cola ARQ analyze (api → worker)",
+   "props": {}
+  },
+  {
+   "id": "dato_redis:rate_limit",
+   "tipo": "DatoRedis",
+   "label": "Contadores de rate limit por API key e IP",
+   "props": {}
+  },
+  {
+   "id": "dato_redis:cache_vt",
+   "tipo": "DatoRedis",
+   "label": "Caché VT: sha256 → veredicto con TTL",
+   "props": {}
+  },
+  {
+   "id": "auth:api_key",
+   "tipo": "MetodoAuth",
+   "label": "API key",
+   "props": {}
+  },
+  {
+   "id": "auth:credenciales_totp",
+   "tipo": "MetodoAuth",
+   "label": "Credenciales + TOTP",
+   "props": {}
+  },
+  {
+   "id": "auth:cookie_refresh",
+   "tipo": "MetodoAuth",
+   "label": "Cookie de refresh",
+   "props": {}
+  },
+  {
+   "id": "auth:jwt_analista",
+   "tipo": "MetodoAuth",
+   "label": "JWT (analista)",
+   "props": {}
+  },
+  {
+   "id": "auth:jwt_admin",
+   "tipo": "MetodoAuth",
+   "label": "JWT (admin)",
+   "props": {}
+  },
+  {
+   "id": "ep:POST /v1/files",
+   "tipo": "Endpoint",
+   "label": "POST /v1/files",
+   "props": {
+    "metodo": "POST",
+    "ruta": "/v1/files",
+    "uso": "Subir archivo; responde 202 con ID.",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "ep:GET /v1/files/{id}",
+   "tipo": "Endpoint",
+   "label": "GET /v1/files/{id}",
+   "props": {
+    "metodo": "GET",
+    "ruta": "/v1/files/{id}",
+    "uso": "Estado y resultado del análisis.",
+    "origen": "documento",
+    "parametro_wait": "?wait=N long-poll, N ≤ 20 s (K12)"
+   }
+  },
+  {
+   "id": "ep:GET /v1/files/{id}/content",
+   "tipo": "Endpoint",
+   "label": "GET /v1/files/{id}/content",
+   "props": {
+    "metodo": "GET",
+    "ruta": "/v1/files/{id}/content",
+    "uso": "Descargar la versión reconstruida (solo si está limpio).",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "ep:POST /v1/auth/login",
+   "tipo": "Endpoint",
+   "label": "POST /v1/auth/login",
+   "props": {
+    "metodo": "POST",
+    "ruta": "/v1/auth/login",
+    "uso": "Inicio de sesión del dashboard.",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "ep:POST /v1/auth/refresh",
+   "tipo": "Endpoint",
+   "label": "POST /v1/auth/refresh",
+   "props": {
+    "metodo": "POST",
+    "ruta": "/v1/auth/refresh",
+    "uso": "Renovar token de acceso.",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "ep:GET /v1/admin/files",
+   "tipo": "Endpoint",
+   "label": "GET /v1/admin/files",
+   "props": {
+    "metodo": "GET",
+    "ruta": "/v1/admin/files",
+    "uso": "Listar archivos con filtros por estado, fecha y aplicación.",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "ep:POST /v1/admin/files/{id}/release",
+   "tipo": "Endpoint",
+   "label": "POST /v1/admin/files/{id}/release",
+   "props": {
+    "metodo": "POST",
+    "ruta": "/v1/admin/files/{id}/release",
+    "uso": "Liberar falso positivo con motivo obligatorio.",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "ep:GET /v1/admin/metrics",
+   "tipo": "Endpoint",
+   "label": "GET /v1/admin/metrics",
+   "props": {
+    "metodo": "GET",
+    "ruta": "/v1/admin/metrics",
+    "uso": "Métricas de amenazas bloqueadas.",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "ep:GET /v1/admin/audit",
+   "tipo": "Endpoint",
+   "label": "GET /v1/admin/audit",
+   "props": {
+    "metodo": "GET",
+    "ruta": "/v1/admin/audit",
+    "uso": "Bitácora de acciones.",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "ep:GET /v1/admin/events",
+   "tipo": "Endpoint",
+   "label": "GET /v1/admin/events",
+   "props": {
+    "metodo": "GET",
+    "ruta": "/v1/admin/events",
+    "uso": "Alertas en tiempo real (Server-Sent Events).",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "ep:POST /v1/admin/api-keys",
+   "tipo": "Endpoint",
+   "label": "POST /v1/admin/api-keys",
+   "props": {
+    "metodo": "POST",
+    "ruta": "/v1/admin/api-keys",
+    "uso": "Crear y revocar API keys.",
+    "origen": "documento",
+    "cuerpo": "{aplicacion_id} | {aplicacion_nombre} (K05)"
+   }
+  },
+  {
+   "id": "ep:DELETE /v1/admin/api-keys",
+   "tipo": "Endpoint",
+   "label": "DELETE /v1/admin/api-keys",
+   "props": {
+    "metodo": "DELETE",
+    "ruta": "/v1/admin/api-keys",
+    "uso": "Crear y revocar API keys.",
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "ep:DELETE /v1/admin/api-keys/{id}",
+   "tipo": "Endpoint",
+   "label": "DELETE /v1/admin/api-keys/{id}",
+   "props": {
+    "metodo": "DELETE",
+    "ruta": "/v1/admin/api-keys/{id}",
+    "uso": "La revocación necesita identificar la key en la ruta.",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "ep:GET /v1/admin/api-keys",
+   "tipo": "Endpoint",
+   "label": "GET /v1/admin/api-keys",
+   "props": {
+    "metodo": "GET",
+    "ruta": "/v1/admin/api-keys",
+    "uso": "Listar keys (prefijo, aplicación, fecha, estado) para poder rotarlas y revocarlas desde el dashboard.",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "ep:POST /v1/auth/logout",
+   "tipo": "Endpoint",
+   "label": "POST /v1/auth/logout",
+   "props": {
+    "metodo": "POST",
+    "ruta": "/v1/auth/logout",
+    "uso": "Revocar la familia de refresh tokens al cerrar sesión.",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "ep:POST /v1/auth/totp/enroll",
+   "tipo": "Endpoint",
+   "label": "POST /v1/auth/totp/enroll",
+   "props": {
+    "metodo": "POST",
+    "ruta": "/v1/auth/totp/enroll",
+    "uso": "Alta del segundo factor de administradores.",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "http:202",
+   "tipo": "CodigoHTTP",
+   "label": "202",
+   "props": {
+    "significado": "Archivo recibido y encolado",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "http:401",
+   "tipo": "CodigoHTTP",
+   "label": "401",
+   "props": {
+    "significado": "API key o JWT ausente o inválido",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "http:403",
+   "tipo": "CodigoHTTP",
+   "label": "403",
+   "props": {
+    "significado": "Rol insuficiente (analista en endpoint de admin)",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "http:404",
+   "tipo": "CodigoHTTP",
+   "label": "404",
+   "props": {
+    "significado": "Archivo inexistente o de otra aplicación (anti-IDOR)",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "http:409",
+   "tipo": "CodigoHTTP",
+   "label": "409",
+   "props": {
+    "significado": "Descarga solicitada en estado distinto de limpio",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "http:413",
+   "tipo": "CodigoHTTP",
+   "label": "413",
+   "props": {
+    "significado": "Archivo excede el límite (Nginx)",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "http:429",
+   "tipo": "CodigoHTTP",
+   "label": "429",
+   "props": {
+    "significado": "Rate limit excedido",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "ctrl:validacion_de_firma",
+   "tipo": "Control",
+   "label": "Validación de firma",
+   "props": {}
+  },
+  {
+   "id": "ctrl:almacenamiento_con_uuid",
+   "tipo": "Control",
+   "label": "Almacenamiento con UUID",
+   "props": {}
+  },
+  {
+   "id": "ctrl:reconstruccion_de_imagen",
+   "tipo": "Control",
+   "label": "Reconstrucción de imagen",
+   "props": {}
+  },
+  {
+   "id": "ctrl:saneamiento_de_pdf",
+   "tipo": "Control",
+   "label": "Saneamiento de PDF",
+   "props": {}
+  },
+  {
+   "id": "ctrl:rechazo_por_politica",
+   "tipo": "Control",
+   "label": "Rechazo por política",
+   "props": {}
+  },
+  {
+   "id": "ctrl:lista_blanca",
+   "tipo": "Control",
+   "label": "Lista blanca",
+   "props": {}
+  },
+  {
+   "id": "ctrl:limite_de_pillow",
+   "tipo": "Control",
+   "label": "Límite de Pillow",
+   "props": {}
+  },
+  {
+   "id": "ctrl:limite_de_nginx",
+   "tipo": "Control",
+   "label": "Límite de Nginx",
+   "props": {}
+  },
+  {
+   "id": "ctrl:clamav_y_virustotal",
+   "tipo": "Control",
+   "label": "ClamAV y VirusTotal",
+   "props": {}
+  },
+  {
+   "id": "ctrl:escape_en_dashboard_angular",
+   "tipo": "Control",
+   "label": "Escape en dashboard (Angular)",
+   "props": {}
+  },
+  {
+   "id": "ctrl:verificacion_de_propiedad",
+   "tipo": "Control",
+   "label": "Verificación de propiedad",
+   "props": {}
+  },
+  {
+   "id": "ctrl:rate_limiting",
+   "tipo": "Control",
+   "label": "Rate limiting",
+   "props": {}
+  },
+  {
+   "id": "ctrl:maquina_de_estados",
+   "tipo": "Control",
+   "label": "Máquina de estados",
+   "props": {}
+  },
+  {
+   "id": "ctrl:rbac",
+   "tipo": "Control",
+   "label": "RBAC (admin / analista)",
+   "props": {
+    "jerarquia": "admin ⊇ analista (K06)"
+   }
+  },
+  {
+   "id": "ctrl:rotacion_refresh",
+   "tipo": "Control",
+   "label": "Rotación de refresh token con detección de reutilización",
+   "props": {}
+  },
+  {
+   "id": "ctrl:solo_hash_a_vt",
+   "tipo": "Control",
+   "label": "El servicio de reputación solo envía el hash",
+   "props": {}
+  },
+  {
+   "id": "vec:01",
+   "tipo": "VectorPrueba",
+   "label": "Script con extensión de imagen",
+   "props": {
+    "numero": 1,
+    "capa": "Validación de firma",
+    "resultado_esperado": "rechazado",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:02",
+   "tipo": "VectorPrueba",
+   "label": "Doble extensión",
+   "props": {
+    "numero": 2,
+    "capa": "Validación de firma",
+    "resultado_esperado": "rechazado",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:03",
+   "tipo": "VectorPrueba",
+   "label": "Nombre con ../ o byte nulo",
+   "props": {
+    "numero": 3,
+    "capa": "Almacenamiento con UUID",
+    "resultado_esperado": "El archivo se guarda solo con UUID; ninguna ruta escapa del almacenamiento",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:04",
+   "tipo": "VectorPrueba",
+   "label": "Imagen polyglot",
+   "props": {
+    "numero": 4,
+    "capa": "Reconstrucción de imagen",
+    "resultado_esperado": "limpio; el archivo entregado ya no contiene la carga útil",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:05",
+   "tipo": "VectorPrueba",
+   "label": "PDF con JavaScript o acciones automáticas",
+   "props": {
+    "numero": 5,
+    "capa": "Saneamiento de PDF",
+    "resultado_esperado": "limpio; sin /JavaScript, /OpenAction ni /AA en el PDF entregado",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:06",
+   "tipo": "VectorPrueba",
+   "label": "PDF cifrado",
+   "props": {
+    "numero": 6,
+    "capa": "Rechazo por política",
+    "resultado_esperado": "rechazado (incluye PDF con solo contraseña de propietario)",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:07",
+   "tipo": "VectorPrueba",
+   "label": "SVG",
+   "props": {
+    "numero": 7,
+    "capa": "Lista blanca",
+    "resultado_esperado": "rechazado",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:08",
+   "tipo": "VectorPrueba",
+   "label": "ZIP",
+   "props": {
+    "numero": 8,
+    "capa": "Lista blanca",
+    "resultado_esperado": "rechazado",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:09",
+   "tipo": "VectorPrueba",
+   "label": "Bomba de píxeles",
+   "props": {
+    "numero": 9,
+    "capa": "Límite de Pillow",
+    "resultado_esperado": "rechazado sin agotar la memoria del worker",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:10",
+   "tipo": "VectorPrueba",
+   "label": "Archivo de 500 MB",
+   "props": {
+    "numero": 10,
+    "capa": "Límite de Nginx",
+    "resultado_esperado": "HTTP 413; la petición no llega a la API",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:11",
+   "tipo": "VectorPrueba",
+   "label": "Archivo de prueba EICAR",
+   "props": {
+    "numero": 11,
+    "capa": "ClamAV y VirusTotal",
+    "resultado_esperado": "en_cuarentena con detección en ambas capas",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:12",
+   "tipo": "VectorPrueba",
+   "label": "Nombre de archivo con HTML/JS",
+   "props": {
+    "numero": 12,
+    "capa": "Escape en dashboard (Angular)",
+    "resultado_esperado": "Se muestra como texto; no se ejecuta",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:13",
+   "tipo": "VectorPrueba",
+   "label": "Acceso a archivo de otra aplicación (IDOR)",
+   "props": {
+    "numero": 13,
+    "capa": "Verificación de propiedad",
+    "resultado_esperado": "HTTP 404",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:14",
+   "tipo": "VectorPrueba",
+   "label": "200 subidas en un minuto",
+   "props": {
+    "numero": 14,
+    "capa": "Rate limiting",
+    "resultado_esperado": "HTTP 429 al superar el umbral",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vec:15",
+   "tipo": "VectorPrueba",
+   "label": "Descarga de archivo en estado pendiente",
+   "props": {
+    "numero": 15,
+    "capa": "Máquina de estados",
+    "resultado_esperado": "HTTP 409",
+    "origen": "matriz_documento",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vecx:flate_bomb",
+   "tipo": "VectorPrueba",
+   "label": "PDF con bomba de flujos comprimidos (FlateDecode)",
+   "props": {
+    "motivo": "El impacto esperado menciona bombas de descompresión en plural y la matriz solo prueba la de píxeles.",
+    "origen": "adicional",
+    "estado": "pendiente",
+    "resultado_esperado": "rechazado (K13)"
+   }
+  },
+  {
+   "id": "vecx:datos_anexados",
+   "tipo": "VectorPrueba",
+   "label": "PDF o JPEG con datos anexados al final del archivo",
+   "props": {
+    "motivo": "Confirmar que la reconstrucción descarta lo que va después del fin lógico del archivo.",
+    "origen": "adicional",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vecx:pdf_exif_embebido",
+   "tipo": "VectorPrueba",
+   "label": "PDF con imagen embebida que contiene EXIF/GPS",
+   "props": {
+    "motivo": "Comprobar el criterio 'sin metadatos' en PDF.",
+    "origen": "adicional",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vecx:analista_endpoint_admin",
+   "tipo": "VectorPrueba",
+   "label": "Analista invoca un endpoint de admin",
+   "props": {
+    "motivo": "Probar RBAC (CWE-862, lugar 4 del Top 25 de 2025).",
+    "origen": "adicional",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vecx:refresh_reutilizado",
+   "tipo": "VectorPrueba",
+   "label": "Reutilización de un refresh token ya rotado",
+   "props": {
+    "motivo": "Probar detección de robo de token.",
+    "origen": "adicional",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "vecx:reputacion_solo_get",
+   "tipo": "VectorPrueba",
+   "label": "El servicio de reputación solo hace GET por hash y nunca envía el archivo",
+   "props": {
+    "motivo": "Prueba adicional de F4 (plan)",
+    "origen": "adicional",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "param:tamano_maximo_archivo",
+   "tipo": "Parametro",
+   "label": "tamano_maximo_archivo",
+   "props": {
+    "propuesta": "10 MB (igual en Nginx y en la API)",
+    "estado": "confirmado"
+   }
+  },
+  {
+   "id": "param:rate_limit_subidas",
+   "tipo": "Parametro",
+   "label": "rate_limit_subidas",
+   "props": {
+    "propuesta": "30 por minuto por API key y 60 por minuto por IP",
+    "estado": "confirmado",
+    "valor": "Por API key, configurable por aplicación; 120/min por defecto con ráfaga. Por IP solo para peticiones sin autenticar o con key inválida (K10)"
+   }
+  },
+  {
+   "id": "param:max_pixeles_imagen",
+   "tipo": "Parametro",
+   "label": "max_pixeles_imagen",
+   "props": {
+    "propuesta": "40 000 000 px, con la advertencia de Pillow tratada como error",
+    "estado": "confirmado"
+   }
+  },
+  {
+   "id": "param:max_paginas_pdf",
+   "tipo": "Parametro",
+   "label": "max_paginas_pdf",
+   "props": {
+    "propuesta": "200",
+    "estado": "confirmado"
+   }
+  },
+  {
+   "id": "param:timeout_analisis_por_archivo",
+   "tipo": "Parametro",
+   "label": "timeout_analisis_por_archivo",
+   "props": {
+    "propuesta": "30 s; al vencer → estado error",
+    "estado": "confirmado"
+   }
+  },
+  {
+   "id": "param:umbral_virustotal",
+   "tipo": "Parametro",
+   "label": "umbral_virustotal",
+   "props": {
+    "propuesta": "≥ 3 motores 'malicious' → en_cuarentena; 1–2 → en_cuarentena para revisión del analista",
+    "estado": "confirmado",
+    "valor": "≥ 1 motor 'malicious' → en_cuarentena; el conteo de motores se guarda en resultado_analisis.detalle",
+    "propuesta_original": "≥ 3 motores 'malicious' → en_cuarentena; 1–2 → en_cuarentena para revisión del analista"
+   }
+  },
+  {
+   "id": "param:ttl_cache_virustotal",
+   "tipo": "Parametro",
+   "label": "ttl_cache_virustotal",
+   "props": {
+    "propuesta": "24 h",
+    "estado": "confirmado"
+   }
+  },
+  {
+   "id": "param:medicion_202_menor_1s",
+   "tipo": "Parametro",
+   "label": "medicion_202_menor_1s",
+   "props": {
+    "propuesta": "Medido desde que termina la recepción del cuerpo hasta la respuesta, con archivos ≤ tamaño máximo",
+    "estado": "confirmado"
+   }
+  },
+  {
+   "id": "param:retencion_originales",
+   "tipo": "Parametro",
+   "label": "retencion_originales",
+   "props": {
+    "propuesta": "Limpio: borrar el original al terminar el CDR. Rechazado: guardar solo hash y metadatos. Cuarentena: 30 días.",
+    "estado": "confirmado"
+   }
+  },
+  {
+   "id": "lim:L1",
+   "tipo": "Limitacion",
+   "label": "Solo se aceptan JPEG, PNG y PDF; SVG, comprimidos y documentos de Office se rechazan por diseño.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "lim:L2",
+   "tipo": "Limitacion",
+   "label": "El malware nuevo (zero-day) no se detecta por firma; se neutraliza mediante la reconstrucción.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "lim:L3",
+   "tipo": "Limitacion",
+   "label": "La reconstrucción de PDF elimina elementos activos, pero no protege contra vulnerabilidades del lector de PDF del usuario final.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "lim:L4",
+   "tipo": "Limitacion",
+   "label": "No se analiza el contenido semántico: un PDF de phishing con texto engañoso puede clasificarse como limpio.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "lim:L5",
+   "tipo": "Limitacion",
+   "label": "Los originales en cuarentena se eliminan a los 30 días.",
+   "props": {
+    "origen": "documento"
+   }
+  },
+  {
+   "id": "lim:L6",
+   "tipo": "Limitacion",
+   "label": "La consulta a VirusTotal con la API pública está limitada en cuota y en uso comercial; en producción se requeriría la API Premium.",
+   "props": {
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "lim:L7",
+   "tipo": "Limitacion",
+   "label": "La recodificación de JPEG es con pérdida; la imagen entregada no es idéntica bit a bit a la original.",
+   "props": {
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "id": "fuera:svg",
+   "tipo": "FueraDeAlcance",
+   "label": "SVG",
+   "props": {}
+  },
+  {
+   "id": "fuera:archivos_comprimidos_zip_y_similares",
+   "tipo": "FueraDeAlcance",
+   "label": "archivos comprimidos (ZIP y similares)",
+   "props": {}
+  },
+  {
+   "id": "fuera:documentos_de_office",
+   "tipo": "FueraDeAlcance",
+   "label": "documentos de Office",
+   "props": {}
+  },
+  {
+   "id": "fuera:analisis_semantico_del_contenido_phishing",
+   "tipo": "FueraDeAlcance",
+   "label": "análisis semántico del contenido (phishing)",
+   "props": {}
+  },
+  {
+   "id": "tipo:JPEG",
+   "tipo": "TipoArchivo",
+   "label": "JPEG",
+   "props": {
+    "permitido": true
+   }
+  },
+  {
+   "id": "tipo:PNG",
+   "tipo": "TipoArchivo",
+   "label": "PNG",
+   "props": {
+    "permitido": true
+   }
+  },
+  {
+   "id": "tipo:PDF",
+   "tipo": "TipoArchivo",
+   "label": "PDF",
+   "props": {
+    "permitido": true
+   }
+  },
+  {
+   "id": "D1",
+   "tipo": "Decision",
+   "label": "Orden del pipeline",
+   "props": {
+    "opciones": [
+     "Orden documentado: firma → reconstrucción → ClamAV",
+     "Flujo recomendado: hash y ClamAV sobre el original → firma → reconstrucción"
+    ],
+    "recomendacion": "Flujo recomendado. Con el orden documentado, EICAR se rechaza por tipo y nunca llega a ClamAV.",
+    "estado": "confirmada",
+    "eleccion": "Flujo recomendado: SHA-256 y ClamAV sobre el ORIGINAL antes de la lista blanca → firma → CDR; prioridad cuarentena > rechazado > error > limpio",
+    "fecha_decision": "2026-10-28",
+    "revision": [
+     "ajuste adoptado en K09"
+    ],
+    "ajuste": "ClamAV en paralelo con firma + CDR; la decisión espera a ambos. clamd: MaxFileSize/MaxScanSize 10M, MaxRecursion bajo."
+   }
+  },
+  {
+   "id": "D2",
+   "tipo": "Decision",
+   "label": "ClamAV dentro de la zona aislada",
+   "props": {
+    "opciones": [
+     "A: contenedor freshclam separado con salida a internet, que escribe las firmas en un volumen de solo lectura para clamd (8 servicios)",
+     "B: proxy de egreso que solo permite llegar al espejo de firmas"
+    ],
+    "recomendacion": "A, por ser más simple de explicar y de probar.",
+    "estado": "confirmada",
+    "eleccion": "A: contenedor freshclam separado en red egress; escribe clamav_db, montado ro en clamd; 8 servicios",
+    "fecha_decision": "2026-10-28",
+    "ajuste": "SelfCheck 300 s, healthcheck, worker depends_on service_healthy, memoria clamav ≥ 2.5 GiB"
+   }
+  },
+  {
+   "id": "D3",
+   "tipo": "Decision",
+   "label": "VirusTotal sin cuota o sin respuesta",
+   "props": {
+    "opciones": [
+     "a: decidir con ClamAV y CDR y marcar la capa como 'no_evaluada'",
+     "b: dejar el archivo en 'pendiente' hasta obtener respuesta"
+    ],
+    "recomendacion": "a. La opción b bloquearía las pruebas de carga.",
+    "estado": "confirmada",
+    "eleccion": "a: reintentar dentro del timeout; si no hay respuesta, decidir con ClamAV + CDR y marcar la capa virustotal como no_evaluada",
+    "fecha_decision": "2026-10-28",
+    "revision": [
+     "ajuste adoptado en K07"
+    ]
+   }
+  },
+  {
+   "id": "D4",
+   "tipo": "Decision",
+   "label": "Estados y liberación de cuarentena",
+   "props": {
+    "opciones": [
+     "Agregar el estado 'error' y reencolar en el CDR todo archivo liberado"
+    ],
+    "recomendacion": "Adoptarlo.",
+    "estado": "confirmada",
+    "eleccion": "Estado 'error' (nunca descargable); la liberación reencola en CDR; se incluyen las transiciones de K03",
+    "fecha_decision": "2026-10-28",
+    "revision": [
+     "ajuste adoptado en K11"
+    ]
+   }
+  },
+  {
+   "id": "D5",
+   "tipo": "Decision",
+   "label": "Parámetros numéricos",
+   "props": {
+    "opciones": [
+     "Confirmar o ajustar los valores de 'parametros_por_definir' de gatekeeper_contexto.json"
+    ],
+    "recomendacion": "Usar las propuestas como punto de partida.",
+    "estado": "confirmada",
+    "eleccion": "Valores propuestos de parametros_por_definir; umbral VT simplificado a ≥ 1 motor 'malicious' → en_cuarentena con el conteo en el detalle",
+    "fecha_decision": "2026-10-28",
+    "revision": [
+     "ajuste adoptado en K10"
+    ]
+   }
+  },
+  {
+   "id": "D6",
+   "tipo": "Decision",
+   "label": "Corrección de la propuesta escrita",
+   "props": {
+    "opciones": [
+     "Corregir el conteo de endpoints y las citas de CWE y KEV"
+    ],
+    "recomendacion": "Usar la redacción sugerida en gatekeeper_contexto.json.",
+    "estado": "confirmada",
+    "eleccion": "Usar la redacción sugerida y corregir la propuesta una sola vez en F6 (CHK4), junto con la limitación de VirusTotal y las decisiones de F0",
+    "fecha_decision": "2026-10-28"
+   }
+  },
+  {
+   "id": "dir:api/",
+   "tipo": "Directorio",
+   "label": "api/",
+   "props": {
+    "contenido": "Servicio FastAPI: autenticación, recepción, máquina de estados, endpoints de admin y SSE"
+   }
+  },
+  {
+   "id": "dir:worker/",
+   "tipo": "Directorio",
+   "label": "worker/",
+   "props": {
+    "contenido": "Worker ARQ aislado: validación de firma, CDR y envío a ClamAV"
+   }
+  },
+  {
+   "id": "dir:reputation/",
+   "tipo": "Directorio",
+   "label": "reputation/",
+   "props": {
+    "contenido": "Servicio de consulta de hashes en VirusTotal"
+   }
+  },
+  {
+   "id": "dir:dashboard/",
+   "tipo": "Directorio",
+   "label": "dashboard/",
+   "props": {
+    "contenido": "Aplicación Angular"
+   }
+  },
+  {
+   "id": "dir:infra/",
+   "tipo": "Directorio",
+   "label": "infra/",
+   "props": {
+    "contenido": "docker-compose.yml, configuración de Nginx y de ClamAV/freshclam"
+   }
+  },
+  {
+   "id": "dir:tests/attack-matrix/",
+   "tipo": "Directorio",
+   "label": "tests/attack-matrix/",
+   "props": {
+    "contenido": "Un test por vector de la matriz más los casos adicionales"
+   }
+  },
+  {
+   "id": "dir:docs/",
+   "tipo": "Directorio",
+   "label": "docs/",
+   "props": {
+    "contenido": "decisiones.md, especificación OpenAPI, modelo ER, gatekeeper_contexto.json y gatekeeper_plan.json"
+   }
+  },
+  {
+   "id": "dir:.claude/",
+   "tipo": "Directorio",
+   "label": ".claude/",
+   "props": {
+    "contenido": "claude-security-guidance.md y security-patterns.json"
+   }
+  },
+  {
+   "id": "F0",
+   "tipo": "Fase",
+   "label": "Preparación",
+   "props": {
+    "meta": "Cerrar las decisiones previas y dejar listos el repositorio, el entorno, la CI y las skills.",
+    "criterio_salida": "Las seis decisiones están confirmadas y escritas, y el repositorio tiene CI en verde con una prueba vacía.",
+    "estado": "en_progreso"
+   }
+  },
+  {
+   "id": "F0.01",
+   "tipo": "Paso",
+   "label": "Confirmar las decisiones D1 a D6 con el usuario y escribirlas en docs/decisiones.md.",
+   "props": {
+    "estado": "en_progreso",
+    "orden": 1,
+    "nota": "Decisiones confirmadas y escritas en docs/decisiones.md el 2026-10-28; falta la revisión del usuario"
+   }
+  },
+  {
+   "id": "F0.02",
+   "tipo": "Paso",
+   "label": "Crear el repositorio 'gatekeeper' con la estructura de 'estructura_repositorio'.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 2
+   }
+  },
+  {
+   "id": "F0.03",
+   "tipo": "Paso",
+   "label": "Instalar Docker con Compose, Python 3.12 con uv y Node LTS con Angular CLI. Fijar versiones en pyproject.toml y package.json.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 3
+   }
+  },
+  {
+   "id": "F0.04",
+   "tipo": "Paso",
+   "label": "Copiar gatekeeper_contexto.json y gatekeeper_plan.json a docs/.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 4
+   }
+  },
+  {
+   "id": "F0.05",
+   "tipo": "Paso",
+   "label": "Crear la cuenta de VirusTotal y guardar la API key en .env, incluido en .gitignore. Ningún secreto va en el repositorio.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 5
+   }
+  },
+  {
+   "id": "F0.06",
+   "tipo": "Paso",
+   "label": "Configurar CI en GitHub Actions con ruff, pytest y Bandit.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 6
+   }
+  },
+  {
+   "id": "F0.07",
+   "tipo": "Paso",
+   "label": "Instalar el plugin security-guidance y crear .claude/claude-security-guidance.md con los invariantes INV-01 a INV-10.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 7
+   }
+  },
+  {
+   "id": "F0.08",
+   "tipo": "Paso",
+   "label": "Crear .claude/security-patterns.json con los patrones de 'artefactos.security_patterns'.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 8
+   }
+  },
+  {
+   "id": "F0.09",
+   "tipo": "Paso",
+   "label": "Agregar el marketplace trailofbits/skills e instalar insecure-defaults y property-based-testing.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 9
+   }
+  },
+  {
+   "id": "skill:security_guidance",
+   "tipo": "Skill",
+   "label": "security-guidance",
+   "props": {}
+  },
+  {
+   "id": "skill:insecure_defaults",
+   "tipo": "Skill",
+   "label": "insecure-defaults",
+   "props": {}
+  },
+  {
+   "id": "skill:property_based_testing",
+   "tipo": "Skill",
+   "label": "property-based-testing",
+   "props": {}
+  },
+  {
+   "id": "entg:docs_decisiones_md",
+   "tipo": "Entregable",
+   "label": "docs/decisiones.md",
+   "props": {}
+  },
+  {
+   "id": "F1",
+   "tipo": "Fase",
+   "label": "Arquitectura y base en contenedores",
+   "props": {
+    "meta": "Todo el sistema levanta en Compose y una prueba demuestra que el worker no tiene salida a internet.",
+    "criterio_salida": "docker compose up levanta todos los servicios, la especificación OpenAPI y el modelo ER están en docs/ y la prueba de aislamiento pasa en CI.",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "F1.01",
+   "tipo": "Paso",
+   "label": "Escribir docker-compose.yml con nginx, api, redis, postgres, worker, clamav y reputation, más freshclam si D2 = A.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 1,
+    "servicios_finales": "nginx, api, coordinator, redis-main, redis-queue, postgres, worker, clamav, freshclam, reputation (10)"
+   }
+  },
+  {
+   "id": "F1.02",
+   "tipo": "Paso",
+   "label": "Definir las redes: 'frontend' (nginx, api); 'backend' con internal: true (api, redis, postgres, reputation); 'isolated' con internal: true (worker, clamav, redis); 'egress' con salida a internet, solo para reputation y freshclam.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 2
+   }
+  },
+  {
+   "id": "F1.03",
+   "tipo": "Paso",
+   "label": "Endurecer el worker: read_only: true, tmpfs en /tmp, usuario no root, cap_drop: [ALL], no-new-privileges y límites de memoria, CPU y procesos.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 3
+   }
+  },
+  {
+   "id": "F1.04",
+   "tipo": "Paso",
+   "label": "Definir volúmenes: uploads_tmp (api escribe, worker lee), clean_store (worker escribe, api lee), quarantine (worker escribe, la API nunca lo sirve) y clamav_db (freshclam escribe, clamd lee).",
+   "props": {
+    "estado": "pendiente",
+    "orden": 4
+   }
+  },
+  {
+   "id": "F1.05",
+   "tipo": "Paso",
+   "label": "El worker devuelve su resultado por la cola ARQ y la API escribe en PostgreSQL. El worker no tiene acceso a la base de datos.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 5,
+    "ajuste": "El resultado vuelve por ARQ; quien escribe en PostgreSQL es el coordinator (K08). El worker sigue sin acceso a la BD."
+   }
+  },
+  {
+   "id": "F1.06",
+   "tipo": "Paso",
+   "label": "Escribir los esquemas Pydantic de los endpoints de api.endpoints (más los de api.endpoints_sugeridos que se adopten) y generar la especificación OpenAPI desde FastAPI.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 6
+   }
+  },
+  {
+   "id": "F1.07",
+   "tipo": "Paso",
+   "label": "Diseñar el modelo ER con las entidades de modelo_datos y crear la primera migración con Alembic.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 7
+   }
+  },
+  {
+   "id": "F1.08",
+   "tipo": "Paso",
+   "label": "Crear el esqueleto de FastAPI con /health y el proyecto Angular con la skill angular-new-app.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 8
+   }
+  },
+  {
+   "id": "F1.09",
+   "tipo": "Paso",
+   "label": "Escribir la prueba de aislamiento: una petición HTTP desde el contenedor del worker debe fallar.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 9,
+    "ampliacion_K02": "Además: desde el worker, la conexión a redis-main y a la api debe fallar."
+   }
+  },
+  {
+   "id": "skill:angular_new_app",
+   "tipo": "Skill",
+   "label": "angular-new-app",
+   "props": {}
+  },
+  {
+   "id": "skill:skills_de_fastapi",
+   "tipo": "Skill",
+   "label": "skills de FastAPI",
+   "props": {}
+  },
+  {
+   "id": "entg:infra_docker_compose_yml",
+   "tipo": "Entregable",
+   "label": "infra/docker-compose.yml",
+   "props": {}
+  },
+  {
+   "id": "entg:docs_openapi_json",
+   "tipo": "Entregable",
+   "label": "docs/openapi.json",
+   "props": {}
+  },
+  {
+   "id": "entg:docs_modelo_er",
+   "tipo": "Entregable",
+   "label": "docs/modelo-er",
+   "props": {}
+  },
+  {
+   "id": "F2",
+   "tipo": "Fase",
+   "label": "Recepción y validación",
+   "props": {
+    "meta": "La API recibe archivos de forma segura y el worker valida el tipo real; quedan bloqueados 10 de los 15 vectores.",
+    "criterio_salida": "Los 10 vectores pasan en CI y ningún archivo se puede descargar en estado 'pendiente'.",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "F2.01",
+   "tipo": "Paso",
+   "label": "API keys con prefijo visible; guardar solo su HMAC-SHA-256 con un secreto del servidor; permitir revocarlas y rotarlas.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 1
+   }
+  },
+  {
+   "id": "F2.02",
+   "tipo": "Paso",
+   "label": "POST /v1/files: recibir en streaming hacia uploads_tmp con nombre UUID, calcular el SHA-256 durante la recepción, aplicar el límite de tamaño también en la API, guardar estado 'pendiente', encolar en ARQ y responder 202 con el ID.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 2
+   }
+  },
+  {
+   "id": "F2.03",
+   "tipo": "Paso",
+   "label": "Medir el 202 desde que termina la recepción del cuerpo y comprobar que tarda menos de 1 s.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 3
+   }
+  },
+  {
+   "id": "F2.04",
+   "tipo": "Paso",
+   "label": "Máquina de estados con pendiente, limpio, en_cuarentena, rechazado y error. Toda transición pasa por una sola función que valida el cambio.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 4
+   }
+  },
+  {
+   "id": "F2.05",
+   "tipo": "Paso",
+   "label": "GET /v1/files/{id}/content responde 409 si el estado no es 'limpio'.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 5
+   }
+  },
+  {
+   "id": "F2.06",
+   "tipo": "Paso",
+   "label": "Filtrar toda consulta por la aplicación dueña de la API key y responder 404 a cualquier archivo ajeno.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 6
+   }
+  },
+  {
+   "id": "F2.07",
+   "tipo": "Paso",
+   "label": "Rate limiting en Redis por API key y por IP, con respuesta 429.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 7
+   }
+  },
+  {
+   "id": "F2.08",
+   "tipo": "Paso",
+   "label": "Configurar Nginx: TLS, client_max_body_size y headers CSP, nosniff y HSTS.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 8
+   }
+  },
+  {
+   "id": "F2.09",
+   "tipo": "Paso",
+   "label": "En el worker, identificar el tipo con python-magic sobre los bytes y aceptar solo JPEG, PNG y PDF. Extensión, Content-Type y nombre original no participan en la decisión.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 9
+   }
+  },
+  {
+   "id": "F2.10",
+   "tipo": "Paso",
+   "label": "Rechazar PDF cifrados con pikepdf, incluidos los que solo tienen contraseña de propietario.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 10
+   }
+  },
+  {
+   "id": "F2.11",
+   "tipo": "Paso",
+   "label": "Registrar cuando la extensión no coincide con la firma, como indicador para el dashboard.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 11
+   }
+  },
+  {
+   "id": "entg:api_recepcion_y_estados",
+   "tipo": "Entregable",
+   "label": "api/ (recepción y estados)",
+   "props": {}
+  },
+  {
+   "id": "entg:worker_validacion",
+   "tipo": "Entregable",
+   "label": "worker/ (validación)",
+   "props": {}
+  },
+  {
+   "id": "F3",
+   "tipo": "Fase",
+   "label": "Reconstrucción (CDR)",
+   "props": {
+    "meta": "El 100% de los archivos entregados sale reconstruido y sin metadatos, comprobado con una herramienta externa como exiftool.",
+    "criterio_salida": "Los vectores 4, 5 y 9 pasan y exiftool no encuentra metadatos en ninguna salida.",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "F3.01",
+   "tipo": "Paso",
+   "label": "Fijar Image.MAX_IMAGE_PIXELS con el valor de D5 y convertir DecompressionBombWarning en error.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 1
+   }
+  },
+  {
+   "id": "F3.02",
+   "tipo": "Paso",
+   "label": "Validar las dimensiones de la imagen antes de llamar a load().",
+   "props": {
+    "estado": "pendiente",
+    "orden": 2
+   }
+  },
+  {
+   "id": "F3.03",
+   "tipo": "Paso",
+   "label": "Decodificar y recodificar imágenes desde los píxeles, sin EXIF, perfil ICC ni chunks de texto. La extensión de salida sale del tipo detectado.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 3
+   }
+  },
+  {
+   "id": "F3.04",
+   "tipo": "Paso",
+   "label": "En PDF, eliminar /JavaScript, /OpenAction, /AA, /Launch, /EmbeddedFiles, /URI y /SubmitForm con pikepdf.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 4
+   }
+  },
+  {
+   "id": "F3.05",
+   "tipo": "Paso",
+   "label": "En PDF, eliminar el diccionario /Info y los metadatos XMP.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 5
+   }
+  },
+  {
+   "id": "F3.06",
+   "tipo": "Paso",
+   "label": "Aplicar el límite de páginas de PDF.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 6
+   }
+  },
+  {
+   "id": "F3.07",
+   "tipo": "Paso",
+   "label": "Decidir si se recodifican las imágenes embebidas en PDF o se declaran como limitación, y registrarlo en docs/decisiones.md.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 7
+   }
+  },
+  {
+   "id": "F3.08",
+   "tipo": "Paso",
+   "label": "Timeout por archivo: al vencer, el estado pasa a 'error', nunca a 'limpio'.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 8
+   }
+  },
+  {
+   "id": "F3.09",
+   "tipo": "Paso",
+   "label": "Borrar el original de un archivo limpio en cuanto termina el CDR.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 9
+   }
+  },
+  {
+   "id": "entg:worker_cdr_de_imagenes_y_pdf",
+   "tipo": "Entregable",
+   "label": "worker/ (CDR de imágenes y PDF)",
+   "props": {}
+  },
+  {
+   "id": "F4",
+   "tipo": "Fase",
+   "label": "Antimalware en dos capas",
+   "props": {
+    "meta": "El archivo EICAR termina en 'en_cuarentena', detectado por ClamAV y por VirusTotal, sin subir ningún archivo a VirusTotal.",
+    "criterio_salida": "El vector 11 pasa con detección en ambas capas y la prueba de no envío también.",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "F4.01",
+   "tipo": "Paso",
+   "label": "Levantar clamd y el actualizador de firmas según D2, con las firmas en un volumen persistente para no descargarlas en cada reinicio.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 1
+   }
+  },
+  {
+   "id": "F4.02",
+   "tipo": "Paso",
+   "label": "Enviar el ORIGINAL desde el worker a clamd por INSTREAM, antes de la validación de firma de F2.09.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 2
+   }
+  },
+  {
+   "id": "F4.03",
+   "tipo": "Paso",
+   "label": "Servicio de reputación con httpx asíncrono y timeouts: GET /api/v3/files/{sha256}. Una respuesta 404 significa hash desconocido, no malicioso.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 3
+   }
+  },
+  {
+   "id": "F4.04",
+   "tipo": "Paso",
+   "label": "Guardar los veredictos en caché de Redis con el TTL definido en D5.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 4
+   }
+  },
+  {
+   "id": "F4.05",
+   "tipo": "Paso",
+   "label": "Encolar las consultas para respetar la cuota pública: 4 por minuto y 500 por día.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 5
+   }
+  },
+  {
+   "id": "F4.06",
+   "tipo": "Paso",
+   "label": "Aplicar la regla de D3 cuando no haya cuota o respuesta, marcando la capa como 'no_evaluada'.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 6
+   }
+  },
+  {
+   "id": "F4.07",
+   "tipo": "Paso",
+   "label": "Implementar la prioridad de decisión: en_cuarentena > rechazado > error > limpio.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 7
+   }
+  },
+  {
+   "id": "F4.08",
+   "tipo": "Paso",
+   "label": "Aplicar el umbral de motores de VirusTotal definido en D5.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 8
+   }
+  },
+  {
+   "id": "F4.09",
+   "tipo": "Paso",
+   "label": "Mover el original sospechoso al volumen quarantine y programar su borrado a los 30 días.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 9
+   }
+  },
+  {
+   "id": "entg:reputation",
+   "tipo": "Entregable",
+   "label": "reputation/",
+   "props": {}
+  },
+  {
+   "id": "entg:worker_integracion_con_clamav",
+   "tipo": "Entregable",
+   "label": "worker/ (integración con ClamAV)",
+   "props": {}
+  },
+  {
+   "id": "entg:infra_clamd_y_freshclam",
+   "tipo": "Entregable",
+   "label": "infra/ (clamd y freshclam)",
+   "props": {}
+  },
+  {
+   "id": "F5",
+   "tipo": "Fase",
+   "label": "Dashboard de SecOps",
+   "props": {
+    "meta": "Toda liberación de cuarentena queda en la bitácora con usuario, fecha y motivo, y un nombre de archivo con HTML se muestra como texto.",
+    "criterio_salida": "Las tres pruebas pasan y cada liberación aparece en /v1/admin/audit.",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "F5.01",
+   "tipo": "Paso",
+   "label": "Login con contraseñas en Argon2 y TOTP obligatorio para administradores, con endpoint de alta del segundo factor.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 1
+   }
+  },
+  {
+   "id": "F5.02",
+   "tipo": "Paso",
+   "label": "Access token JWT de 15 min guardado en memoria, nunca en localStorage.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 2
+   }
+  },
+  {
+   "id": "F5.03",
+   "tipo": "Paso",
+   "label": "Refresh token en cookie HttpOnly, SameSite=Strict y Path=/v1/auth, con rotación; si se reutiliza un token ya rotado se revoca toda su familia.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 3
+   }
+  },
+  {
+   "id": "F5.04",
+   "tipo": "Paso",
+   "label": "En /v1/auth/refresh, validar el header Origin y un token double-submit contra CSRF.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 4
+   }
+  },
+  {
+   "id": "F5.05",
+   "tipo": "Paso",
+   "label": "RBAC con dependencias de FastAPI por rol: un analista recibe 403 en endpoints de admin.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 5
+   }
+  },
+  {
+   "id": "F5.06",
+   "tipo": "Paso",
+   "label": "Liberación de cuarentena: motivo obligatorio, registro en la bitácora y reencolado en el CDR antes de quedar disponible.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 6
+   }
+  },
+  {
+   "id": "F5.07",
+   "tipo": "Paso",
+   "label": "Vista de lista de archivos con filtros por estado, fecha y aplicación (tabla de Angular Material).",
+   "props": {
+    "estado": "pendiente",
+    "orden": 7
+   }
+  },
+  {
+   "id": "F5.08",
+   "tipo": "Paso",
+   "label": "Vista de detalle con el resultado de cada capa, incluida 'no_evaluada'.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 8
+   }
+  },
+  {
+   "id": "F5.09",
+   "tipo": "Paso",
+   "label": "Vista de cuarentena con botón de liberar (solo admin) y campo de motivo.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 9
+   }
+  },
+  {
+   "id": "F5.10",
+   "tipo": "Paso",
+   "label": "Vistas de métricas de amenazas bloqueadas y de bitácora de auditoría.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 10
+   }
+  },
+  {
+   "id": "F5.11",
+   "tipo": "Paso",
+   "label": "Alertas en tiempo real: consumir el SSE con fetch y ReadableStream enviando Authorization, dentro de un Observable de RxJS. En Nginx, desactivar proxy_buffering para /v1/admin/events.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 11
+   }
+  },
+  {
+   "id": "F5.12",
+   "tipo": "Paso",
+   "label": "Regla de código: sin bypassSecurityTrust* ni asignaciones directas a innerHTML.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 12
+   }
+  },
+  {
+   "id": "skill:angular_developer",
+   "tipo": "Skill",
+   "label": "angular-developer",
+   "props": {}
+  },
+  {
+   "id": "entg:dashboard",
+   "tipo": "Entregable",
+   "label": "dashboard/",
+   "props": {}
+  },
+  {
+   "id": "entg:api_autenticacion_rbac_y_endpoints_de_admin",
+   "tipo": "Entregable",
+   "label": "api/ (autenticación, RBAC y endpoints de admin)",
+   "props": {}
+  },
+  {
+   "id": "F6",
+   "tipo": "Fase",
+   "label": "Validación y auditoría",
+   "props": {
+    "meta": "15 de 15 vectores bloqueados y cero hallazgos de severidad alta sin corregir.",
+    "criterio_salida": "15/15 en CI y ningún hallazgo alto abierto en el informe.",
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "F6.01",
+   "tipo": "Paso",
+   "label": "Ejecutar la suite completa tests/attack-matrix/ y guardar la evidencia de cada vector: petición, respuesta y estado final.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 1
+   }
+  },
+  {
+   "id": "F6.02",
+   "tipo": "Paso",
+   "label": "Correr OWASP ZAP contra la API importando la especificación OpenAPI.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 2
+   }
+  },
+  {
+   "id": "F6.03",
+   "tipo": "Paso",
+   "label": "Correr Trivy sobre imágenes y dependencias, Bandit sobre el código Python y supply-chain-risk-auditor sobre PyPI y npm.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 3
+   }
+  },
+  {
+   "id": "F6.04",
+   "tipo": "Paso",
+   "label": "Correr el plugin Claude Security por áreas: primero el worker y después la autenticación.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 4
+   }
+  },
+  {
+   "id": "F6.05",
+   "tipo": "Paso",
+   "label": "Ejecutar /security-review sobre la rama antes del merge final.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 5
+   }
+  },
+  {
+   "id": "F6.06",
+   "tipo": "Paso",
+   "label": "Ciclo de corrección: cada hallazgo alto en su propio commit, y volver a escanear hasta que ya no aparezca.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 6
+   }
+  },
+  {
+   "id": "F6.07",
+   "tipo": "Paso",
+   "label": "Redactar el informe: matriz de 15 vectores con evidencia y la capa que detuvo cada uno; reportes de ZAP, Trivy, Bandit y Claude Security con hallazgos y correcciones; limitaciones declaradas.",
+   "props": {
+    "estado": "pendiente",
+    "orden": 7
+   }
+  },
+  {
+   "id": "skill:claude_security",
+   "tipo": "Skill",
+   "label": "claude-security",
+   "props": {}
+  },
+  {
+   "id": "skill:security_review",
+   "tipo": "Skill",
+   "label": "/security-review",
+   "props": {}
+  },
+  {
+   "id": "skill:static_analysis",
+   "tipo": "Skill",
+   "label": "static-analysis",
+   "props": {}
+  },
+  {
+   "id": "skill:supply_chain_risk_auditor",
+   "tipo": "Skill",
+   "label": "supply-chain-risk-auditor",
+   "props": {}
+  },
+  {
+   "id": "entg:docs_informe_auditoria",
+   "tipo": "Entregable",
+   "label": "docs/informe-auditoria",
+   "props": {}
+  },
+  {
+   "id": "entg:readme_md",
+   "tipo": "Entregable",
+   "label": "README.md",
+   "props": {}
+  },
+  {
+   "id": "entg:guion_de_demo",
+   "tipo": "Entregable",
+   "label": "guion de demo",
+   "props": {}
+  },
+  {
+   "id": "patron:decision_por_content_type",
+   "tipo": "PatronSeguridad",
+   "label": "decision_por_content_type",
+   "props": {
+    "regex": "\\.content_type",
+    "paths": [
+     "**/*.py"
+    ],
+    "reminder": "INV-02: no decidas con Content-Type; usa python-magic sobre los bytes."
+   }
+  },
+  {
+   "id": "patron:nombre_original_en_ruta",
+   "tipo": "PatronSeguridad",
+   "label": "nombre_original_en_ruta",
+   "props": {
+    "regex": "\\.filename",
+    "paths": [
+     "**/*.py"
+    ],
+    "reminder": "INV-03: el nombre original solo se muestra; el almacenamiento usa UUID."
+   }
+  },
+  {
+   "id": "patron:pillow_sin_limite",
+   "tipo": "PatronSeguridad",
+   "label": "pillow_sin_limite",
+   "props": {
+    "substrings": [
+     "MAX_IMAGE_PIXELS = None"
+    ],
+    "reminder": "V26: nunca desactives el límite de píxeles."
+   }
+  },
+  {
+   "id": "patron:angular_bypass",
+   "tipo": "PatronSeguridad",
+   "label": "angular_bypass",
+   "props": {
+    "substrings": [
+     "bypassSecurityTrust"
+    ],
+    "paths": [
+     "**/*.ts"
+    ],
+    "reminder": "V28: prohibido saltarse el sanitizador del dashboard."
+   }
+  },
+  {
+   "id": "entg:E1",
+   "tipo": "Entregable",
+   "label": "Decisiones",
+   "props": {
+    "contenido": "docs/decisiones.md con D1 a D6 y las que surjan",
+    "fase": "F0, se actualiza en cada fase"
+   }
+  },
+  {
+   "id": "entg:E2",
+   "tipo": "Entregable",
+   "label": "Docker Compose",
+   "props": {
+    "contenido": "Servicios, redes aisladas y endurecimiento del worker",
+    "fase": "F1"
+   }
+  },
+  {
+   "id": "entg:E3",
+   "tipo": "Entregable",
+   "label": "Especificación OpenAPI",
+   "props": {
+    "contenido": "Endpoints con sus esquemas, generada desde FastAPI",
+    "fase": "F1"
+   }
+  },
+  {
+   "id": "entg:E4",
+   "tipo": "Entregable",
+   "label": "Modelo entidad-relación",
+   "props": {
+    "contenido": "Entidades de modelo_datos con sus relaciones",
+    "fase": "F1"
+   }
+  },
+  {
+   "id": "entg:E5",
+   "tipo": "Entregable",
+   "label": "Código del servicio",
+   "props": {
+    "contenido": "API, worker, servicio de reputación y dashboard",
+    "fase": "F2 a F5"
+   }
+  },
+  {
+   "id": "entg:E6",
+   "tipo": "Entregable",
+   "label": "Suite de la matriz",
+   "props": {
+    "contenido": "tests/attack-matrix/ con un test por vector y los casos adicionales",
+    "fase": "F2 a F6"
+   }
+  },
+  {
+   "id": "entg:E7",
+   "tipo": "Entregable",
+   "label": "Informe de auditoría",
+   "props": {
+    "contenido": "Evidencia de los 15 vectores y reportes de ZAP, Trivy, Bandit y Claude Security",
+    "fase": "F6"
+   }
+  },
+  {
+   "id": "entg:E8",
+   "tipo": "Entregable",
+   "label": "README",
+   "props": {
+    "contenido": "Cómo levantar el proyecto, la arquitectura y las limitaciones",
+    "fase": "F6"
+   }
+  },
+  {
+   "id": "entg:E9",
+   "tipo": "Entregable",
+   "label": "Demo",
+   "props": {
+    "contenido": "Guion corto: EICAR en cuarentena, un polyglot reconstruido y una liberación con motivo",
+    "fase": "F6"
+   }
+  },
+  {
+   "id": "R1",
+   "tipo": "Riesgo",
+   "label": "La fase de auditoría se satura",
+   "props": {
+    "senal_temprana": "Al cerrar F4 hay menos de 11 vectores en verde",
+    "mitigacion": "Pruebas de la matriz en CI desde F2 y un ciclo de corrección explícito en F6"
+   }
+  },
+  {
+   "id": "R2",
+   "tipo": "Riesgo",
+   "label": "La cuota de VirusTotal frena las pruebas",
+   "props": {
+    "senal_temprana": "Errores 429 de VirusTotal",
+    "mitigacion": "Caché por hash, archivos de prueba repetidos y la regla 'no_evaluada' de D3"
+   }
+  },
+  {
+   "id": "R3",
+   "tipo": "Riesgo",
+   "label": "El CDR de PDF se complica",
+   "props": {
+    "senal_temprana": "F3 avanza sin cerrar los vectores 4, 5 y 9",
+    "mitigacion": "Limitarse al saneamiento estructural y declarar las imágenes embebidas como limitación"
+   }
+  },
+  {
+   "id": "R4",
+   "tipo": "Riesgo",
+   "label": "La autenticación del SSE se complica",
+   "props": {
+    "senal_temprana": "Las alertas no funcionan con el JWT",
+    "mitigacion": "Plan B: consultar GET /v1/admin/files periódicamente"
+   }
+  },
+  {
+   "id": "R5",
+   "tipo": "Riesgo",
+   "label": "El alcance crece (SVG, DOCX, ZIP)",
+   "props": {
+    "senal_temprana": "Se pide un tipo de archivo nuevo",
+    "mitigacion": "Fuera de alcance por diseño, según el anexo D de la propuesta"
+   }
+  },
+  {
+   "id": "R6",
+   "tipo": "Riesgo",
+   "label": "Vulnerabilidad en Pillow o pikepdf",
+   "props": {
+    "senal_temprana": "Trivy reporta un CVE en la imagen del worker",
+    "mitigacion": "Worker aislado sin internet, versiones fijadas y actualización inmediata"
+   }
+  },
+  {
+   "id": "R7",
+   "tipo": "Riesgo",
+   "label": "Descargas repetidas de firmas de ClamAV",
+   "props": {
+    "senal_temprana": "Cada reinicio vuelve a descargar las firmas",
+    "mitigacion": "Volumen persistente para las firmas"
+   }
+  },
+  {
+   "id": "CHK1",
+   "tipo": "CriterioCierre",
+   "label": "15 de 15 vectores en verde en CI",
+   "props": {
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "CHK2",
+   "tipo": "CriterioCierre",
+   "label": "Cero hallazgos altos abiertos",
+   "props": {
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "CHK3",
+   "tipo": "CriterioCierre",
+   "label": "gatekeeper_contexto.json actualizado con las decisiones finales",
+   "props": {
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "CHK4",
+   "tipo": "CriterioCierre",
+   "label": "Propuesta corregida: endpoints, citas de CWE y KEV y limitación de VirusTotal",
+   "props": {
+    "estado": "pendiente"
+   }
+  },
+  {
+   "id": "K01",
+   "tipo": "Observacion",
+   "label": "Nadie consolida los veredictos de las capas",
+   "props": {
+    "hallazgo": "Por las redes de F1.02, el worker (isolated) no puede hablar con reputacion (backend + egress), y el worker no escribe en PostgreSQL (F1.05). El flujo recomendado (paso 8) no dice qué componente aplica la prioridad de decisión combinando ClamAV/CDR (worker) con VirusTotal (reputacion), ni cómo se dispara la consulta a reputacion.",
+    "propuesta": "Que la API orqueste: al recibir el archivo encola dos jobs ARQ (worker y reputacion); una única función de decisión en la API combina ambos resultados y aplica F4.07 y fail-closed.",
+    "estado": "no_definido",
+    "severidad": "media",
+    "origen": "kg_observacion",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "La API orquesta: encola analyze(uuid) al worker y lookup(sha256) a reputation en paralelo; api.decidir(archivo_id) aplica prioridad, fail-closed y D3 cuando llegan ambos o vence el timeout — refinado por K08: la decisión la ejecuta el servicio coordinator, no el proceso de la API",
+    "revision": [
+     "ajuste adoptado en K08"
+    ]
+   }
+  },
+  {
+   "id": "K02",
+   "tipo": "Observacion",
+   "label": "Redis comparte red con el worker y con datos sensibles",
+   "props": {
+    "hallazgo": "Redis está en isolated (con el worker) y guarda también la caché de VirusTotal y los contadores de rate limit. Un worker comprometido por un archivo malicioso podría envenenar la caché VT (marcar un hash malicioso como limpio) o alterar resultados de otros archivos en la cola.",
+    "propuesta": "Usar ACLs de Redis (usuario del worker limitado a las claves de la cola ARQ) o una instancia de Redis separada para la cola; la API debe validar que el resultado corresponde al job encolado.",
+    "estado": "riesgo_nuevo",
+    "severidad": "media",
+    "origen": "kg_observacion",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "Dos instancias: redis-queue (redes isolated + backend; solo la cola analyze del worker) y redis-main (solo backend; rate limit, caché VT y cola lookup de reputation). 9 servicios."
+   }
+  },
+  {
+   "id": "K03",
+   "tipo": "Observacion",
+   "label": "Transiciones faltantes en la máquina de estados",
+   "props": {
+    "hallazgo": "V06 dice que 'error' permite reintento, pero no hay transición error → pendiente. Si un archivo liberado de cuarentena falla el CDR (p. ej. EICAR, que no es JPEG/PNG/PDF), no hay transición en_cuarentena → rechazado/error.",
+    "propuesta": "Agregar error → pendiente (reintento con límite) y en_cuarentena → rechazado | error cuando el CDR posterior a la liberación falla.",
+    "estado": "no_definido",
+    "severidad": "baja",
+    "origen": "kg_observacion",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "revision": [
+     "ajuste adoptado en K11"
+    ]
+   }
+  },
+  {
+   "id": "K04",
+   "tipo": "Observacion",
+   "label": "Nombre del servicio de reputación inconsistente",
+   "props": {
+    "hallazgo": "El contexto lo llama 'reputacion' y el plan 'reputation' (Compose y directorio).",
+    "propuesta": "Usar 'reputation' en código, Compose y directorios; dejar 'reputación' solo en texto.",
+    "estado": "inconsistente",
+    "severidad": "baja",
+    "origen": "kg_observacion",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "'reputation' en código, Compose y directorios"
+   }
+  },
+  {
+   "id": "K05",
+   "tipo": "Observacion",
+   "label": "No hay alta de aplicaciones cliente",
+   "props": {
+    "hallazgo": "La entidad aplicacion es necesaria para la propiedad (INV-10) pero ningún endpoint crea o lista aplicaciones; POST /v1/admin/api-keys no dice a qué aplicación se asocia la key.",
+    "propuesta": "Que POST /v1/admin/api-keys reciba aplicacion_id (o nombre para crearla) y agregar GET /v1/admin/applications si hace falta en el dashboard.",
+    "estado": "no_definido",
+    "severidad": "baja",
+    "origen": "kg_observacion",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "POST /v1/admin/api-keys recibe aplicacion_id o nombre para crear la aplicación; sin endpoint extra"
+   }
+  },
+  {
+   "id": "K06",
+   "tipo": "Observacion",
+   "label": "Jerarquía de roles sin definir",
+   "props": {
+    "hallazgo": "Los endpoints marcan 'JWT (analista)' o 'JWT (admin)', pero no se dice si admin hereda los permisos de analista.",
+    "propuesta": "Declarar admin ⊇ analista en la dependencia RBAC de FastAPI.",
+    "estado": "no_definido",
+    "severidad": "baja",
+    "origen": "kg_observacion",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "admin ⊇ analista en la dependencia RBAC"
+   }
+  },
+  {
+   "id": "param:max_reintentos",
+   "tipo": "Parametro",
+   "label": "max_reintentos",
+   "props": {
+    "propuesta": "2 reintentos automáticos de error → pendiente",
+    "estado": "confirmado",
+    "origen": "K03",
+    "valor": "2, solo para errores transitorios de infraestructura; un timeout de procesamiento es error final (K11)"
+   }
+  },
+  {
+   "id": "svc:redis_queue",
+   "tipo": "Servicio",
+   "label": "redis-queue",
+   "props": {
+    "tecnologia": "Redis",
+    "rol": "Solo la cola ARQ analyze entre api y worker",
+    "zona": "puente backend/isolated",
+    "internet": "no",
+    "estado": "adoptado (K02)"
+   }
+  },
+  {
+   "id": "dato_redis:cola_lookup",
+   "tipo": "DatoRedis",
+   "label": "Cola ARQ lookup (api → reputation)",
+   "props": {}
+  },
+  {
+   "id": "K07",
+   "tipo": "Observacion",
+   "label": "VirusTotal puede bloquear el veredicto hasta 30 s",
+   "props": {
+    "hallazgo": "Con K01 la decisión espera a VT o al timeout. Con 4 consultas/min, a partir de la 5.ª subida en un minuto la consulta queda en cola y el archivo sigue en 'pendiente' hasta los 30 s del timeout.",
+    "propuesta": "Presupuesto no bloqueante: si no hay cuota disponible en ese momento, la capa queda 'no_evaluada' de inmediato. Si la hay, se espera a VT como máximo 1 s después de que termina el worker.",
+    "estado": "nuevo",
+    "severidad": "alta",
+    "origen": "revision_cov_adversarial_2026-10-28",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "Presupuesto no bloqueante: si no hay cuota disponible en ese momento, la capa queda 'no_evaluada' de inmediato. Si la hay, se espera a VT como máximo 1 s después de que termina el worker."
+   }
+  },
+  {
+   "id": "K08",
+   "tipo": "Observacion",
+   "label": "ARQ no tiene fan-in y hace polling cada 0.5 s",
+   "props": {
+    "hallazgo": "ARQ 0.28 no puede esperar a dos jobs y luego disparar un tercero. Por defecto, los workers revisan la cola cada 0.5 s (poll_delay) y Job.result() también consulta cada 0.5 s, así que cada salto suma hasta 0.5 s.",
+    "propuesta": "Un servicio 'coordinator' (misma imagen que la API, red backend) recibe orquestar(archivo_id), encola analyze y lookup y espera ambos con Job.result(poll_delay=0.05). Se fija poll_delay=0.05 en todos los workers. Pasa a 10 servicios.",
+    "estado": "nuevo",
+    "severidad": "media",
+    "origen": "revision_cov_adversarial_2026-10-28",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "Un servicio 'coordinator' (misma imagen que la API, red backend) recibe orquestar(archivo_id), encola analyze y lookup y espera ambos con Job.result(poll_delay=0.05). Se fija poll_delay=0.05 en todos los workers. Pasa a 10 servicios."
+   }
+  },
+  {
+   "id": "K09",
+   "tipo": "Observacion",
+   "label": "El CDR bloquea el event loop de ARQ y el timeout no detiene el CPU",
+   "props": {
+    "hallazgo": "ARQ solo acepta funciones async. Pillow y pikepdf son código síncrono de CPU: dentro del job bloquean al worker entero. Si se mandan a un hilo, cancelar por timeout no detiene el cálculo, y una bomba sigue consumiendo CPU y memoria.",
+    "propuesta": "Correr cada CDR en un proceso hijo con límite de memoria (RLIMIT_AS) y matarlo al vencer el timeout. Los workers usan max_jobs = núcleos asignados.",
+    "estado": "nuevo",
+    "severidad": "alta",
+    "origen": "revision_cov_adversarial_2026-10-28",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "Correr cada CDR en un proceso hijo con límite de memoria (RLIMIT_AS) y matarlo al vencer el timeout. Los workers usan max_jobs = núcleos asignados."
+   }
+  },
+  {
+   "id": "K10",
+   "tipo": "Observacion",
+   "label": "El rate limit por IP equivale a limitar a toda la aplicación cliente",
+   "props": {
+    "hallazgo": "Las subidas llegan desde el backend de la aplicación cliente, así que todas comparten IP. Con 30/min por key y 60/min por IP, una aplicación con más de 30 usuarios subiendo a la vez recibe 429 y su usuario final nota el bloqueo.",
+    "propuesta": "Límite por API key configurable por aplicación (por defecto 120/min con ráfaga). El límite por IP se aplica solo a peticiones sin autenticar o con key inválida, contra fuerza bruta. El vector 14 (200/min → 429) se sigue cumpliendo.",
+    "estado": "nuevo",
+    "severidad": "media",
+    "origen": "revision_cov_adversarial_2026-10-28",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "Límite por API key configurable por aplicación (por defecto 120/min con ráfaga). El límite por IP se aplica solo a peticiones sin autenticar o con key inválida, contra fuerza bruta. El vector 14 (200/min → 429) se sigue cumpliendo."
+   }
+  },
+  {
+   "id": "K11",
+   "tipo": "Observacion",
+   "label": "Los reintentos amplifican archivos hostiles",
+   "props": {
+    "hallazgo": "D4/K03 permite 2 reintentos desde 'error'. Si el error fue un timeout de procesamiento (p. ej. una bomba), reintentarlo gasta otros 60 s de CPU y es un DoS barato. Además, ARQ reintenta hasta 5 veces por defecto (max_tries).",
+    "propuesta": "Reintentar solo errores transitorios de infraestructura (clamd no disponible, caída del worker o de la red). Un timeout de procesamiento es error final. Fijar max_tries explícitamente.",
+    "estado": "nuevo",
+    "severidad": "media",
+    "origen": "revision_cov_adversarial_2026-10-28",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "Reintentar solo errores transitorios de infraestructura (clamd no disponible, caída del worker o de la red). Un timeout de procesamiento es error final. Fijar max_tries explícitamente."
+   }
+  },
+  {
+   "id": "K12",
+   "tipo": "Observacion",
+   "label": "Faltan métricas de rendimiento para el usuario final",
+   "props": {
+    "hallazgo": "El único criterio es que el 202 llegue en menos de 1 s. No se mide cuánto tarda el veredicto, que es lo que realmente espera la aplicación cliente, y el polling suma latencia.",
+    "propuesta": "SLIs: M1 202 (p95 < 1 s), M2 tiempo a veredicto por tipo (p50/p95), M3 throughput sostenido, M4 % de VT no_evaluada, M5 profundidad de la cola. Se miden con los campos que ya existen (creado_en, analizado_en, duracion_ms). Long-poll opcional: GET /v1/files/{id}?wait=N.",
+    "estado": "nuevo",
+    "severidad": "media",
+    "origen": "revision_cov_adversarial_2026-10-28",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "SLIs: M1 202 (p95 < 1 s), M2 tiempo a veredicto por tipo (p50/p95), M3 throughput sostenido, M4 % de VT no_evaluada, M5 profundidad de la cola. Se miden con los campos que ya existen (creado_en, analizado_en, duracion_ms). Long-poll opcional: GET /v1/files/{id}?wait=N."
+   }
+  },
+  {
+   "id": "K13",
+   "tipo": "Observacion",
+   "label": "La bomba de flujos FlateDecode llega intacta al cliente",
+   "props": {
+    "hallazgo": "Medido con pikepdf 10.17: al guardar no se descomprimen los flujos (0 ms, 0 MB extra), así que la bomba no afecta al worker, pero sale tal cual en el PDF entregado y estallaría en el lector del usuario final. El caso adicional de V03 no tiene resultado esperado definido.",
+    "propuesta": "Recorrer los flujos con descompresión acotada (zlib por bloques, tope total de 100 MB por PDF) y rechazar si se supera; medido en ~10 ms. Resultado esperado del caso: rechazado. Regla: nunca llamar read_bytes() sin tope sobre flujos no confiables.",
+    "estado": "nuevo",
+    "severidad": "media",
+    "origen": "revision_cov_adversarial_2026-10-28",
+    "decision": "confirmada",
+    "fecha_decision": "2026-10-28",
+    "eleccion": "Recorrer los flujos con descompresión acotada (zlib por bloques, tope total de 100 MB por PDF) y rechazar si se supera; medido en ~10 ms. Resultado esperado del caso: rechazado. Regla: nunca llamar read_bytes() sin tope sobre flujos no confiables."
+   }
+  },
+  {
+   "id": "svc:coordinator",
+   "tipo": "Servicio",
+   "label": "coordinator",
+   "props": {
+    "tecnologia": "Python + ARQ (imagen de la API)",
+    "rol": "orquestar(archivo_id): encola analyze y lookup, espera ambos con Job.result(poll_delay=0.05) y ejecuta decidir()",
+    "zona": "interna",
+    "internet": "no",
+    "estado": "adoptado (K08)"
+   }
+  },
+  {
+   "id": "param:vt_presupuesto",
+   "tipo": "Parametro",
+   "label": "vt_presupuesto",
+   "props": {
+    "valor": "Sin cuota disponible → no_evaluada inmediata; con cuota, gracia ≤ 1 s tras terminar el worker",
+    "estado": "confirmado",
+    "origen": "K07"
+   }
+  },
+  {
+   "id": "param:arq_poll_delay",
+   "tipo": "Parametro",
+   "label": "arq_poll_delay",
+   "props": {
+    "valor": "0.05 s en workers y en Job.result()",
+    "estado": "confirmado",
+    "origen": "K08"
+   }
+  },
+  {
+   "id": "param:cdr_proceso_hijo",
+   "tipo": "Parametro",
+   "label": "cdr_proceso_hijo",
+   "props": {
+    "valor": "Un proceso hijo por CDR con RLIMIT_AS; kill al vencer el timeout; max_jobs = núcleos asignados",
+    "estado": "confirmado",
+    "origen": "K09"
+   }
+  },
+  {
+   "id": "param:arq_max_tries",
+   "tipo": "Parametro",
+   "label": "arq_max_tries",
+   "props": {
+    "valor": "Fijado explícitamente (por defecto ARQ usa 5)",
+    "estado": "confirmado",
+    "origen": "K11"
+   }
+  },
+  {
+   "id": "param:pdf_tope_descompresion",
+   "tipo": "Parametro",
+   "label": "pdf_tope_descompresion",
+   "props": {
+    "valor": "100 MB descomprimidos por PDF; si se supera → rechazado",
+    "estado": "confirmado",
+    "origen": "K13"
+   }
+  },
+  {
+   "id": "param:long_poll_max",
+   "tipo": "Parametro",
+   "label": "long_poll_max",
+   "props": {
+    "valor": "GET /v1/files/{id}?wait=N con N ≤ 20 s",
+    "estado": "confirmado",
+    "origen": "K12"
+   }
+  },
+  {
+   "id": "M1",
+   "tipo": "Metrica",
+   "label": "202 tras fin de la recepción del cuerpo",
+   "props": {
+    "objetivo": "p95 < 1 s",
+    "origen": "K12"
+   }
+  },
+  {
+   "id": "M2",
+   "tipo": "Metrica",
+   "label": "Tiempo a veredicto (creado_en → analizado_en) por tipo",
+   "props": {
+    "objetivo": "JPEG/PNG/PDF ≤ 10 MB: p95 ≤ 2 s",
+    "origen": "K12"
+   }
+  },
+  {
+   "id": "M3",
+   "tipo": "Metrica",
+   "label": "Throughput sostenido sin degradar M2 más de 20 %",
+   "props": {
+    "objetivo": "se mide en F6",
+    "origen": "K12"
+   }
+  },
+  {
+   "id": "M4",
+   "tipo": "Metrica",
+   "label": "% de archivos con VT no_evaluada",
+   "props": {
+    "objetivo": "se reporta",
+    "origen": "K12"
+   }
+  },
+  {
+   "id": "M5",
+   "tipo": "Metrica",
+   "label": "Profundidad y espera de la cola",
+   "props": {
+    "objetivo": "alerta si la espera > 2 s",
+    "origen": "K12"
+   }
+  }
+ ],
+ "aristas": [
+  {
+   "de": "actor:usuario_final",
+   "rel": "interactua_con",
+   "a": "proyecto:gatekeeper"
+  },
+  {
+   "de": "actor:aplicacion_cliente",
+   "rel": "interactua_con",
+   "a": "proyecto:gatekeeper"
+  },
+  {
+   "de": "actor:analista_de_seguridad",
+   "rel": "interactua_con",
+   "a": "proyecto:gatekeeper"
+  },
+  {
+   "de": "actor:administrador",
+   "rel": "interactua_con",
+   "a": "proyecto:gatekeeper"
+  },
+  {
+   "de": "dato:1",
+   "rel": "verificado_en",
+   "a": "V21"
+  },
+  {
+   "de": "dato:1",
+   "rel": "sustenta",
+   "a": "proyecto:gatekeeper"
+  },
+  {
+   "de": "dato:2",
+   "rel": "verificado_en",
+   "a": "V22"
+  },
+  {
+   "de": "dato:2",
+   "rel": "sustenta",
+   "a": "proyecto:gatekeeper"
+  },
+  {
+   "de": "dato:3",
+   "rel": "verificado_en",
+   "a": "V23"
+  },
+  {
+   "de": "dato:3",
+   "rel": "sustenta",
+   "a": "proyecto:gatekeeper"
+  },
+  {
+   "de": "dato:4",
+   "rel": "verificado_en",
+   "a": "V24"
+  },
+  {
+   "de": "dato:4",
+   "rel": "sustenta",
+   "a": "proyecto:gatekeeper"
+  },
+  {
+   "de": "CWE-434",
+   "rel": "documentado_en",
+   "a": "fuente:mitre_top25"
+  },
+  {
+   "de": "CWE-79",
+   "rel": "documentado_en",
+   "a": "fuente:mitre_top25"
+  },
+  {
+   "de": "CWE-22",
+   "rel": "documentado_en",
+   "a": "fuente:mitre_top25"
+  },
+  {
+   "de": "CWE-770",
+   "rel": "documentado_en",
+   "a": "fuente:mitre_top25"
+  },
+  {
+   "de": "CWE-862",
+   "rel": "documentado_en",
+   "a": "fuente:mitre_top25"
+  },
+  {
+   "de": "dato:1",
+   "rel": "cita",
+   "a": "CWE-434"
+  },
+  {
+   "de": "dato:2",
+   "rel": "cita",
+   "a": "CWE-434"
+  },
+  {
+   "de": "dato:3",
+   "rel": "cita",
+   "a": "CWE-79"
+  },
+  {
+   "de": "dato:3",
+   "rel": "cita",
+   "a": "CWE-22"
+  },
+  {
+   "de": "dato:3",
+   "rel": "cita",
+   "a": "CWE-770"
+  },
+  {
+   "de": "dato:4",
+   "rel": "cita",
+   "a": "fuente:owasp_upload"
+  },
+  {
+   "de": "V21",
+   "rel": "fuente",
+   "a": "fuente:mitre_top25"
+  },
+  {
+   "de": "V22",
+   "rel": "fuente",
+   "a": "fuente:mitre_top25"
+  },
+  {
+   "de": "V23",
+   "rel": "fuente",
+   "a": "fuente:mitre_top25"
+  },
+  {
+   "de": "V24",
+   "rel": "fuente",
+   "a": "fuente:owasp_upload"
+  },
+  {
+   "de": "V25",
+   "rel": "fuente",
+   "a": "fuente:virustotal_api"
+  },
+  {
+   "de": "V26",
+   "rel": "fuente",
+   "a": "fuente:pillow_docs"
+  },
+  {
+   "de": "I1",
+   "rel": "verificado_en",
+   "a": "V03"
+  },
+  {
+   "de": "I2",
+   "rel": "verificado_en",
+   "a": "V09"
+  },
+  {
+   "de": "I3",
+   "rel": "verificado_en",
+   "a": "V25"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "tiene_objetivo",
+   "a": "O1"
+  },
+  {
+   "de": "O1",
+   "rel": "verificado_en",
+   "a": "V01"
+  },
+  {
+   "de": "O1",
+   "rel": "verificado_en",
+   "a": "V02"
+  },
+  {
+   "de": "O1",
+   "rel": "verificado_en",
+   "a": "V08"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "tiene_objetivo",
+   "a": "O2"
+  },
+  {
+   "de": "O2",
+   "rel": "verificado_en",
+   "a": "V06"
+  },
+  {
+   "de": "O2",
+   "rel": "verificado_en",
+   "a": "V20"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "tiene_objetivo",
+   "a": "O3"
+  },
+  {
+   "de": "O3",
+   "rel": "verificado_en",
+   "a": "V05"
+  },
+  {
+   "de": "O3",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "O3",
+   "rel": "verificado_en",
+   "a": "V24"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "tiene_objetivo",
+   "a": "O4"
+  },
+  {
+   "de": "O4",
+   "rel": "verificado_en",
+   "a": "V09"
+  },
+  {
+   "de": "O4",
+   "rel": "verificado_en",
+   "a": "V17"
+  },
+  {
+   "de": "O4",
+   "rel": "verificado_en",
+   "a": "V26"
+  },
+  {
+   "de": "O4",
+   "rel": "verificado_en",
+   "a": "V27"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "tiene_objetivo",
+   "a": "O5"
+  },
+  {
+   "de": "O5",
+   "rel": "verificado_en",
+   "a": "V07"
+  },
+  {
+   "de": "O5",
+   "rel": "verificado_en",
+   "a": "V08"
+  },
+  {
+   "de": "O5",
+   "rel": "verificado_en",
+   "a": "V25"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "tiene_objetivo",
+   "a": "O6"
+  },
+  {
+   "de": "O6",
+   "rel": "verificado_en",
+   "a": "V11"
+  },
+  {
+   "de": "O6",
+   "rel": "verificado_en",
+   "a": "V12"
+  },
+  {
+   "de": "O6",
+   "rel": "verificado_en",
+   "a": "V15"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "tiene_objetivo",
+   "a": "O7"
+  },
+  {
+   "de": "O7",
+   "rel": "verificado_en",
+   "a": "V03"
+  },
+  {
+   "de": "O7",
+   "rel": "verificado_en",
+   "a": "V04"
+  },
+  {
+   "de": "I1",
+   "rel": "medido_por",
+   "a": "O7"
+  },
+  {
+   "de": "I2",
+   "rel": "medido_por",
+   "a": "O4"
+  },
+  {
+   "de": "I3",
+   "rel": "medido_por",
+   "a": "O2"
+  },
+  {
+   "de": "I4",
+   "rel": "medido_por",
+   "a": "O6"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "exige",
+   "a": "INV-01"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "exige",
+   "a": "INV-02"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "exige",
+   "a": "INV-03"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "exige",
+   "a": "INV-04"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "exige",
+   "a": "INV-05"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "exige",
+   "a": "INV-06"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "exige",
+   "a": "INV-07"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "exige",
+   "a": "INV-08"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "exige",
+   "a": "INV-09"
+  },
+  {
+   "de": "INV-09",
+   "rel": "verificado_en",
+   "a": "V06"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "exige",
+   "a": "INV-10"
+  },
+  {
+   "de": "INV-10",
+   "rel": "verificado_en",
+   "a": "V18"
+  },
+  {
+   "de": "tec:angular_typescript",
+   "rel": "verificado_en",
+   "a": "V28"
+  },
+  {
+   "de": "tec:httpclient_de_angular",
+   "rel": "verificado_en",
+   "a": "V11"
+  },
+  {
+   "de": "tec:httpclient_de_angular",
+   "rel": "verificado_en",
+   "a": "V12"
+  },
+  {
+   "de": "tec:rxjs_server_sent_events",
+   "rel": "verificado_en",
+   "a": "V11"
+  },
+  {
+   "de": "tec:pillow",
+   "rel": "verificado_en",
+   "a": "V26"
+  },
+  {
+   "de": "tec:pikepdf",
+   "rel": "verificado_en",
+   "a": "V09"
+  },
+  {
+   "de": "tec:pikepdf",
+   "rel": "verificado_en",
+   "a": "V27"
+  },
+  {
+   "de": "tec:clamav",
+   "rel": "verificado_en",
+   "a": "V08"
+  },
+  {
+   "de": "tec:virustotal_api_v3",
+   "rel": "verificado_en",
+   "a": "V25"
+  },
+  {
+   "de": "tec:api_keys",
+   "rel": "verificado_en",
+   "a": "V13"
+  },
+  {
+   "de": "tec:jwt_refresh_token",
+   "rel": "verificado_en",
+   "a": "V10"
+  },
+  {
+   "de": "tec:jwt_refresh_token",
+   "rel": "verificado_en",
+   "a": "V19"
+  },
+  {
+   "de": "tec:tls_1_3",
+   "rel": "verificado_en",
+   "a": "V13"
+  },
+  {
+   "de": "tec:argon2",
+   "rel": "verificado_en",
+   "a": "V13"
+  },
+  {
+   "de": "tec:sha_256",
+   "rel": "verificado_en",
+   "a": "V13"
+  },
+  {
+   "de": "tec:next_js",
+   "rel": "verificado_en",
+   "a": "V29"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "compuesto_por",
+   "a": "svc:nginx"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "compuesto_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "compuesto_por",
+   "a": "svc:redis"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "compuesto_por",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "compuesto_por",
+   "a": "svc:worker"
+  },
+  {
+   "de": "svc:worker",
+   "rel": "verificado_en",
+   "a": "V17"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "compuesto_por",
+   "a": "svc:clamav"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "compuesto_por",
+   "a": "svc:reputacion"
+  },
+  {
+   "de": "svc:reputacion",
+   "rel": "verificado_en",
+   "a": "V25"
+  },
+  {
+   "de": "svc:clamav",
+   "rel": "verificado_en",
+   "a": "V08"
+  },
+  {
+   "de": "svc:freshclam",
+   "rel": "verificado_en",
+   "a": "V08"
+  },
+  {
+   "de": "svc:nginx",
+   "rel": "sirve",
+   "a": "comp:dashboard"
+  },
+  {
+   "de": "comp:dashboard",
+   "rel": "consume",
+   "a": "svc:api"
+  },
+  {
+   "de": "actor:analista_de_seguridad",
+   "rel": "usa",
+   "a": "comp:dashboard"
+  },
+  {
+   "de": "actor:administrador",
+   "rel": "usa",
+   "a": "comp:dashboard"
+  },
+  {
+   "de": "actor:aplicacion_cliente",
+   "rel": "consume",
+   "a": "svc:nginx"
+  },
+  {
+   "de": "actor:usuario_final",
+   "rel": "sube_archivos_a",
+   "a": "actor:aplicacion_cliente"
+  },
+  {
+   "de": "svc:reputacion",
+   "rel": "consulta",
+   "a": "ext:virustotal",
+   "props": {
+    "metodo": "GET /api/v3/files/{sha256}"
+   }
+  },
+  {
+   "de": "ext:virustotal",
+   "rel": "verificado_en",
+   "a": "V25"
+  },
+  {
+   "de": "tec:virustotal_api_v3",
+   "rel": "es",
+   "a": "ext:virustotal"
+  },
+  {
+   "de": "svc:nginx",
+   "rel": "usa",
+   "a": "tec:nginx"
+  },
+  {
+   "de": "svc:api",
+   "rel": "usa",
+   "a": "tec:python_fastapi"
+  },
+  {
+   "de": "svc:redis",
+   "rel": "usa",
+   "a": "tec:redis"
+  },
+  {
+   "de": "svc:postgres",
+   "rel": "usa",
+   "a": "tec:postgresql"
+  },
+  {
+   "de": "svc:worker",
+   "rel": "usa",
+   "a": "tec:arq_cola_sobre_redis"
+  },
+  {
+   "de": "svc:worker",
+   "rel": "usa",
+   "a": "tec:python_magic"
+  },
+  {
+   "de": "svc:worker",
+   "rel": "usa",
+   "a": "tec:pillow"
+  },
+  {
+   "de": "svc:worker",
+   "rel": "usa",
+   "a": "tec:pikepdf"
+  },
+  {
+   "de": "svc:clamav",
+   "rel": "usa",
+   "a": "tec:clamav"
+  },
+  {
+   "de": "svc:reputacion",
+   "rel": "usa",
+   "a": "tec:httpx"
+  },
+  {
+   "de": "svc:reputacion",
+   "rel": "usa",
+   "a": "tec:virustotal_api_v3"
+  },
+  {
+   "de": "svc:freshclam",
+   "rel": "usa",
+   "a": "tec:freshclam"
+  },
+  {
+   "de": "comp:dashboard",
+   "rel": "usa",
+   "a": "tec:angular_typescript"
+  },
+  {
+   "de": "comp:dashboard",
+   "rel": "usa",
+   "a": "tec:httpclient_de_angular"
+  },
+  {
+   "de": "comp:dashboard",
+   "rel": "usa",
+   "a": "tec:angular_material"
+  },
+  {
+   "de": "comp:dashboard",
+   "rel": "usa",
+   "a": "tec:rxjs_server_sent_events"
+  },
+  {
+   "de": "svc:nginx",
+   "rel": "conectado_a",
+   "a": "red:frontend"
+  },
+  {
+   "de": "svc:api",
+   "rel": "conectado_a",
+   "a": "red:frontend"
+  },
+  {
+   "de": "svc:api",
+   "rel": "conectado_a",
+   "a": "red:backend"
+  },
+  {
+   "de": "svc:redis",
+   "rel": "conectado_a",
+   "a": "red:backend"
+  },
+  {
+   "de": "svc:postgres",
+   "rel": "conectado_a",
+   "a": "red:backend"
+  },
+  {
+   "de": "svc:reputacion",
+   "rel": "conectado_a",
+   "a": "red:backend"
+  },
+  {
+   "de": "svc:worker",
+   "rel": "conectado_a",
+   "a": "red:isolated"
+  },
+  {
+   "de": "svc:clamav",
+   "rel": "conectado_a",
+   "a": "red:isolated"
+  },
+  {
+   "de": "svc:reputacion",
+   "rel": "conectado_a",
+   "a": "red:egress"
+  },
+  {
+   "de": "svc:freshclam",
+   "rel": "conectado_a",
+   "a": "red:egress"
+  },
+  {
+   "de": "svc:api",
+   "rel": "escribe",
+   "a": "vol:uploads_tmp"
+  },
+  {
+   "de": "svc:worker",
+   "rel": "lee",
+   "a": "vol:uploads_tmp"
+  },
+  {
+   "de": "svc:worker",
+   "rel": "escribe",
+   "a": "vol:clean_store"
+  },
+  {
+   "de": "svc:api",
+   "rel": "lee",
+   "a": "vol:clean_store"
+  },
+  {
+   "de": "svc:worker",
+   "rel": "escribe",
+   "a": "vol:quarantine"
+  },
+  {
+   "de": "svc:freshclam",
+   "rel": "escribe",
+   "a": "vol:clamav_db"
+  },
+  {
+   "de": "svc:clamav",
+   "rel": "lee",
+   "a": "vol:clamav_db"
+  },
+  {
+   "de": "vol:quarantine",
+   "rel": "verificado_en",
+   "a": "V16"
+  },
+  {
+   "de": "flujo:R1",
+   "rel": "ejecutado_por",
+   "a": "svc:nginx"
+  },
+  {
+   "de": "flujo:R2",
+   "rel": "ejecutado_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "flujo:R1",
+   "rel": "siguiente",
+   "a": "flujo:R2"
+  },
+  {
+   "de": "flujo:R3",
+   "rel": "ejecutado_por",
+   "a": "svc:reputacion"
+  },
+  {
+   "de": "flujo:R2",
+   "rel": "siguiente",
+   "a": "flujo:R3"
+  },
+  {
+   "de": "flujo:R4",
+   "rel": "ejecutado_por",
+   "a": "svc:worker"
+  },
+  {
+   "de": "flujo:R3",
+   "rel": "siguiente",
+   "a": "flujo:R4"
+  },
+  {
+   "de": "flujo:R5",
+   "rel": "ejecutado_por",
+   "a": "svc:worker"
+  },
+  {
+   "de": "flujo:R4",
+   "rel": "siguiente",
+   "a": "flujo:R5"
+  },
+  {
+   "de": "flujo:R6",
+   "rel": "ejecutado_por",
+   "a": "svc:worker"
+  },
+  {
+   "de": "flujo:R5",
+   "rel": "siguiente",
+   "a": "flujo:R6"
+  },
+  {
+   "de": "flujo:R7",
+   "rel": "ejecutado_por",
+   "a": "svc:worker"
+  },
+  {
+   "de": "flujo:R6",
+   "rel": "siguiente",
+   "a": "flujo:R7"
+  },
+  {
+   "de": "flujo:R7",
+   "rel": "siguiente",
+   "a": "flujo:R8"
+  },
+  {
+   "de": "flujo:R9",
+   "rel": "ejecutado_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "flujo:R8",
+   "rel": "siguiente",
+   "a": "flujo:R9"
+  },
+  {
+   "de": "flujo:R3",
+   "rel": "consulta",
+   "a": "dato_redis:cache_vt"
+  },
+  {
+   "de": "flujo:R4",
+   "rel": "verificado_en",
+   "a": "V07"
+  },
+  {
+   "de": "flujo:R8",
+   "rel": "verificado_en",
+   "a": "V25"
+  },
+  {
+   "de": "flujo:documentado",
+   "rel": "verificado_en",
+   "a": "V07"
+  },
+  {
+   "de": "estado:pendiente",
+   "rel": "transiciona_a",
+   "a": "estado:limpio",
+   "props": {
+    "condicion": "Todas las capas sin hallazgos y CDR exitoso",
+    "origen": "inferido"
+   }
+  },
+  {
+   "de": "estado:pendiente",
+   "rel": "transiciona_a",
+   "a": "estado:en_cuarentena",
+   "props": {
+    "condicion": "Detección por ClamAV o VirusTotal",
+    "origen": "inferido"
+   }
+  },
+  {
+   "de": "estado:pendiente",
+   "rel": "transiciona_a",
+   "a": "estado:rechazado",
+   "props": {
+    "condicion": "Tipo fuera de lista blanca o violación de política",
+    "origen": "inferido"
+   }
+  },
+  {
+   "de": "estado:pendiente",
+   "rel": "transiciona_a",
+   "a": "estado:error",
+   "props": {
+    "condicion": "Fallo o timeout del worker",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "de": "estado:en_cuarentena",
+   "rel": "transiciona_a",
+   "a": "estado:limpio",
+   "props": {
+    "condicion": "Liberación por admin con motivo obligatorio; el archivo pasa por CDR antes de quedar disponible",
+    "origen": "recomendacion"
+   }
+  },
+  {
+   "de": "estado:limpio",
+   "rel": "verificado_en",
+   "a": "V06"
+  },
+  {
+   "de": "estado:error",
+   "rel": "verificado_en",
+   "a": "V06"
+  },
+  {
+   "de": "INV-06",
+   "rel": "restringe",
+   "a": "estado:pendiente"
+  },
+  {
+   "de": "INV-09",
+   "rel": "restringe",
+   "a": "estado:error"
+  },
+  {
+   "de": "ent:aplicacion",
+   "rel": "persistida_en",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "ent:aplicacion",
+   "rel": "verificado_en",
+   "a": "V18"
+  },
+  {
+   "de": "ent:api_key",
+   "rel": "persistida_en",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "ent:api_key",
+   "rel": "verificado_en",
+   "a": "V13"
+  },
+  {
+   "de": "ent:api_key",
+   "rel": "referencia",
+   "a": "ent:aplicacion",
+   "props": {
+    "campo": "aplicacion_id"
+   }
+  },
+  {
+   "de": "ent:archivo",
+   "rel": "persistida_en",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "ent:archivo",
+   "rel": "referencia",
+   "a": "ent:aplicacion",
+   "props": {
+    "campo": "aplicacion_id"
+   }
+  },
+  {
+   "de": "ent:resultado_analisis",
+   "rel": "persistida_en",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "ent:resultado_analisis",
+   "rel": "referencia",
+   "a": "ent:archivo",
+   "props": {
+    "campo": "archivo_id"
+   }
+  },
+  {
+   "de": "ent:usuario",
+   "rel": "persistida_en",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "ent:refresh_token",
+   "rel": "persistida_en",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "ent:refresh_token",
+   "rel": "verificado_en",
+   "a": "V19"
+  },
+  {
+   "de": "ent:refresh_token",
+   "rel": "referencia",
+   "a": "ent:usuario",
+   "props": {
+    "campo": "usuario_id"
+   }
+  },
+  {
+   "de": "ent:evento_auditoria",
+   "rel": "persistida_en",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "ent:evento_auditoria",
+   "rel": "referencia",
+   "a": "ent:usuario",
+   "props": {
+    "campo": "usuario_id"
+   }
+  },
+  {
+   "de": "ent:archivo",
+   "rel": "tiene_estado",
+   "a": "estado:pendiente",
+   "props": {
+    "nota": "campo estado ∈ estados de la máquina"
+   }
+  },
+  {
+   "de": "dato_redis:rate_limit",
+   "rel": "persistido_en",
+   "a": "svc:redis"
+  },
+  {
+   "de": "dato_redis:cache_vt",
+   "rel": "persistido_en",
+   "a": "svc:redis"
+  },
+  {
+   "de": "actor:aplicacion_cliente",
+   "rel": "se_autentica_con",
+   "a": "auth:api_key"
+  },
+  {
+   "de": "actor:analista_de_seguridad",
+   "rel": "se_autentica_con",
+   "a": "auth:credenciales_totp"
+  },
+  {
+   "de": "actor:analista_de_seguridad",
+   "rel": "se_autentica_con",
+   "a": "auth:cookie_refresh"
+  },
+  {
+   "de": "actor:analista_de_seguridad",
+   "rel": "se_autentica_con",
+   "a": "auth:jwt_analista"
+  },
+  {
+   "de": "actor:administrador",
+   "rel": "se_autentica_con",
+   "a": "auth:credenciales_totp"
+  },
+  {
+   "de": "actor:administrador",
+   "rel": "se_autentica_con",
+   "a": "auth:cookie_refresh"
+  },
+  {
+   "de": "actor:administrador",
+   "rel": "se_autentica_con",
+   "a": "auth:jwt_analista"
+  },
+  {
+   "de": "actor:administrador",
+   "rel": "se_autentica_con",
+   "a": "auth:jwt_admin"
+  },
+  {
+   "de": "auth:api_key",
+   "rel": "almacenada_como",
+   "a": "ent:api_key"
+  },
+  {
+   "de": "ep:POST /v1/files",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:POST /v1/files",
+   "rel": "requiere",
+   "a": "auth:api_key"
+  },
+  {
+   "de": "ep:GET /v1/files/{id}",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:GET /v1/files/{id}",
+   "rel": "requiere",
+   "a": "auth:api_key"
+  },
+  {
+   "de": "ep:GET /v1/files/{id}/content",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:GET /v1/files/{id}/content",
+   "rel": "requiere",
+   "a": "auth:api_key"
+  },
+  {
+   "de": "ep:POST /v1/auth/login",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:POST /v1/auth/login",
+   "rel": "requiere",
+   "a": "auth:credenciales_totp"
+  },
+  {
+   "de": "ep:POST /v1/auth/login",
+   "rel": "verificado_en",
+   "a": "V10"
+  },
+  {
+   "de": "ep:POST /v1/auth/refresh",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:POST /v1/auth/refresh",
+   "rel": "requiere",
+   "a": "auth:cookie_refresh"
+  },
+  {
+   "de": "ep:POST /v1/auth/refresh",
+   "rel": "verificado_en",
+   "a": "V12"
+  },
+  {
+   "de": "ep:POST /v1/auth/refresh",
+   "rel": "verificado_en",
+   "a": "V19"
+  },
+  {
+   "de": "ep:GET /v1/admin/files",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:GET /v1/admin/files",
+   "rel": "requiere",
+   "a": "auth:jwt_analista"
+  },
+  {
+   "de": "ep:POST /v1/admin/files/{id}/release",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:POST /v1/admin/files/{id}/release",
+   "rel": "requiere",
+   "a": "auth:jwt_admin"
+  },
+  {
+   "de": "ep:POST /v1/admin/files/{id}/release",
+   "rel": "verificado_en",
+   "a": "V15"
+  },
+  {
+   "de": "ep:GET /v1/admin/metrics",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:GET /v1/admin/metrics",
+   "rel": "requiere",
+   "a": "auth:jwt_analista"
+  },
+  {
+   "de": "ep:GET /v1/admin/audit",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:GET /v1/admin/audit",
+   "rel": "requiere",
+   "a": "auth:jwt_admin"
+  },
+  {
+   "de": "ep:GET /v1/admin/events",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:GET /v1/admin/events",
+   "rel": "requiere",
+   "a": "auth:jwt_analista"
+  },
+  {
+   "de": "ep:GET /v1/admin/events",
+   "rel": "verificado_en",
+   "a": "V11"
+  },
+  {
+   "de": "ep:POST /v1/admin/api-keys",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:POST /v1/admin/api-keys",
+   "rel": "requiere",
+   "a": "auth:jwt_admin"
+  },
+  {
+   "de": "ep:POST /v1/admin/api-keys",
+   "rel": "verificado_en",
+   "a": "V02"
+  },
+  {
+   "de": "ep:DELETE /v1/admin/api-keys",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:DELETE /v1/admin/api-keys",
+   "rel": "requiere",
+   "a": "auth:jwt_admin"
+  },
+  {
+   "de": "ep:DELETE /v1/admin/api-keys",
+   "rel": "verificado_en",
+   "a": "V02"
+  },
+  {
+   "de": "ep:DELETE /v1/admin/api-keys/{id}",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:DELETE /v1/admin/api-keys/{id}",
+   "rel": "requiere",
+   "a": "auth:jwt_admin"
+  },
+  {
+   "de": "ep:GET /v1/admin/api-keys",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:GET /v1/admin/api-keys",
+   "rel": "requiere",
+   "a": "auth:jwt_admin"
+  },
+  {
+   "de": "ep:POST /v1/auth/logout",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:POST /v1/auth/logout",
+   "rel": "requiere",
+   "a": "auth:cookie_refresh"
+  },
+  {
+   "de": "ep:POST /v1/auth/totp/enroll",
+   "rel": "servido_por",
+   "a": "svc:api"
+  },
+  {
+   "de": "ep:POST /v1/auth/totp/enroll",
+   "rel": "requiere",
+   "a": "auth:jwt_admin"
+  },
+  {
+   "de": "ep:DELETE /v1/admin/api-keys/{id}",
+   "rel": "reemplaza",
+   "a": "ep:DELETE /v1/admin/api-keys"
+  },
+  {
+   "de": "ep:POST /v1/auth/totp/enroll",
+   "rel": "verificado_en",
+   "a": "V10"
+  },
+  {
+   "de": "ep:POST /v1/auth/logout",
+   "rel": "verificado_en",
+   "a": "V19"
+  },
+  {
+   "de": "ep:GET /v1/files/{id}/content",
+   "rel": "lee",
+   "a": "vol:clean_store"
+  },
+  {
+   "de": "ep:GET /v1/admin/audit",
+   "rel": "lee",
+   "a": "ent:evento_auditoria"
+  },
+  {
+   "de": "ep:POST /v1/admin/files/{id}/release",
+   "rel": "escribe",
+   "a": "ent:evento_auditoria"
+  },
+  {
+   "de": "ep:POST /v1/admin/files/{id}/release",
+   "rel": "transiciona",
+   "a": "estado:en_cuarentena"
+  },
+  {
+   "de": "ep:GET /v1/admin/events",
+   "rel": "consumido_por",
+   "a": "comp:dashboard"
+  },
+  {
+   "de": "ep:POST /v1/files",
+   "rel": "puede_responder",
+   "a": "http:202"
+  },
+  {
+   "de": "ep:GET /v1/files/{id}/content",
+   "rel": "puede_responder",
+   "a": "http:409"
+  },
+  {
+   "de": "ep:GET /v1/files/{id}/content",
+   "rel": "puede_responder",
+   "a": "http:404"
+  },
+  {
+   "de": "ep:GET /v1/files/{id}",
+   "rel": "puede_responder",
+   "a": "http:404"
+  },
+  {
+   "de": "ep:POST /v1/files",
+   "rel": "puede_responder",
+   "a": "http:413"
+  },
+  {
+   "de": "ep:POST /v1/files",
+   "rel": "puede_responder",
+   "a": "http:429"
+  },
+  {
+   "de": "ctrl:validacion_de_firma",
+   "rel": "implementado_en",
+   "a": "svc:worker"
+  },
+  {
+   "de": "ctrl:validacion_de_firma",
+   "rel": "usa",
+   "a": "tec:python_magic"
+  },
+  {
+   "de": "F2.09",
+   "rel": "implementa",
+   "a": "ctrl:validacion_de_firma"
+  },
+  {
+   "de": "ctrl:validacion_de_firma",
+   "rel": "hace_cumplir",
+   "a": "INV-02"
+  },
+  {
+   "de": "ctrl:almacenamiento_con_uuid",
+   "rel": "implementado_en",
+   "a": "svc:api"
+  },
+  {
+   "de": "F2.02",
+   "rel": "implementa",
+   "a": "ctrl:almacenamiento_con_uuid"
+  },
+  {
+   "de": "ctrl:almacenamiento_con_uuid",
+   "rel": "hace_cumplir",
+   "a": "INV-03"
+  },
+  {
+   "de": "ctrl:reconstruccion_de_imagen",
+   "rel": "implementado_en",
+   "a": "svc:worker"
+  },
+  {
+   "de": "ctrl:reconstruccion_de_imagen",
+   "rel": "usa",
+   "a": "tec:pillow"
+  },
+  {
+   "de": "F3.03",
+   "rel": "implementa",
+   "a": "ctrl:reconstruccion_de_imagen"
+  },
+  {
+   "de": "ctrl:reconstruccion_de_imagen",
+   "rel": "hace_cumplir",
+   "a": "INV-01"
+  },
+  {
+   "de": "ctrl:saneamiento_de_pdf",
+   "rel": "implementado_en",
+   "a": "svc:worker"
+  },
+  {
+   "de": "ctrl:saneamiento_de_pdf",
+   "rel": "usa",
+   "a": "tec:pikepdf"
+  },
+  {
+   "de": "F3.04",
+   "rel": "implementa",
+   "a": "ctrl:saneamiento_de_pdf"
+  },
+  {
+   "de": "F3.05",
+   "rel": "implementa",
+   "a": "ctrl:saneamiento_de_pdf"
+  },
+  {
+   "de": "ctrl:saneamiento_de_pdf",
+   "rel": "hace_cumplir",
+   "a": "INV-01"
+  },
+  {
+   "de": "ctrl:rechazo_por_politica",
+   "rel": "implementado_en",
+   "a": "svc:worker"
+  },
+  {
+   "de": "ctrl:rechazo_por_politica",
+   "rel": "usa",
+   "a": "tec:pikepdf"
+  },
+  {
+   "de": "F2.10",
+   "rel": "implementa",
+   "a": "ctrl:rechazo_por_politica"
+  },
+  {
+   "de": "ctrl:lista_blanca",
+   "rel": "implementado_en",
+   "a": "svc:worker"
+  },
+  {
+   "de": "ctrl:lista_blanca",
+   "rel": "usa",
+   "a": "tec:python_magic"
+  },
+  {
+   "de": "F2.09",
+   "rel": "implementa",
+   "a": "ctrl:lista_blanca"
+  },
+  {
+   "de": "ctrl:lista_blanca",
+   "rel": "hace_cumplir",
+   "a": "INV-02"
+  },
+  {
+   "de": "ctrl:limite_de_pillow",
+   "rel": "implementado_en",
+   "a": "svc:worker"
+  },
+  {
+   "de": "ctrl:limite_de_pillow",
+   "rel": "usa",
+   "a": "tec:pillow"
+  },
+  {
+   "de": "F3.01",
+   "rel": "implementa",
+   "a": "ctrl:limite_de_pillow"
+  },
+  {
+   "de": "F3.02",
+   "rel": "implementa",
+   "a": "ctrl:limite_de_pillow"
+  },
+  {
+   "de": "ctrl:limite_de_nginx",
+   "rel": "implementado_en",
+   "a": "svc:nginx"
+  },
+  {
+   "de": "ctrl:limite_de_nginx",
+   "rel": "usa",
+   "a": "tec:nginx"
+  },
+  {
+   "de": "F2.08",
+   "rel": "implementa",
+   "a": "ctrl:limite_de_nginx"
+  },
+  {
+   "de": "ctrl:clamav_y_virustotal",
+   "rel": "implementado_en",
+   "a": "svc:clamav"
+  },
+  {
+   "de": "ctrl:clamav_y_virustotal",
+   "rel": "implementado_en",
+   "a": "svc:reputacion"
+  },
+  {
+   "de": "ctrl:clamav_y_virustotal",
+   "rel": "usa",
+   "a": "tec:clamav"
+  },
+  {
+   "de": "ctrl:clamav_y_virustotal",
+   "rel": "usa",
+   "a": "tec:virustotal_api_v3"
+  },
+  {
+   "de": "F4.02",
+   "rel": "implementa",
+   "a": "ctrl:clamav_y_virustotal"
+  },
+  {
+   "de": "F4.03",
+   "rel": "implementa",
+   "a": "ctrl:clamav_y_virustotal"
+  },
+  {
+   "de": "ctrl:clamav_y_virustotal",
+   "rel": "hace_cumplir",
+   "a": "INV-05"
+  },
+  {
+   "de": "ctrl:escape_en_dashboard_angular",
+   "rel": "implementado_en",
+   "a": "comp:dashboard"
+  },
+  {
+   "de": "ctrl:escape_en_dashboard_angular",
+   "rel": "usa",
+   "a": "tec:angular_typescript"
+  },
+  {
+   "de": "F5.12",
+   "rel": "implementa",
+   "a": "ctrl:escape_en_dashboard_angular"
+  },
+  {
+   "de": "ctrl:verificacion_de_propiedad",
+   "rel": "implementado_en",
+   "a": "svc:api"
+  },
+  {
+   "de": "F2.06",
+   "rel": "implementa",
+   "a": "ctrl:verificacion_de_propiedad"
+  },
+  {
+   "de": "ctrl:verificacion_de_propiedad",
+   "rel": "hace_cumplir",
+   "a": "INV-10"
+  },
+  {
+   "de": "ctrl:rate_limiting",
+   "rel": "implementado_en",
+   "a": "svc:api"
+  },
+  {
+   "de": "ctrl:rate_limiting",
+   "rel": "implementado_en",
+   "a": "svc:redis"
+  },
+  {
+   "de": "ctrl:rate_limiting",
+   "rel": "usa",
+   "a": "tec:redis"
+  },
+  {
+   "de": "F2.07",
+   "rel": "implementa",
+   "a": "ctrl:rate_limiting"
+  },
+  {
+   "de": "ctrl:maquina_de_estados",
+   "rel": "implementado_en",
+   "a": "svc:api"
+  },
+  {
+   "de": "F2.04",
+   "rel": "implementa",
+   "a": "ctrl:maquina_de_estados"
+  },
+  {
+   "de": "F2.05",
+   "rel": "implementa",
+   "a": "ctrl:maquina_de_estados"
+  },
+  {
+   "de": "ctrl:maquina_de_estados",
+   "rel": "hace_cumplir",
+   "a": "INV-06"
+  },
+  {
+   "de": "ctrl:rbac",
+   "rel": "implementado_en",
+   "a": "svc:api"
+  },
+  {
+   "de": "F5.05",
+   "rel": "implementa",
+   "a": "ctrl:rbac"
+  },
+  {
+   "de": "ctrl:rbac",
+   "rel": "usa",
+   "a": "tec:rbac"
+  },
+  {
+   "de": "ctrl:rotacion_refresh",
+   "rel": "implementado_en",
+   "a": "svc:api"
+  },
+  {
+   "de": "F5.03",
+   "rel": "implementa",
+   "a": "ctrl:rotacion_refresh"
+  },
+  {
+   "de": "ctrl:rotacion_refresh",
+   "rel": "persiste_en",
+   "a": "ent:refresh_token"
+  },
+  {
+   "de": "ctrl:solo_hash_a_vt",
+   "rel": "implementado_en",
+   "a": "svc:reputacion"
+  },
+  {
+   "de": "ctrl:solo_hash_a_vt",
+   "rel": "hace_cumplir",
+   "a": "INV-05"
+  },
+  {
+   "de": "F4.03",
+   "rel": "implementa",
+   "a": "ctrl:solo_hash_a_vt"
+  },
+  {
+   "de": "vec:01",
+   "rel": "detenido_por",
+   "a": "ctrl:validacion_de_firma"
+  },
+  {
+   "de": "vec:01",
+   "rel": "ejercita",
+   "a": "CWE-434"
+  },
+  {
+   "de": "vec:01",
+   "rel": "espera_estado",
+   "a": "estado:rechazado"
+  },
+  {
+   "de": "vec:02",
+   "rel": "detenido_por",
+   "a": "ctrl:validacion_de_firma"
+  },
+  {
+   "de": "vec:02",
+   "rel": "ejercita",
+   "a": "CWE-434"
+  },
+  {
+   "de": "vec:02",
+   "rel": "espera_estado",
+   "a": "estado:rechazado"
+  },
+  {
+   "de": "vec:03",
+   "rel": "detenido_por",
+   "a": "ctrl:almacenamiento_con_uuid"
+  },
+  {
+   "de": "vec:03",
+   "rel": "ejercita",
+   "a": "CWE-22"
+  },
+  {
+   "de": "vec:04",
+   "rel": "detenido_por",
+   "a": "ctrl:reconstruccion_de_imagen"
+  },
+  {
+   "de": "vec:04",
+   "rel": "ejercita",
+   "a": "CWE-434"
+  },
+  {
+   "de": "vec:04",
+   "rel": "espera_estado",
+   "a": "estado:limpio"
+  },
+  {
+   "de": "vec:05",
+   "rel": "detenido_por",
+   "a": "ctrl:saneamiento_de_pdf"
+  },
+  {
+   "de": "vec:05",
+   "rel": "espera_estado",
+   "a": "estado:limpio"
+  },
+  {
+   "de": "vec:06",
+   "rel": "detenido_por",
+   "a": "ctrl:rechazo_por_politica"
+  },
+  {
+   "de": "vec:06",
+   "rel": "espera_estado",
+   "a": "estado:rechazado"
+  },
+  {
+   "de": "vec:07",
+   "rel": "detenido_por",
+   "a": "ctrl:lista_blanca"
+  },
+  {
+   "de": "vec:07",
+   "rel": "ejercita",
+   "a": "CWE-434"
+  },
+  {
+   "de": "vec:07",
+   "rel": "espera_estado",
+   "a": "estado:rechazado"
+  },
+  {
+   "de": "vec:08",
+   "rel": "detenido_por",
+   "a": "ctrl:lista_blanca"
+  },
+  {
+   "de": "vec:08",
+   "rel": "ejercita",
+   "a": "CWE-434"
+  },
+  {
+   "de": "vec:08",
+   "rel": "espera_estado",
+   "a": "estado:rechazado"
+  },
+  {
+   "de": "vec:09",
+   "rel": "detenido_por",
+   "a": "ctrl:limite_de_pillow"
+  },
+  {
+   "de": "vec:09",
+   "rel": "ejercita",
+   "a": "CWE-770"
+  },
+  {
+   "de": "vec:09",
+   "rel": "verificado_en",
+   "a": "V26"
+  },
+  {
+   "de": "vec:09",
+   "rel": "espera_estado",
+   "a": "estado:rechazado"
+  },
+  {
+   "de": "vec:10",
+   "rel": "detenido_por",
+   "a": "ctrl:limite_de_nginx"
+  },
+  {
+   "de": "vec:10",
+   "rel": "ejercita",
+   "a": "CWE-770"
+  },
+  {
+   "de": "vec:10",
+   "rel": "espera_http",
+   "a": "http:413"
+  },
+  {
+   "de": "vec:11",
+   "rel": "detenido_por",
+   "a": "ctrl:clamav_y_virustotal"
+  },
+  {
+   "de": "vec:11",
+   "rel": "verificado_en",
+   "a": "V07"
+  },
+  {
+   "de": "vec:11",
+   "rel": "espera_estado",
+   "a": "estado:en_cuarentena"
+  },
+  {
+   "de": "vec:12",
+   "rel": "detenido_por",
+   "a": "ctrl:escape_en_dashboard_angular"
+  },
+  {
+   "de": "vec:12",
+   "rel": "ejercita",
+   "a": "CWE-79"
+  },
+  {
+   "de": "vec:13",
+   "rel": "detenido_por",
+   "a": "ctrl:verificacion_de_propiedad"
+  },
+  {
+   "de": "vec:13",
+   "rel": "ejercita",
+   "a": "CWE-639"
+  },
+  {
+   "de": "vec:13",
+   "rel": "espera_http",
+   "a": "http:404"
+  },
+  {
+   "de": "vec:14",
+   "rel": "detenido_por",
+   "a": "ctrl:rate_limiting"
+  },
+  {
+   "de": "vec:14",
+   "rel": "ejercita",
+   "a": "CWE-770"
+  },
+  {
+   "de": "vec:14",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "vec:14",
+   "rel": "espera_http",
+   "a": "http:429"
+  },
+  {
+   "de": "vec:15",
+   "rel": "detenido_por",
+   "a": "ctrl:maquina_de_estados"
+  },
+  {
+   "de": "vec:15",
+   "rel": "espera_http",
+   "a": "http:409"
+  },
+  {
+   "de": "vecx:flate_bomb",
+   "rel": "detenido_por",
+   "a": "ctrl:saneamiento_de_pdf"
+  },
+  {
+   "de": "vecx:flate_bomb",
+   "rel": "ejercita",
+   "a": "CWE-770"
+  },
+  {
+   "de": "vecx:flate_bomb",
+   "rel": "verificado_en",
+   "a": "V03"
+  },
+  {
+   "de": "vecx:flate_bomb",
+   "rel": "debe_pasar_desde",
+   "a": "F3"
+  },
+  {
+   "de": "vecx:datos_anexados",
+   "rel": "detenido_por",
+   "a": "ctrl:reconstruccion_de_imagen"
+  },
+  {
+   "de": "vecx:datos_anexados",
+   "rel": "detenido_por",
+   "a": "ctrl:saneamiento_de_pdf"
+  },
+  {
+   "de": "vecx:datos_anexados",
+   "rel": "debe_pasar_desde",
+   "a": "F3"
+  },
+  {
+   "de": "vecx:pdf_exif_embebido",
+   "rel": "detenido_por",
+   "a": "ctrl:saneamiento_de_pdf"
+  },
+  {
+   "de": "vecx:pdf_exif_embebido",
+   "rel": "verificado_en",
+   "a": "V09"
+  },
+  {
+   "de": "vecx:pdf_exif_embebido",
+   "rel": "debe_pasar_desde",
+   "a": "F3"
+  },
+  {
+   "de": "vecx:analista_endpoint_admin",
+   "rel": "detenido_por",
+   "a": "ctrl:rbac"
+  },
+  {
+   "de": "vecx:analista_endpoint_admin",
+   "rel": "ejercita",
+   "a": "CWE-862"
+  },
+  {
+   "de": "vecx:analista_endpoint_admin",
+   "rel": "debe_pasar_desde",
+   "a": "F5"
+  },
+  {
+   "de": "vecx:refresh_reutilizado",
+   "rel": "detenido_por",
+   "a": "ctrl:rotacion_refresh"
+  },
+  {
+   "de": "vecx:refresh_reutilizado",
+   "rel": "verificado_en",
+   "a": "V19"
+  },
+  {
+   "de": "vecx:refresh_reutilizado",
+   "rel": "debe_pasar_desde",
+   "a": "F5"
+  },
+  {
+   "de": "vecx:reputacion_solo_get",
+   "rel": "detenido_por",
+   "a": "ctrl:solo_hash_a_vt"
+  },
+  {
+   "de": "vecx:reputacion_solo_get",
+   "rel": "debe_pasar_desde",
+   "a": "F4"
+  },
+  {
+   "de": "vecx:analista_endpoint_admin",
+   "rel": "espera_http",
+   "a": "http:403"
+  },
+  {
+   "de": "param:tamano_maximo_archivo",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "param:tamano_maximo_archivo",
+   "rel": "decidido_en",
+   "a": "D5"
+  },
+  {
+   "de": "F2.02",
+   "rel": "usa_parametro",
+   "a": "param:tamano_maximo_archivo"
+  },
+  {
+   "de": "F2.08",
+   "rel": "usa_parametro",
+   "a": "param:tamano_maximo_archivo"
+  },
+  {
+   "de": "param:rate_limit_subidas",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "param:rate_limit_subidas",
+   "rel": "decidido_en",
+   "a": "D5"
+  },
+  {
+   "de": "F2.07",
+   "rel": "usa_parametro",
+   "a": "param:rate_limit_subidas"
+  },
+  {
+   "de": "param:max_pixeles_imagen",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "param:max_pixeles_imagen",
+   "rel": "decidido_en",
+   "a": "D5"
+  },
+  {
+   "de": "F3.01",
+   "rel": "usa_parametro",
+   "a": "param:max_pixeles_imagen"
+  },
+  {
+   "de": "param:max_paginas_pdf",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "param:max_paginas_pdf",
+   "rel": "decidido_en",
+   "a": "D5"
+  },
+  {
+   "de": "F3.06",
+   "rel": "usa_parametro",
+   "a": "param:max_paginas_pdf"
+  },
+  {
+   "de": "param:timeout_analisis_por_archivo",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "param:timeout_analisis_por_archivo",
+   "rel": "decidido_en",
+   "a": "D5"
+  },
+  {
+   "de": "F3.08",
+   "rel": "usa_parametro",
+   "a": "param:timeout_analisis_por_archivo"
+  },
+  {
+   "de": "param:umbral_virustotal",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "param:umbral_virustotal",
+   "rel": "decidido_en",
+   "a": "D5"
+  },
+  {
+   "de": "F4.08",
+   "rel": "usa_parametro",
+   "a": "param:umbral_virustotal"
+  },
+  {
+   "de": "param:ttl_cache_virustotal",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "param:ttl_cache_virustotal",
+   "rel": "decidido_en",
+   "a": "D5"
+  },
+  {
+   "de": "F4.04",
+   "rel": "usa_parametro",
+   "a": "param:ttl_cache_virustotal"
+  },
+  {
+   "de": "param:medicion_202_menor_1s",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "param:medicion_202_menor_1s",
+   "rel": "decidido_en",
+   "a": "D5"
+  },
+  {
+   "de": "F2.03",
+   "rel": "usa_parametro",
+   "a": "param:medicion_202_menor_1s"
+  },
+  {
+   "de": "param:retencion_originales",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "param:retencion_originales",
+   "rel": "decidido_en",
+   "a": "D5"
+  },
+  {
+   "de": "F3.09",
+   "rel": "usa_parametro",
+   "a": "param:retencion_originales"
+  },
+  {
+   "de": "F4.09",
+   "rel": "usa_parametro",
+   "a": "param:retencion_originales"
+  },
+  {
+   "de": "lim:L6",
+   "rel": "verificado_en",
+   "a": "V25"
+  },
+  {
+   "de": "lim:L2",
+   "rel": "mitigada_por",
+   "a": "ctrl:reconstruccion_de_imagen"
+  },
+  {
+   "de": "lim:L3",
+   "rel": "afecta",
+   "a": "tec:pikepdf"
+  },
+  {
+   "de": "lim:L5",
+   "rel": "afecta",
+   "a": "vol:quarantine"
+  },
+  {
+   "de": "lim:L6",
+   "rel": "afecta",
+   "a": "ext:virustotal"
+  },
+  {
+   "de": "lim:L7",
+   "rel": "afecta",
+   "a": "tec:pillow"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "excluye",
+   "a": "fuera:svg"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "excluye",
+   "a": "fuera:archivos_comprimidos_zip_y_similares"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "excluye",
+   "a": "fuera:documentos_de_office"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "excluye",
+   "a": "fuera:analisis_semantico_del_contenido_phishing"
+  },
+  {
+   "de": "ctrl:lista_blanca",
+   "rel": "permite",
+   "a": "tipo:JPEG"
+  },
+  {
+   "de": "ctrl:lista_blanca",
+   "rel": "permite",
+   "a": "tipo:PNG"
+  },
+  {
+   "de": "ctrl:lista_blanca",
+   "rel": "permite",
+   "a": "tipo:PDF"
+  },
+  {
+   "de": "D1",
+   "rel": "resuelve",
+   "a": "V07"
+  },
+  {
+   "de": "D1",
+   "rel": "bloquea",
+   "a": "F1"
+  },
+  {
+   "de": "F0.01",
+   "rel": "confirma",
+   "a": "D1"
+  },
+  {
+   "de": "D2",
+   "rel": "resuelve",
+   "a": "V08"
+  },
+  {
+   "de": "D2",
+   "rel": "bloquea",
+   "a": "F1"
+  },
+  {
+   "de": "F0.01",
+   "rel": "confirma",
+   "a": "D2"
+  },
+  {
+   "de": "D3",
+   "rel": "resuelve",
+   "a": "V25"
+  },
+  {
+   "de": "D3",
+   "rel": "bloquea",
+   "a": "F1"
+  },
+  {
+   "de": "F0.01",
+   "rel": "confirma",
+   "a": "D3"
+  },
+  {
+   "de": "D4",
+   "rel": "resuelve",
+   "a": "V06"
+  },
+  {
+   "de": "D4",
+   "rel": "resuelve",
+   "a": "V15"
+  },
+  {
+   "de": "D4",
+   "rel": "bloquea",
+   "a": "F1"
+  },
+  {
+   "de": "F0.01",
+   "rel": "confirma",
+   "a": "D4"
+  },
+  {
+   "de": "D5",
+   "rel": "resuelve",
+   "a": "V14"
+  },
+  {
+   "de": "D5",
+   "rel": "bloquea",
+   "a": "F1"
+  },
+  {
+   "de": "F0.01",
+   "rel": "confirma",
+   "a": "D5"
+  },
+  {
+   "de": "D6",
+   "rel": "resuelve",
+   "a": "V02"
+  },
+  {
+   "de": "D6",
+   "rel": "resuelve",
+   "a": "V22"
+  },
+  {
+   "de": "D6",
+   "rel": "resuelve",
+   "a": "V23"
+  },
+  {
+   "de": "D6",
+   "rel": "bloquea",
+   "a": "F1"
+  },
+  {
+   "de": "F0.01",
+   "rel": "confirma",
+   "a": "D6"
+  },
+  {
+   "de": "D1",
+   "rel": "afecta",
+   "a": "F4.02"
+  },
+  {
+   "de": "D1",
+   "rel": "afecta",
+   "a": "flujo:documentado"
+  },
+  {
+   "de": "D1",
+   "rel": "afecta",
+   "a": "flujo:R4"
+  },
+  {
+   "de": "D2",
+   "rel": "afecta",
+   "a": "F1.01"
+  },
+  {
+   "de": "D2",
+   "rel": "afecta",
+   "a": "F4.01"
+  },
+  {
+   "de": "D2",
+   "rel": "afecta",
+   "a": "svc:freshclam"
+  },
+  {
+   "de": "D2",
+   "rel": "afecta",
+   "a": "red:egress"
+  },
+  {
+   "de": "D3",
+   "rel": "afecta",
+   "a": "F4.06"
+  },
+  {
+   "de": "D3",
+   "rel": "afecta",
+   "a": "veredicto:no_evaluada"
+  },
+  {
+   "de": "D4",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "D4",
+   "rel": "afecta",
+   "a": "F5.06"
+  },
+  {
+   "de": "D4",
+   "rel": "afecta",
+   "a": "estado:error"
+  },
+  {
+   "de": "D6",
+   "rel": "afecta",
+   "a": "CHK4"
+  },
+  {
+   "de": "svc:api",
+   "rel": "codigo_en",
+   "a": "dir:api/"
+  },
+  {
+   "de": "svc:worker",
+   "rel": "codigo_en",
+   "a": "dir:worker/"
+  },
+  {
+   "de": "svc:reputacion",
+   "rel": "codigo_en",
+   "a": "dir:reputation/"
+  },
+  {
+   "de": "svc:nginx",
+   "rel": "codigo_en",
+   "a": "dir:infra/"
+  },
+  {
+   "de": "svc:clamav",
+   "rel": "codigo_en",
+   "a": "dir:infra/"
+  },
+  {
+   "de": "svc:freshclam",
+   "rel": "codigo_en",
+   "a": "dir:infra/"
+  },
+  {
+   "de": "comp:dashboard",
+   "rel": "codigo_en",
+   "a": "dir:dashboard/"
+  },
+  {
+   "de": "vec:01",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:02",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:03",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:04",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:05",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:06",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:07",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:08",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:09",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:10",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:11",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:12",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:13",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:14",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vec:15",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vecx:flate_bomb",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vecx:datos_anexados",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vecx:pdf_exif_embebido",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vecx:analista_endpoint_admin",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vecx:refresh_reutilizado",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "vecx:reputacion_solo_get",
+   "rel": "codigo_en",
+   "a": "dir:tests/attack-matrix/"
+  },
+  {
+   "de": "F0",
+   "rel": "contiene",
+   "a": "F0.01"
+  },
+  {
+   "de": "F0",
+   "rel": "contiene",
+   "a": "F0.02"
+  },
+  {
+   "de": "F0.01",
+   "rel": "siguiente",
+   "a": "F0.02"
+  },
+  {
+   "de": "F0",
+   "rel": "contiene",
+   "a": "F0.03"
+  },
+  {
+   "de": "F0.02",
+   "rel": "siguiente",
+   "a": "F0.03"
+  },
+  {
+   "de": "F0",
+   "rel": "contiene",
+   "a": "F0.04"
+  },
+  {
+   "de": "F0.03",
+   "rel": "siguiente",
+   "a": "F0.04"
+  },
+  {
+   "de": "F0",
+   "rel": "contiene",
+   "a": "F0.05"
+  },
+  {
+   "de": "F0.04",
+   "rel": "siguiente",
+   "a": "F0.05"
+  },
+  {
+   "de": "F0",
+   "rel": "contiene",
+   "a": "F0.06"
+  },
+  {
+   "de": "F0.05",
+   "rel": "siguiente",
+   "a": "F0.06"
+  },
+  {
+   "de": "F0",
+   "rel": "contiene",
+   "a": "F0.07"
+  },
+  {
+   "de": "F0.06",
+   "rel": "siguiente",
+   "a": "F0.07"
+  },
+  {
+   "de": "F0",
+   "rel": "contiene",
+   "a": "F0.08"
+  },
+  {
+   "de": "F0.07",
+   "rel": "siguiente",
+   "a": "F0.08"
+  },
+  {
+   "de": "F0",
+   "rel": "contiene",
+   "a": "F0.09"
+  },
+  {
+   "de": "F0.08",
+   "rel": "siguiente",
+   "a": "F0.09"
+  },
+  {
+   "de": "F0",
+   "rel": "usa_skill",
+   "a": "skill:security_guidance",
+   "props": {
+    "detalle": null
+   }
+  },
+  {
+   "de": "F0",
+   "rel": "usa_skill",
+   "a": "skill:insecure_defaults",
+   "props": {
+    "detalle": null
+   }
+  },
+  {
+   "de": "F0",
+   "rel": "usa_skill",
+   "a": "skill:property_based_testing",
+   "props": {
+    "detalle": null
+   }
+  },
+  {
+   "de": "F0",
+   "rel": "produce",
+   "a": "entg:docs_decisiones_md"
+  },
+  {
+   "de": "F1",
+   "rel": "depende_de",
+   "a": "F0"
+  },
+  {
+   "de": "F1",
+   "rel": "cumple",
+   "a": "O1"
+  },
+  {
+   "de": "F1",
+   "rel": "cumple",
+   "a": "O2",
+   "props": {
+    "parcial": true
+   }
+  },
+  {
+   "de": "F1",
+   "rel": "contiene",
+   "a": "F1.01"
+  },
+  {
+   "de": "F1",
+   "rel": "contiene",
+   "a": "F1.02"
+  },
+  {
+   "de": "F1.02",
+   "rel": "hace_cumplir",
+   "a": "INV-04"
+  },
+  {
+   "de": "F1.02",
+   "rel": "verificado_en",
+   "a": "V08"
+  },
+  {
+   "de": "F1.01",
+   "rel": "siguiente",
+   "a": "F1.02"
+  },
+  {
+   "de": "F1",
+   "rel": "contiene",
+   "a": "F1.03"
+  },
+  {
+   "de": "F1.03",
+   "rel": "hace_cumplir",
+   "a": "INV-04"
+  },
+  {
+   "de": "F1.03",
+   "rel": "verificado_en",
+   "a": "V17"
+  },
+  {
+   "de": "F1.02",
+   "rel": "siguiente",
+   "a": "F1.03"
+  },
+  {
+   "de": "F1",
+   "rel": "contiene",
+   "a": "F1.04"
+  },
+  {
+   "de": "F1.04",
+   "rel": "hace_cumplir",
+   "a": "INV-07"
+  },
+  {
+   "de": "F1.03",
+   "rel": "siguiente",
+   "a": "F1.04"
+  },
+  {
+   "de": "F1",
+   "rel": "contiene",
+   "a": "F1.05"
+  },
+  {
+   "de": "F1.04",
+   "rel": "siguiente",
+   "a": "F1.05"
+  },
+  {
+   "de": "F1",
+   "rel": "contiene",
+   "a": "F1.06"
+  },
+  {
+   "de": "F1.06",
+   "rel": "verificado_en",
+   "a": "V02"
+  },
+  {
+   "de": "F1.05",
+   "rel": "siguiente",
+   "a": "F1.06"
+  },
+  {
+   "de": "F1",
+   "rel": "contiene",
+   "a": "F1.07"
+  },
+  {
+   "de": "F1.07",
+   "rel": "verificado_en",
+   "a": "V18"
+  },
+  {
+   "de": "F1.07",
+   "rel": "verificado_en",
+   "a": "V19"
+  },
+  {
+   "de": "F1.06",
+   "rel": "siguiente",
+   "a": "F1.07"
+  },
+  {
+   "de": "F1",
+   "rel": "contiene",
+   "a": "F1.08"
+  },
+  {
+   "de": "F1.07",
+   "rel": "siguiente",
+   "a": "F1.08"
+  },
+  {
+   "de": "F1",
+   "rel": "contiene",
+   "a": "F1.09"
+  },
+  {
+   "de": "F1.09",
+   "rel": "hace_cumplir",
+   "a": "INV-04"
+  },
+  {
+   "de": "F1.08",
+   "rel": "siguiente",
+   "a": "F1.09"
+  },
+  {
+   "de": "F1",
+   "rel": "usa_skill",
+   "a": "skill:angular_new_app",
+   "props": {
+    "detalle": null
+   }
+  },
+  {
+   "de": "F1",
+   "rel": "usa_skill",
+   "a": "skill:skills_de_fastapi",
+   "props": {
+    "detalle": "skills de FastAPI (uvx library-skills)"
+   }
+  },
+  {
+   "de": "F1",
+   "rel": "produce",
+   "a": "entg:infra_docker_compose_yml"
+  },
+  {
+   "de": "F1",
+   "rel": "produce",
+   "a": "entg:docs_openapi_json"
+  },
+  {
+   "de": "F1",
+   "rel": "produce",
+   "a": "entg:docs_modelo_er"
+  },
+  {
+   "de": "F2",
+   "rel": "depende_de",
+   "a": "F1"
+  },
+  {
+   "de": "F2",
+   "rel": "cumple",
+   "a": "O2"
+  },
+  {
+   "de": "F2",
+   "rel": "cumple",
+   "a": "O3"
+  },
+  {
+   "de": "F2",
+   "rel": "contiene",
+   "a": "F2.01"
+  },
+  {
+   "de": "F2.01",
+   "rel": "verificado_en",
+   "a": "V13"
+  },
+  {
+   "de": "F2",
+   "rel": "contiene",
+   "a": "F2.02"
+  },
+  {
+   "de": "F2.02",
+   "rel": "hace_cumplir",
+   "a": "INV-03"
+  },
+  {
+   "de": "F2.01",
+   "rel": "siguiente",
+   "a": "F2.02"
+  },
+  {
+   "de": "F2",
+   "rel": "contiene",
+   "a": "F2.03"
+  },
+  {
+   "de": "F2.03",
+   "rel": "verificado_en",
+   "a": "V20"
+  },
+  {
+   "de": "F2.02",
+   "rel": "siguiente",
+   "a": "F2.03"
+  },
+  {
+   "de": "F2",
+   "rel": "contiene",
+   "a": "F2.04"
+  },
+  {
+   "de": "F2.04",
+   "rel": "verificado_en",
+   "a": "V06"
+  },
+  {
+   "de": "F2.03",
+   "rel": "siguiente",
+   "a": "F2.04"
+  },
+  {
+   "de": "F2",
+   "rel": "contiene",
+   "a": "F2.05"
+  },
+  {
+   "de": "F2.05",
+   "rel": "hace_cumplir",
+   "a": "INV-06"
+  },
+  {
+   "de": "F2.04",
+   "rel": "siguiente",
+   "a": "F2.05"
+  },
+  {
+   "de": "F2",
+   "rel": "contiene",
+   "a": "F2.06"
+  },
+  {
+   "de": "F2.06",
+   "rel": "hace_cumplir",
+   "a": "INV-10"
+  },
+  {
+   "de": "F2.06",
+   "rel": "verificado_en",
+   "a": "V18"
+  },
+  {
+   "de": "F2.05",
+   "rel": "siguiente",
+   "a": "F2.06"
+  },
+  {
+   "de": "F2",
+   "rel": "contiene",
+   "a": "F2.07"
+  },
+  {
+   "de": "F2.06",
+   "rel": "siguiente",
+   "a": "F2.07"
+  },
+  {
+   "de": "F2",
+   "rel": "contiene",
+   "a": "F2.08"
+  },
+  {
+   "de": "F2.07",
+   "rel": "siguiente",
+   "a": "F2.08"
+  },
+  {
+   "de": "F2",
+   "rel": "contiene",
+   "a": "F2.09"
+  },
+  {
+   "de": "F2.09",
+   "rel": "hace_cumplir",
+   "a": "INV-02"
+  },
+  {
+   "de": "F2.08",
+   "rel": "siguiente",
+   "a": "F2.09"
+  },
+  {
+   "de": "F2",
+   "rel": "contiene",
+   "a": "F2.10"
+  },
+  {
+   "de": "F2.09",
+   "rel": "siguiente",
+   "a": "F2.10"
+  },
+  {
+   "de": "F2",
+   "rel": "contiene",
+   "a": "F2.11"
+  },
+  {
+   "de": "F2.11",
+   "rel": "verificado_en",
+   "a": "V24"
+  },
+  {
+   "de": "F2.10",
+   "rel": "siguiente",
+   "a": "F2.11"
+  },
+  {
+   "de": "F2",
+   "rel": "usa_skill",
+   "a": "skill:property_based_testing",
+   "props": {
+    "detalle": "property-based-testing (Hypothesis con bytes aleatorios y cabeceras falsas contra el validador)"
+   }
+  },
+  {
+   "de": "F2",
+   "rel": "usa_skill",
+   "a": "skill:insecure_defaults",
+   "props": {
+    "detalle": "insecure-defaults (ningún fallo debe terminar en 'limpio')"
+   }
+  },
+  {
+   "de": "F2",
+   "rel": "produce",
+   "a": "entg:api_recepcion_y_estados"
+  },
+  {
+   "de": "F2",
+   "rel": "produce",
+   "a": "entg:worker_validacion"
+  },
+  {
+   "de": "vec:01",
+   "rel": "debe_pasar_desde",
+   "a": "F2"
+  },
+  {
+   "de": "vec:02",
+   "rel": "debe_pasar_desde",
+   "a": "F2"
+  },
+  {
+   "de": "vec:03",
+   "rel": "debe_pasar_desde",
+   "a": "F2"
+  },
+  {
+   "de": "vec:06",
+   "rel": "debe_pasar_desde",
+   "a": "F2"
+  },
+  {
+   "de": "vec:07",
+   "rel": "debe_pasar_desde",
+   "a": "F2"
+  },
+  {
+   "de": "vec:08",
+   "rel": "debe_pasar_desde",
+   "a": "F2"
+  },
+  {
+   "de": "vec:10",
+   "rel": "debe_pasar_desde",
+   "a": "F2"
+  },
+  {
+   "de": "vec:13",
+   "rel": "debe_pasar_desde",
+   "a": "F2"
+  },
+  {
+   "de": "vec:14",
+   "rel": "debe_pasar_desde",
+   "a": "F2"
+  },
+  {
+   "de": "vec:15",
+   "rel": "debe_pasar_desde",
+   "a": "F2"
+  },
+  {
+   "de": "F3",
+   "rel": "depende_de",
+   "a": "F2"
+  },
+  {
+   "de": "F3",
+   "rel": "cumple",
+   "a": "O4"
+  },
+  {
+   "de": "F3",
+   "rel": "contiene",
+   "a": "F3.01"
+  },
+  {
+   "de": "F3.01",
+   "rel": "verificado_en",
+   "a": "V26"
+  },
+  {
+   "de": "F3",
+   "rel": "contiene",
+   "a": "F3.02"
+  },
+  {
+   "de": "F3.02",
+   "rel": "verificado_en",
+   "a": "V26"
+  },
+  {
+   "de": "F3.01",
+   "rel": "siguiente",
+   "a": "F3.02"
+  },
+  {
+   "de": "F3",
+   "rel": "contiene",
+   "a": "F3.03"
+  },
+  {
+   "de": "F3.02",
+   "rel": "siguiente",
+   "a": "F3.03"
+  },
+  {
+   "de": "F3",
+   "rel": "contiene",
+   "a": "F3.04"
+  },
+  {
+   "de": "F3.04",
+   "rel": "verificado_en",
+   "a": "V27"
+  },
+  {
+   "de": "F3.03",
+   "rel": "siguiente",
+   "a": "F3.04"
+  },
+  {
+   "de": "F3",
+   "rel": "contiene",
+   "a": "F3.05"
+  },
+  {
+   "de": "F3.05",
+   "rel": "verificado_en",
+   "a": "V09"
+  },
+  {
+   "de": "F3.04",
+   "rel": "siguiente",
+   "a": "F3.05"
+  },
+  {
+   "de": "F3",
+   "rel": "contiene",
+   "a": "F3.06"
+  },
+  {
+   "de": "F3.06",
+   "rel": "verificado_en",
+   "a": "V14"
+  },
+  {
+   "de": "F3.05",
+   "rel": "siguiente",
+   "a": "F3.06"
+  },
+  {
+   "de": "F3",
+   "rel": "contiene",
+   "a": "F3.07"
+  },
+  {
+   "de": "F3.07",
+   "rel": "verificado_en",
+   "a": "V09"
+  },
+  {
+   "de": "F3.06",
+   "rel": "siguiente",
+   "a": "F3.07"
+  },
+  {
+   "de": "F3",
+   "rel": "contiene",
+   "a": "F3.08"
+  },
+  {
+   "de": "F3.08",
+   "rel": "hace_cumplir",
+   "a": "INV-09"
+  },
+  {
+   "de": "F3.07",
+   "rel": "siguiente",
+   "a": "F3.08"
+  },
+  {
+   "de": "F3",
+   "rel": "contiene",
+   "a": "F3.09"
+  },
+  {
+   "de": "F3.09",
+   "rel": "verificado_en",
+   "a": "V16"
+  },
+  {
+   "de": "F3.08",
+   "rel": "siguiente",
+   "a": "F3.09"
+  },
+  {
+   "de": "F3",
+   "rel": "usa_skill",
+   "a": "skill:property_based_testing",
+   "props": {
+    "detalle": "property-based-testing (imágenes y PDF malformados contra el CDR)"
+   }
+  },
+  {
+   "de": "F3",
+   "rel": "produce",
+   "a": "entg:worker_cdr_de_imagenes_y_pdf"
+  },
+  {
+   "de": "vec:04",
+   "rel": "debe_pasar_desde",
+   "a": "F3"
+  },
+  {
+   "de": "vec:05",
+   "rel": "debe_pasar_desde",
+   "a": "F3"
+  },
+  {
+   "de": "vec:09",
+   "rel": "debe_pasar_desde",
+   "a": "F3"
+  },
+  {
+   "de": "F4",
+   "rel": "depende_de",
+   "a": "F2"
+  },
+  {
+   "de": "F4",
+   "rel": "depende_de",
+   "a": "F3"
+  },
+  {
+   "de": "F4",
+   "rel": "cumple",
+   "a": "O5"
+  },
+  {
+   "de": "F4",
+   "rel": "contiene",
+   "a": "F4.01"
+  },
+  {
+   "de": "F4.01",
+   "rel": "verificado_en",
+   "a": "V08"
+  },
+  {
+   "de": "F4",
+   "rel": "contiene",
+   "a": "F4.02"
+  },
+  {
+   "de": "F4.02",
+   "rel": "verificado_en",
+   "a": "V07"
+  },
+  {
+   "de": "F4.01",
+   "rel": "siguiente",
+   "a": "F4.02"
+  },
+  {
+   "de": "F4",
+   "rel": "contiene",
+   "a": "F4.03"
+  },
+  {
+   "de": "F4.03",
+   "rel": "hace_cumplir",
+   "a": "INV-05"
+  },
+  {
+   "de": "F4.02",
+   "rel": "siguiente",
+   "a": "F4.03"
+  },
+  {
+   "de": "F4",
+   "rel": "contiene",
+   "a": "F4.04"
+  },
+  {
+   "de": "F4.03",
+   "rel": "siguiente",
+   "a": "F4.04"
+  },
+  {
+   "de": "F4",
+   "rel": "contiene",
+   "a": "F4.05"
+  },
+  {
+   "de": "F4.05",
+   "rel": "verificado_en",
+   "a": "V25"
+  },
+  {
+   "de": "F4.04",
+   "rel": "siguiente",
+   "a": "F4.05"
+  },
+  {
+   "de": "F4",
+   "rel": "contiene",
+   "a": "F4.06"
+  },
+  {
+   "de": "F4.06",
+   "rel": "verificado_en",
+   "a": "V25"
+  },
+  {
+   "de": "F4.05",
+   "rel": "siguiente",
+   "a": "F4.06"
+  },
+  {
+   "de": "F4",
+   "rel": "contiene",
+   "a": "F4.07"
+  },
+  {
+   "de": "F4.06",
+   "rel": "siguiente",
+   "a": "F4.07"
+  },
+  {
+   "de": "F4",
+   "rel": "contiene",
+   "a": "F4.08"
+  },
+  {
+   "de": "F4.07",
+   "rel": "siguiente",
+   "a": "F4.08"
+  },
+  {
+   "de": "F4",
+   "rel": "contiene",
+   "a": "F4.09"
+  },
+  {
+   "de": "F4.09",
+   "rel": "hace_cumplir",
+   "a": "INV-07"
+  },
+  {
+   "de": "F4.08",
+   "rel": "siguiente",
+   "a": "F4.09"
+  },
+  {
+   "de": "F4",
+   "rel": "produce",
+   "a": "entg:reputation"
+  },
+  {
+   "de": "F4",
+   "rel": "produce",
+   "a": "entg:worker_integracion_con_clamav"
+  },
+  {
+   "de": "F4",
+   "rel": "produce",
+   "a": "entg:infra_clamd_y_freshclam"
+  },
+  {
+   "de": "vec:11",
+   "rel": "debe_pasar_desde",
+   "a": "F4"
+  },
+  {
+   "de": "F5",
+   "rel": "depende_de",
+   "a": "F2"
+  },
+  {
+   "de": "F5",
+   "rel": "depende_de",
+   "a": "F4"
+  },
+  {
+   "de": "F5",
+   "rel": "cumple",
+   "a": "O6"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.01"
+  },
+  {
+   "de": "F5.01",
+   "rel": "verificado_en",
+   "a": "V10"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.02"
+  },
+  {
+   "de": "F5.01",
+   "rel": "siguiente",
+   "a": "F5.02"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.03"
+  },
+  {
+   "de": "F5.03",
+   "rel": "verificado_en",
+   "a": "V19"
+  },
+  {
+   "de": "F5.02",
+   "rel": "siguiente",
+   "a": "F5.03"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.04"
+  },
+  {
+   "de": "F5.04",
+   "rel": "verificado_en",
+   "a": "V12"
+  },
+  {
+   "de": "F5.03",
+   "rel": "siguiente",
+   "a": "F5.04"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.05"
+  },
+  {
+   "de": "F5.04",
+   "rel": "siguiente",
+   "a": "F5.05"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.06"
+  },
+  {
+   "de": "F5.06",
+   "rel": "verificado_en",
+   "a": "V15"
+  },
+  {
+   "de": "F5.06",
+   "rel": "hace_cumplir",
+   "a": "INV-08"
+  },
+  {
+   "de": "F5.06",
+   "rel": "hace_cumplir",
+   "a": "INV-01"
+  },
+  {
+   "de": "F5.05",
+   "rel": "siguiente",
+   "a": "F5.06"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.07"
+  },
+  {
+   "de": "F5.06",
+   "rel": "siguiente",
+   "a": "F5.07"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.08"
+  },
+  {
+   "de": "F5.07",
+   "rel": "siguiente",
+   "a": "F5.08"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.09"
+  },
+  {
+   "de": "F5.08",
+   "rel": "siguiente",
+   "a": "F5.09"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.10"
+  },
+  {
+   "de": "F5.09",
+   "rel": "siguiente",
+   "a": "F5.10"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.11"
+  },
+  {
+   "de": "F5.11",
+   "rel": "verificado_en",
+   "a": "V11"
+  },
+  {
+   "de": "F5.10",
+   "rel": "siguiente",
+   "a": "F5.11"
+  },
+  {
+   "de": "F5",
+   "rel": "contiene",
+   "a": "F5.12"
+  },
+  {
+   "de": "F5.12",
+   "rel": "verificado_en",
+   "a": "V28"
+  },
+  {
+   "de": "F5.11",
+   "rel": "siguiente",
+   "a": "F5.12"
+  },
+  {
+   "de": "F5",
+   "rel": "usa_skill",
+   "a": "skill:angular_developer",
+   "props": {
+    "detalle": null
+   }
+  },
+  {
+   "de": "F5",
+   "rel": "produce",
+   "a": "entg:dashboard"
+  },
+  {
+   "de": "F5",
+   "rel": "produce",
+   "a": "entg:api_autenticacion_rbac_y_endpoints_de_admin"
+  },
+  {
+   "de": "vec:12",
+   "rel": "debe_pasar_desde",
+   "a": "F5"
+  },
+  {
+   "de": "F6",
+   "rel": "depende_de",
+   "a": "F1"
+  },
+  {
+   "de": "F6",
+   "rel": "depende_de",
+   "a": "F2"
+  },
+  {
+   "de": "F6",
+   "rel": "depende_de",
+   "a": "F3"
+  },
+  {
+   "de": "F6",
+   "rel": "depende_de",
+   "a": "F4"
+  },
+  {
+   "de": "F6",
+   "rel": "depende_de",
+   "a": "F5"
+  },
+  {
+   "de": "F6",
+   "rel": "cumple",
+   "a": "O7"
+  },
+  {
+   "de": "F6",
+   "rel": "contiene",
+   "a": "F6.01"
+  },
+  {
+   "de": "F6",
+   "rel": "contiene",
+   "a": "F6.02"
+  },
+  {
+   "de": "F6.01",
+   "rel": "siguiente",
+   "a": "F6.02"
+  },
+  {
+   "de": "F6",
+   "rel": "contiene",
+   "a": "F6.03"
+  },
+  {
+   "de": "F6.02",
+   "rel": "siguiente",
+   "a": "F6.03"
+  },
+  {
+   "de": "F6",
+   "rel": "contiene",
+   "a": "F6.04"
+  },
+  {
+   "de": "F6.03",
+   "rel": "siguiente",
+   "a": "F6.04"
+  },
+  {
+   "de": "F6",
+   "rel": "contiene",
+   "a": "F6.05"
+  },
+  {
+   "de": "F6.04",
+   "rel": "siguiente",
+   "a": "F6.05"
+  },
+  {
+   "de": "F6",
+   "rel": "contiene",
+   "a": "F6.06"
+  },
+  {
+   "de": "F6.05",
+   "rel": "siguiente",
+   "a": "F6.06"
+  },
+  {
+   "de": "F6",
+   "rel": "contiene",
+   "a": "F6.07"
+  },
+  {
+   "de": "F6.06",
+   "rel": "siguiente",
+   "a": "F6.07"
+  },
+  {
+   "de": "F6",
+   "rel": "usa_skill",
+   "a": "skill:claude_security",
+   "props": {
+    "detalle": null
+   }
+  },
+  {
+   "de": "F6",
+   "rel": "usa_skill",
+   "a": "skill:security_review",
+   "props": {
+    "detalle": null
+   }
+  },
+  {
+   "de": "F6",
+   "rel": "usa_skill",
+   "a": "skill:static_analysis",
+   "props": {
+    "detalle": null
+   }
+  },
+  {
+   "de": "F6",
+   "rel": "usa_skill",
+   "a": "skill:supply_chain_risk_auditor",
+   "props": {
+    "detalle": null
+   }
+  },
+  {
+   "de": "F6",
+   "rel": "produce",
+   "a": "entg:docs_informe_auditoria"
+  },
+  {
+   "de": "F6",
+   "rel": "produce",
+   "a": "entg:readme_md"
+  },
+  {
+   "de": "F6",
+   "rel": "produce",
+   "a": "entg:guion_de_demo"
+  },
+  {
+   "de": "F6",
+   "rel": "verifica_todos",
+   "a": "vec:*",
+   "props": {
+    "nota": "todos (1 a 15)"
+   }
+  },
+  {
+   "de": "F0.08",
+   "rel": "crea",
+   "a": "patron:decision_por_content_type"
+  },
+  {
+   "de": "patron:decision_por_content_type",
+   "rel": "protege",
+   "a": "INV-02"
+  },
+  {
+   "de": "F0.08",
+   "rel": "crea",
+   "a": "patron:nombre_original_en_ruta"
+  },
+  {
+   "de": "patron:nombre_original_en_ruta",
+   "rel": "protege",
+   "a": "INV-03"
+  },
+  {
+   "de": "F0.08",
+   "rel": "crea",
+   "a": "patron:pillow_sin_limite"
+  },
+  {
+   "de": "patron:pillow_sin_limite",
+   "rel": "protege",
+   "a": "V26"
+  },
+  {
+   "de": "F0.08",
+   "rel": "crea",
+   "a": "patron:angular_bypass"
+  },
+  {
+   "de": "patron:angular_bypass",
+   "rel": "protege",
+   "a": "V28"
+  },
+  {
+   "de": "entg:E1",
+   "rel": "producido_en",
+   "a": "F0"
+  },
+  {
+   "de": "entg:E2",
+   "rel": "producido_en",
+   "a": "F1"
+  },
+  {
+   "de": "entg:E3",
+   "rel": "producido_en",
+   "a": "F1"
+  },
+  {
+   "de": "entg:E4",
+   "rel": "producido_en",
+   "a": "F1"
+  },
+  {
+   "de": "entg:E5",
+   "rel": "producido_en",
+   "a": "F2"
+  },
+  {
+   "de": "entg:E5",
+   "rel": "producido_en",
+   "a": "F5"
+  },
+  {
+   "de": "entg:E5",
+   "rel": "producido_en",
+   "a": "F3"
+  },
+  {
+   "de": "entg:E5",
+   "rel": "producido_en",
+   "a": "F4"
+  },
+  {
+   "de": "entg:E6",
+   "rel": "producido_en",
+   "a": "F2"
+  },
+  {
+   "de": "entg:E6",
+   "rel": "producido_en",
+   "a": "F6"
+  },
+  {
+   "de": "entg:E6",
+   "rel": "producido_en",
+   "a": "F3"
+  },
+  {
+   "de": "entg:E6",
+   "rel": "producido_en",
+   "a": "F4"
+  },
+  {
+   "de": "entg:E6",
+   "rel": "producido_en",
+   "a": "F5"
+  },
+  {
+   "de": "entg:E7",
+   "rel": "producido_en",
+   "a": "F6"
+  },
+  {
+   "de": "entg:E8",
+   "rel": "producido_en",
+   "a": "F6"
+  },
+  {
+   "de": "entg:E9",
+   "rel": "producido_en",
+   "a": "F6"
+  },
+  {
+   "de": "R1",
+   "rel": "afecta",
+   "a": "F6"
+  },
+  {
+   "de": "R1",
+   "rel": "afecta",
+   "a": "F4"
+  },
+  {
+   "de": "R2",
+   "rel": "afecta",
+   "a": "F4"
+  },
+  {
+   "de": "R2",
+   "rel": "afecta",
+   "a": "ext:virustotal"
+  },
+  {
+   "de": "R3",
+   "rel": "afecta",
+   "a": "F3"
+  },
+  {
+   "de": "R4",
+   "rel": "afecta",
+   "a": "F5.11"
+  },
+  {
+   "de": "R4",
+   "rel": "afecta",
+   "a": "ep:GET /v1/admin/events"
+  },
+  {
+   "de": "R5",
+   "rel": "afecta",
+   "a": "proyecto:gatekeeper"
+  },
+  {
+   "de": "R6",
+   "rel": "afecta",
+   "a": "svc:worker"
+  },
+  {
+   "de": "R6",
+   "rel": "afecta",
+   "a": "tec:pillow"
+  },
+  {
+   "de": "R6",
+   "rel": "afecta",
+   "a": "tec:pikepdf"
+  },
+  {
+   "de": "R7",
+   "rel": "afecta",
+   "a": "F4.01"
+  },
+  {
+   "de": "R7",
+   "rel": "afecta",
+   "a": "vol:clamav_db"
+  },
+  {
+   "de": "R2",
+   "rel": "mitigado_por",
+   "a": "D3"
+  },
+  {
+   "de": "R4",
+   "rel": "mitigado_por",
+   "a": "ep:GET /v1/admin/files"
+  },
+  {
+   "de": "R5",
+   "rel": "mitigado_por",
+   "a": "lim:L1"
+  },
+  {
+   "de": "F6",
+   "rel": "requiere",
+   "a": "CHK1"
+  },
+  {
+   "de": "F6",
+   "rel": "requiere",
+   "a": "CHK2"
+  },
+  {
+   "de": "F6",
+   "rel": "requiere",
+   "a": "CHK3"
+  },
+  {
+   "de": "F6",
+   "rel": "requiere",
+   "a": "CHK4"
+  },
+  {
+   "de": "INV-01",
+   "rel": "restringe",
+   "a": "vol:clean_store"
+  },
+  {
+   "de": "INV-01",
+   "rel": "restringe",
+   "a": "ep:GET /v1/files/{id}/content"
+  },
+  {
+   "de": "INV-04",
+   "rel": "restringe",
+   "a": "svc:worker"
+  },
+  {
+   "de": "INV-04",
+   "rel": "restringe",
+   "a": "red:isolated"
+  },
+  {
+   "de": "INV-05",
+   "rel": "restringe",
+   "a": "svc:reputacion"
+  },
+  {
+   "de": "INV-05",
+   "rel": "restringe",
+   "a": "ext:virustotal"
+  },
+  {
+   "de": "INV-06",
+   "rel": "restringe",
+   "a": "ep:GET /v1/files/{id}/content"
+  },
+  {
+   "de": "INV-07",
+   "rel": "restringe",
+   "a": "vol:quarantine"
+  },
+  {
+   "de": "INV-08",
+   "rel": "restringe",
+   "a": "ent:evento_auditoria"
+  },
+  {
+   "de": "INV-08",
+   "rel": "restringe",
+   "a": "ep:POST /v1/admin/files/{id}/release"
+  },
+  {
+   "de": "INV-10",
+   "rel": "restringe",
+   "a": "ent:aplicacion"
+  },
+  {
+   "de": "INV-03",
+   "rel": "restringe",
+   "a": "vol:uploads_tmp"
+  },
+  {
+   "de": "K01",
+   "rel": "afecta",
+   "a": "flujo:R8"
+  },
+  {
+   "de": "K01",
+   "rel": "afecta",
+   "a": "F4.07"
+  },
+  {
+   "de": "K01",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K01",
+   "rel": "afecta",
+   "a": "svc:worker"
+  },
+  {
+   "de": "K01",
+   "rel": "afecta",
+   "a": "svc:reputacion"
+  },
+  {
+   "de": "K01",
+   "rel": "afecta",
+   "a": "F1.05"
+  },
+  {
+   "de": "K01",
+   "rel": "afecta",
+   "a": "red:isolated"
+  },
+  {
+   "de": "K02",
+   "rel": "afecta",
+   "a": "svc:redis"
+  },
+  {
+   "de": "K02",
+   "rel": "afecta",
+   "a": "red:isolated"
+  },
+  {
+   "de": "K02",
+   "rel": "afecta",
+   "a": "dato_redis:cache_vt"
+  },
+  {
+   "de": "K02",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K02",
+   "rel": "afecta",
+   "a": "INV-09"
+  },
+  {
+   "de": "K03",
+   "rel": "afecta",
+   "a": "estado:error"
+  },
+  {
+   "de": "K03",
+   "rel": "afecta",
+   "a": "estado:en_cuarentena"
+  },
+  {
+   "de": "K03",
+   "rel": "afecta",
+   "a": "D4"
+  },
+  {
+   "de": "K03",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K03",
+   "rel": "afecta",
+   "a": "F5.06"
+  },
+  {
+   "de": "K04",
+   "rel": "afecta",
+   "a": "svc:reputacion"
+  },
+  {
+   "de": "K04",
+   "rel": "afecta",
+   "a": "dir:reputation/"
+  },
+  {
+   "de": "K05",
+   "rel": "afecta",
+   "a": "ent:aplicacion"
+  },
+  {
+   "de": "K05",
+   "rel": "afecta",
+   "a": "ep:POST /v1/admin/api-keys"
+  },
+  {
+   "de": "K05",
+   "rel": "afecta",
+   "a": "INV-10"
+  },
+  {
+   "de": "K06",
+   "rel": "afecta",
+   "a": "ctrl:rbac"
+  },
+  {
+   "de": "K06",
+   "rel": "afecta",
+   "a": "F5.05"
+  },
+  {
+   "de": "K06",
+   "rel": "afecta",
+   "a": "auth:jwt_analista"
+  },
+  {
+   "de": "K06",
+   "rel": "afecta",
+   "a": "auth:jwt_admin"
+  },
+  {
+   "de": "F0.03",
+   "rel": "usa",
+   "a": "tec:docker_docker_compose"
+  },
+  {
+   "de": "F0.03",
+   "rel": "usa",
+   "a": "tec:uv"
+  },
+  {
+   "de": "F0.06",
+   "rel": "usa",
+   "a": "tec:github_actions"
+  },
+  {
+   "de": "F0.06",
+   "rel": "usa",
+   "a": "tec:ruff"
+  },
+  {
+   "de": "F0.06",
+   "rel": "usa",
+   "a": "tec:pytest"
+  },
+  {
+   "de": "F0.06",
+   "rel": "usa",
+   "a": "tec:bandit"
+  },
+  {
+   "de": "F1.01",
+   "rel": "usa",
+   "a": "tec:docker_docker_compose"
+  },
+  {
+   "de": "F1.07",
+   "rel": "usa",
+   "a": "tec:alembic"
+  },
+  {
+   "de": "F6.02",
+   "rel": "usa",
+   "a": "tec:owasp_zap"
+  },
+  {
+   "de": "F6.03",
+   "rel": "usa",
+   "a": "tec:trivy"
+  },
+  {
+   "de": "F6.03",
+   "rel": "usa",
+   "a": "tec:bandit"
+  },
+  {
+   "de": "F4.01",
+   "rel": "usa",
+   "a": "tec:freshclam"
+  },
+  {
+   "de": "F2",
+   "rel": "usa",
+   "a": "tec:hypothesis"
+  },
+  {
+   "de": "F3",
+   "rel": "usa",
+   "a": "tec:hypothesis"
+  },
+  {
+   "de": "F3",
+   "rel": "verifica_con",
+   "a": "tec:exiftool"
+  },
+  {
+   "de": "auth:api_key",
+   "rel": "falla_con",
+   "a": "http:401"
+  },
+  {
+   "de": "auth:jwt_analista",
+   "rel": "falla_con",
+   "a": "http:401"
+  },
+  {
+   "de": "auth:jwt_admin",
+   "rel": "falla_con",
+   "a": "http:401"
+  },
+  {
+   "de": "auth:cookie_refresh",
+   "rel": "falla_con",
+   "a": "http:401"
+  },
+  {
+   "de": "auth:credenciales_totp",
+   "rel": "falla_con",
+   "a": "http:401"
+  },
+  {
+   "de": "auth:jwt_admin",
+   "rel": "insuficiente_responde",
+   "a": "http:403"
+  },
+  {
+   "de": "lim:L4",
+   "rel": "equivale_a",
+   "a": "fuera:analisis_semantico_del_contenido_phishing"
+  },
+  {
+   "de": "F0.01",
+   "rel": "escribe_en",
+   "a": "dir:docs/"
+  },
+  {
+   "de": "F0.04",
+   "rel": "escribe_en",
+   "a": "dir:docs/"
+  },
+  {
+   "de": "F1.06",
+   "rel": "escribe_en",
+   "a": "dir:docs/"
+  },
+  {
+   "de": "F1.07",
+   "rel": "escribe_en",
+   "a": "dir:docs/"
+  },
+  {
+   "de": "F0.07",
+   "rel": "escribe_en",
+   "a": "dir:.claude/"
+  },
+  {
+   "de": "F0.08",
+   "rel": "escribe_en",
+   "a": "dir:.claude/"
+  },
+  {
+   "de": "estado:error",
+   "rel": "transiciona_a",
+   "a": "estado:pendiente",
+   "props": {
+    "condicion": "Reintento automático, máximo 2 (param:max_reintentos)",
+    "origen": "K03 (confirmada)"
+   }
+  },
+  {
+   "de": "estado:en_cuarentena",
+   "rel": "transiciona_a",
+   "a": "estado:rechazado",
+   "props": {
+    "condicion": "Liberación por admin, pero el CDR posterior rechaza el tipo o la política",
+    "origen": "K03 (confirmada)"
+   }
+  },
+  {
+   "de": "estado:en_cuarentena",
+   "rel": "transiciona_a",
+   "a": "estado:error",
+   "props": {
+    "condicion": "Liberación por admin, pero el CDR posterior falla o vence el timeout",
+    "origen": "K03 (confirmada)"
+   }
+  },
+  {
+   "de": "param:max_reintentos",
+   "rel": "decidido_en",
+   "a": "D4"
+  },
+  {
+   "de": "F2.04",
+   "rel": "usa_parametro",
+   "a": "param:max_reintentos"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "compuesto_por",
+   "a": "svc:redis_queue"
+  },
+  {
+   "de": "svc:redis_queue",
+   "rel": "conectado_a",
+   "a": "red:isolated"
+  },
+  {
+   "de": "svc:redis_queue",
+   "rel": "conectado_a",
+   "a": "red:backend"
+  },
+  {
+   "de": "svc:redis_queue",
+   "rel": "usa",
+   "a": "tec:redis"
+  },
+  {
+   "de": "dato_redis:cola_arq",
+   "rel": "persistido_en",
+   "a": "svc:redis_queue"
+  },
+  {
+   "de": "dato_redis:cola_lookup",
+   "rel": "persistido_en",
+   "a": "svc:redis"
+  },
+  {
+   "de": "K02",
+   "rel": "afecta",
+   "a": "svc:redis_queue"
+  },
+  {
+   "de": "K02",
+   "rel": "afecta",
+   "a": "F1.09"
+  },
+  {
+   "de": "K07",
+   "rel": "afecta",
+   "a": "D3"
+  },
+  {
+   "de": "K07",
+   "rel": "afecta",
+   "a": "flujo:R3"
+  },
+  {
+   "de": "K07",
+   "rel": "afecta",
+   "a": "flujo:R8"
+  },
+  {
+   "de": "K07",
+   "rel": "afecta",
+   "a": "svc:reputacion"
+  },
+  {
+   "de": "K07",
+   "rel": "afecta",
+   "a": "F4.05"
+  },
+  {
+   "de": "K07",
+   "rel": "afecta",
+   "a": "F4.06"
+  },
+  {
+   "de": "K08",
+   "rel": "afecta",
+   "a": "K01"
+  },
+  {
+   "de": "K08",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K08",
+   "rel": "afecta",
+   "a": "F1.05"
+  },
+  {
+   "de": "K08",
+   "rel": "afecta",
+   "a": "flujo:R8"
+  },
+  {
+   "de": "K09",
+   "rel": "afecta",
+   "a": "svc:worker"
+  },
+  {
+   "de": "K09",
+   "rel": "afecta",
+   "a": "F3.08"
+  },
+  {
+   "de": "K09",
+   "rel": "afecta",
+   "a": "INV-09"
+  },
+  {
+   "de": "K09",
+   "rel": "afecta",
+   "a": "param:timeout_analisis_por_archivo"
+  },
+  {
+   "de": "K09",
+   "rel": "afecta",
+   "a": "tec:arq_cola_sobre_redis"
+  },
+  {
+   "de": "K10",
+   "rel": "afecta",
+   "a": "param:rate_limit_subidas"
+  },
+  {
+   "de": "K10",
+   "rel": "afecta",
+   "a": "F2.07"
+  },
+  {
+   "de": "K10",
+   "rel": "afecta",
+   "a": "vec:14"
+  },
+  {
+   "de": "K10",
+   "rel": "afecta",
+   "a": "D5"
+  },
+  {
+   "de": "K11",
+   "rel": "afecta",
+   "a": "K03"
+  },
+  {
+   "de": "K11",
+   "rel": "afecta",
+   "a": "D4"
+  },
+  {
+   "de": "K11",
+   "rel": "afecta",
+   "a": "estado:error"
+  },
+  {
+   "de": "K11",
+   "rel": "afecta",
+   "a": "param:max_reintentos"
+  },
+  {
+   "de": "K12",
+   "rel": "afecta",
+   "a": "O2"
+  },
+  {
+   "de": "K12",
+   "rel": "afecta",
+   "a": "param:medicion_202_menor_1s"
+  },
+  {
+   "de": "K12",
+   "rel": "afecta",
+   "a": "ep:GET /v1/files/{id}"
+  },
+  {
+   "de": "K12",
+   "rel": "afecta",
+   "a": "ep:GET /v1/admin/metrics"
+  },
+  {
+   "de": "K12",
+   "rel": "afecta",
+   "a": "ent:resultado_analisis"
+  },
+  {
+   "de": "K12",
+   "rel": "afecta",
+   "a": "F6"
+  },
+  {
+   "de": "K13",
+   "rel": "afecta",
+   "a": "vecx:flate_bomb"
+  },
+  {
+   "de": "K13",
+   "rel": "afecta",
+   "a": "V03"
+  },
+  {
+   "de": "K13",
+   "rel": "afecta",
+   "a": "ctrl:saneamiento_de_pdf"
+  },
+  {
+   "de": "K13",
+   "rel": "afecta",
+   "a": "F3.04"
+  },
+  {
+   "de": "K13",
+   "rel": "afecta",
+   "a": "lim:L3"
+  },
+  {
+   "de": "proyecto:gatekeeper",
+   "rel": "compuesto_por",
+   "a": "svc:coordinator"
+  },
+  {
+   "de": "svc:coordinator",
+   "rel": "conectado_a",
+   "a": "red:backend"
+  },
+  {
+   "de": "svc:coordinator",
+   "rel": "usa",
+   "a": "tec:arq_cola_sobre_redis"
+  },
+  {
+   "de": "flujo:R8",
+   "rel": "ejecutado_por",
+   "a": "svc:coordinator"
+  },
+  {
+   "de": "svc:coordinator",
+   "rel": "codigo_en",
+   "a": "dir:api/"
+  },
+  {
+   "de": "param:vt_presupuesto",
+   "rel": "decidido_en",
+   "a": "K07"
+  },
+  {
+   "de": "F4.05",
+   "rel": "usa_parametro",
+   "a": "param:vt_presupuesto"
+  },
+  {
+   "de": "F4.06",
+   "rel": "usa_parametro",
+   "a": "param:vt_presupuesto"
+  },
+  {
+   "de": "param:arq_poll_delay",
+   "rel": "decidido_en",
+   "a": "K08"
+  },
+  {
+   "de": "F1.05",
+   "rel": "usa_parametro",
+   "a": "param:arq_poll_delay"
+  },
+  {
+   "de": "param:cdr_proceso_hijo",
+   "rel": "decidido_en",
+   "a": "K09"
+  },
+  {
+   "de": "F3.08",
+   "rel": "usa_parametro",
+   "a": "param:cdr_proceso_hijo"
+  },
+  {
+   "de": "param:arq_max_tries",
+   "rel": "decidido_en",
+   "a": "K11"
+  },
+  {
+   "de": "F2.04",
+   "rel": "usa_parametro",
+   "a": "param:arq_max_tries"
+  },
+  {
+   "de": "param:pdf_tope_descompresion",
+   "rel": "decidido_en",
+   "a": "K13"
+  },
+  {
+   "de": "F3.04",
+   "rel": "usa_parametro",
+   "a": "param:pdf_tope_descompresion"
+  },
+  {
+   "de": "param:long_poll_max",
+   "rel": "decidido_en",
+   "a": "K12"
+  },
+  {
+   "de": "F2.04",
+   "rel": "usa_parametro",
+   "a": "param:long_poll_max"
+  },
+  {
+   "de": "M1",
+   "rel": "definida_en",
+   "a": "K12"
+  },
+  {
+   "de": "M1",
+   "rel": "expuesta_en",
+   "a": "ep:GET /v1/admin/metrics"
+  },
+  {
+   "de": "F6",
+   "rel": "mide",
+   "a": "M1"
+  },
+  {
+   "de": "M2",
+   "rel": "definida_en",
+   "a": "K12"
+  },
+  {
+   "de": "M2",
+   "rel": "expuesta_en",
+   "a": "ep:GET /v1/admin/metrics"
+  },
+  {
+   "de": "F6",
+   "rel": "mide",
+   "a": "M2"
+  },
+  {
+   "de": "M3",
+   "rel": "definida_en",
+   "a": "K12"
+  },
+  {
+   "de": "M3",
+   "rel": "expuesta_en",
+   "a": "ep:GET /v1/admin/metrics"
+  },
+  {
+   "de": "F6",
+   "rel": "mide",
+   "a": "M3"
+  },
+  {
+   "de": "M4",
+   "rel": "definida_en",
+   "a": "K12"
+  },
+  {
+   "de": "M4",
+   "rel": "expuesta_en",
+   "a": "ep:GET /v1/admin/metrics"
+  },
+  {
+   "de": "F6",
+   "rel": "mide",
+   "a": "M4"
+  },
+  {
+   "de": "M5",
+   "rel": "definida_en",
+   "a": "K12"
+  },
+  {
+   "de": "M5",
+   "rel": "expuesta_en",
+   "a": "ep:GET /v1/admin/metrics"
+  },
+  {
+   "de": "F6",
+   "rel": "mide",
+   "a": "M5"
+  },
+  {
+   "de": "M1",
+   "rel": "mide",
+   "a": "O2"
+  }
+ ]
+}

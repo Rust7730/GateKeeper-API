@@ -1,0 +1,301 @@
+{
+  "meta": {
+    "archivo": "gatekeeper_plan.json",
+    "version": "1.0.0",
+    "fecha": "2026-10-21",
+    "autor": "Rodolfo Ramírez Reyes",
+    "proyecto": "Gatekeeper — API de validación, saneamiento y análisis multicapa de archivos",
+    "proposito": "Plan de construcción ordenado por dependencias: qué se va a construir, en qué orden y cómo se comprueba que cada fase está terminada. No incluye duraciones.",
+    "complementa_a": "gatekeeper_contexto.json, que contiene la arquitectura, el stack, los endpoints, la matriz de pruebas y los invariantes. Las referencias V## e INV-## apuntan a ese archivo.",
+    "instrucciones_para_la_ia": [
+      "Trabaja las fases en el orden de 'fases'. Una fase empieza solo cuando todas las de su 'depende_de' cumplen su 'criterio_salida'.",
+      "Antes de implementar un control, escribe la prueba del vector que lo comprueba.",
+      "Respeta siempre los invariantes INV-01 a INV-10 de gatekeeper_contexto.json. Si un paso parece contradecirlos, detente y pregunta al usuario.",
+      "Las decisiones de 'decisiones_previas' en estado 'pendiente' se confirman con el usuario antes de la fase F1. No tomes la recomendación como aprobada.",
+      "No amplíes el alcance: solo JPEG, PNG y PDF.",
+      "Al terminar un paso, actualiza su 'estado' y registra cualquier decisión nueva en docs/decisiones.md."
+    ],
+    "valores_estado": ["pendiente", "en_progreso", "hecho", "bloqueado"]
+  },
+
+  "alcance": {
+    "tipos_permitidos": ["JPEG", "PNG", "PDF"],
+    "fuera_de_alcance": ["SVG", "archivos comprimidos (ZIP y similares)", "documentos de Office", "análisis semántico del contenido (phishing)"],
+    "servicios": "7 en Docker Compose (nginx, api, redis, postgres, worker, clamav, reputation); 8 si la decisión D2 elige el contenedor freshclam separado.",
+    "flujo_base": "arquitectura.flujo_recomendado de gatekeeper_contexto.json"
+  },
+
+  "reglas_de_avance": [
+    "Los vectores de la matriz asignados a la fase pasan en CI.",
+    "Se cumple el criterio del objetivo específico (O1 a O7) que cubre la fase.",
+    "Las decisiones tomadas durante la fase quedan escritas en docs/decisiones.md."
+  ],
+
+  "decisiones_previas": [
+    {
+      "id": "D1", "tema": "Orden del pipeline", "ver": "V07",
+      "opciones": ["Orden documentado: firma → reconstrucción → ClamAV", "Flujo recomendado: hash y ClamAV sobre el original → firma → reconstrucción"],
+      "recomendacion": "Flujo recomendado. Con el orden documentado, EICAR se rechaza por tipo y nunca llega a ClamAV.",
+      "estado": "pendiente"
+    },
+    {
+      "id": "D2", "tema": "ClamAV dentro de la zona aislada", "ver": "V08",
+      "opciones": ["A: contenedor freshclam separado con salida a internet, que escribe las firmas en un volumen de solo lectura para clamd (8 servicios)", "B: proxy de egreso que solo permite llegar al espejo de firmas"],
+      "recomendacion": "A, por ser más simple de explicar y de probar.",
+      "estado": "pendiente"
+    },
+    {
+      "id": "D3", "tema": "VirusTotal sin cuota o sin respuesta", "ver": "V25",
+      "opciones": ["a: decidir con ClamAV y CDR y marcar la capa como 'no_evaluada'", "b: dejar el archivo en 'pendiente' hasta obtener respuesta"],
+      "recomendacion": "a. La opción b bloquearía las pruebas de carga.",
+      "estado": "pendiente"
+    },
+    {
+      "id": "D4", "tema": "Estados y liberación de cuarentena", "ver": ["V06", "V15"],
+      "opciones": ["Agregar el estado 'error' y reencolar en el CDR todo archivo liberado"],
+      "recomendacion": "Adoptarlo.",
+      "estado": "pendiente"
+    },
+    {
+      "id": "D5", "tema": "Parámetros numéricos", "ver": "V14",
+      "opciones": ["Confirmar o ajustar los valores de 'parametros_por_definir' de gatekeeper_contexto.json"],
+      "recomendacion": "Usar las propuestas como punto de partida.",
+      "estado": "pendiente"
+    },
+    {
+      "id": "D6", "tema": "Corrección de la propuesta escrita", "ver": ["V02", "V22", "V23"],
+      "opciones": ["Corregir el conteo de endpoints y las citas de CWE y KEV"],
+      "recomendacion": "Usar la redacción sugerida en gatekeeper_contexto.json.",
+      "estado": "pendiente"
+    }
+  ],
+
+  "estructura_repositorio": {
+    "api/": "Servicio FastAPI: autenticación, recepción, máquina de estados, endpoints de admin y SSE",
+    "worker/": "Worker ARQ aislado: validación de firma, CDR y envío a ClamAV",
+    "reputation/": "Servicio de consulta de hashes en VirusTotal",
+    "dashboard/": "Aplicación Angular",
+    "infra/": "docker-compose.yml, configuración de Nginx y de ClamAV/freshclam",
+    "tests/attack-matrix/": "Un test por vector de la matriz más los casos adicionales",
+    "docs/": "decisiones.md, especificación OpenAPI, modelo ER, gatekeeper_contexto.json y gatekeeper_plan.json",
+    ".claude/": "claude-security-guidance.md y security-patterns.json"
+  },
+
+  "fases": [
+    {
+      "id": "F0",
+      "nombre": "Preparación",
+      "objetivo": "Previo a O1",
+      "depende_de": [],
+      "meta": "Cerrar las decisiones previas y dejar listos el repositorio, el entorno, la CI y las skills.",
+      "pasos": [
+        {"id": "F0.01", "accion": "Confirmar las decisiones D1 a D6 con el usuario y escribirlas en docs/decisiones.md.", "estado": "pendiente"},
+        {"id": "F0.02", "accion": "Crear el repositorio 'gatekeeper' con la estructura de 'estructura_repositorio'.", "estado": "pendiente"},
+        {"id": "F0.03", "accion": "Instalar Docker con Compose, Python 3.12 con uv y Node LTS con Angular CLI. Fijar versiones en pyproject.toml y package.json.", "estado": "pendiente"},
+        {"id": "F0.04", "accion": "Copiar gatekeeper_contexto.json y gatekeeper_plan.json a docs/.", "estado": "pendiente"},
+        {"id": "F0.05", "accion": "Crear la cuenta de VirusTotal y guardar la API key en .env, incluido en .gitignore. Ningún secreto va en el repositorio.", "estado": "pendiente"},
+        {"id": "F0.06", "accion": "Configurar CI en GitHub Actions con ruff, pytest y Bandit.", "estado": "pendiente"},
+        {"id": "F0.07", "accion": "Instalar el plugin security-guidance y crear .claude/claude-security-guidance.md con los invariantes INV-01 a INV-10.", "estado": "pendiente"},
+        {"id": "F0.08", "accion": "Crear .claude/security-patterns.json con los patrones de 'artefactos.security_patterns'.", "estado": "pendiente"},
+        {"id": "F0.09", "accion": "Agregar el marketplace trailofbits/skills e instalar insecure-defaults y property-based-testing.", "estado": "pendiente"}
+      ],
+      "artefactos": {
+        "security_patterns": {
+          "patterns": [
+            {"rule_name": "decision_por_content_type", "regex": "\\.content_type", "paths": ["**/*.py"], "reminder": "INV-02: no decidas con Content-Type; usa python-magic sobre los bytes."},
+            {"rule_name": "nombre_original_en_ruta", "regex": "\\.filename", "paths": ["**/*.py"], "reminder": "INV-03: el nombre original solo se muestra; el almacenamiento usa UUID."},
+            {"rule_name": "pillow_sin_limite", "substrings": ["MAX_IMAGE_PIXELS = None"], "reminder": "V26: nunca desactives el límite de píxeles."},
+            {"rule_name": "angular_bypass", "substrings": ["bypassSecurityTrust"], "paths": ["**/*.ts"], "reminder": "V28: prohibido saltarse el sanitizador del dashboard."}
+          ]
+        }
+      },
+      "skills": ["security-guidance", "insecure-defaults", "property-based-testing"],
+      "criterio_salida": "Las seis decisiones están confirmadas y escritas, y el repositorio tiene CI en verde con una prueba vacía.",
+      "entregables": ["docs/decisiones.md"]
+    },
+    {
+      "id": "F1",
+      "nombre": "Arquitectura y base en contenedores",
+      "objetivo": ["O1", "inicio de O2"],
+      "depende_de": ["F0"],
+      "meta": "Todo el sistema levanta en Compose y una prueba demuestra que el worker no tiene salida a internet.",
+      "pasos": [
+        {"id": "F1.01", "accion": "Escribir docker-compose.yml con nginx, api, redis, postgres, worker, clamav y reputation, más freshclam si D2 = A.", "estado": "pendiente"},
+        {"id": "F1.02", "accion": "Definir las redes: 'frontend' (nginx, api); 'backend' con internal: true (api, redis, postgres, reputation); 'isolated' con internal: true (worker, clamav, redis); 'egress' con salida a internet, solo para reputation y freshclam.", "ver": ["INV-04", "V08"], "estado": "pendiente"},
+        {"id": "F1.03", "accion": "Endurecer el worker: read_only: true, tmpfs en /tmp, usuario no root, cap_drop: [ALL], no-new-privileges y límites de memoria, CPU y procesos.", "ver": ["INV-04", "V17"], "estado": "pendiente"},
+        {"id": "F1.04", "accion": "Definir volúmenes: uploads_tmp (api escribe, worker lee), clean_store (worker escribe, api lee), quarantine (worker escribe, la API nunca lo sirve) y clamav_db (freshclam escribe, clamd lee).", "ver": ["INV-07"], "estado": "pendiente"},
+        {"id": "F1.05", "accion": "El worker devuelve su resultado por la cola ARQ y la API escribe en PostgreSQL. El worker no tiene acceso a la base de datos.", "estado": "pendiente"},
+        {"id": "F1.06", "accion": "Escribir los esquemas Pydantic de los endpoints de api.endpoints (más los de api.endpoints_sugeridos que se adopten) y generar la especificación OpenAPI desde FastAPI.", "ver": ["V02"], "estado": "pendiente"},
+        {"id": "F1.07", "accion": "Diseñar el modelo ER con las entidades de modelo_datos y crear la primera migración con Alembic.", "ver": ["V18", "V19"], "estado": "pendiente"},
+        {"id": "F1.08", "accion": "Crear el esqueleto de FastAPI con /health y el proyecto Angular con la skill angular-new-app.", "estado": "pendiente"},
+        {"id": "F1.09", "accion": "Escribir la prueba de aislamiento: una petición HTTP desde el contenedor del worker debe fallar.", "ver": ["INV-04"], "estado": "pendiente"}
+      ],
+      "skills": ["angular-new-app", "skills de FastAPI (uvx library-skills)"],
+      "criterio_salida": "docker compose up levanta todos los servicios, la especificación OpenAPI y el modelo ER están en docs/ y la prueba de aislamiento pasa en CI.",
+      "entregables": ["infra/docker-compose.yml", "docs/openapi.json", "docs/modelo-er"]
+    },
+    {
+      "id": "F2",
+      "nombre": "Recepción y validación",
+      "objetivo": ["O2", "O3"],
+      "depende_de": ["F1"],
+      "meta": "La API recibe archivos de forma segura y el worker valida el tipo real; quedan bloqueados 10 de los 15 vectores.",
+      "pasos": [
+        {"id": "F2.01", "accion": "API keys con prefijo visible; guardar solo su HMAC-SHA-256 con un secreto del servidor; permitir revocarlas y rotarlas.", "ver": ["V13"], "estado": "pendiente"},
+        {"id": "F2.02", "accion": "POST /v1/files: recibir en streaming hacia uploads_tmp con nombre UUID, calcular el SHA-256 durante la recepción, aplicar el límite de tamaño también en la API, guardar estado 'pendiente', encolar en ARQ y responder 202 con el ID.", "ver": ["INV-03"], "estado": "pendiente"},
+        {"id": "F2.03", "accion": "Medir el 202 desde que termina la recepción del cuerpo y comprobar que tarda menos de 1 s.", "ver": ["V20"], "estado": "pendiente"},
+        {"id": "F2.04", "accion": "Máquina de estados con pendiente, limpio, en_cuarentena, rechazado y error. Toda transición pasa por una sola función que valida el cambio.", "ver": ["V06"], "estado": "pendiente"},
+        {"id": "F2.05", "accion": "GET /v1/files/{id}/content responde 409 si el estado no es 'limpio'.", "ver": ["INV-06"], "estado": "pendiente"},
+        {"id": "F2.06", "accion": "Filtrar toda consulta por la aplicación dueña de la API key y responder 404 a cualquier archivo ajeno.", "ver": ["INV-10", "V18"], "estado": "pendiente"},
+        {"id": "F2.07", "accion": "Rate limiting en Redis por API key y por IP, con respuesta 429.", "estado": "pendiente"},
+        {"id": "F2.08", "accion": "Configurar Nginx: TLS, client_max_body_size y headers CSP, nosniff y HSTS.", "estado": "pendiente"},
+        {"id": "F2.09", "accion": "En el worker, identificar el tipo con python-magic sobre los bytes y aceptar solo JPEG, PNG y PDF. Extensión, Content-Type y nombre original no participan en la decisión.", "ver": ["INV-02"], "estado": "pendiente"},
+        {"id": "F2.10", "accion": "Rechazar PDF cifrados con pikepdf, incluidos los que solo tienen contraseña de propietario.", "estado": "pendiente"},
+        {"id": "F2.11", "accion": "Registrar cuando la extensión no coincide con la firma, como indicador para el dashboard.", "ver": ["V24"], "estado": "pendiente"}
+      ],
+      "pruebas": {"vectores": [1, 2, 3, 6, 7, 8, 10, 13, 14, 15], "adicionales": []},
+      "skills": ["property-based-testing (Hypothesis con bytes aleatorios y cabeceras falsas contra el validador)", "insecure-defaults (ningún fallo debe terminar en 'limpio')"],
+      "criterio_salida": "Los 10 vectores pasan en CI y ningún archivo se puede descargar en estado 'pendiente'.",
+      "entregables": ["api/ (recepción y estados)", "worker/ (validación)"]
+    },
+    {
+      "id": "F3",
+      "nombre": "Reconstrucción (CDR)",
+      "objetivo": ["O4"],
+      "depende_de": ["F2"],
+      "meta": "El 100% de los archivos entregados sale reconstruido y sin metadatos, comprobado con una herramienta externa como exiftool.",
+      "pasos": [
+        {"id": "F3.01", "accion": "Fijar Image.MAX_IMAGE_PIXELS con el valor de D5 y convertir DecompressionBombWarning en error.", "ver": ["V26"], "estado": "pendiente"},
+        {"id": "F3.02", "accion": "Validar las dimensiones de la imagen antes de llamar a load().", "ver": ["V26"], "estado": "pendiente"},
+        {"id": "F3.03", "accion": "Decodificar y recodificar imágenes desde los píxeles, sin EXIF, perfil ICC ni chunks de texto. La extensión de salida sale del tipo detectado.", "estado": "pendiente"},
+        {"id": "F3.04", "accion": "En PDF, eliminar /JavaScript, /OpenAction, /AA, /Launch, /EmbeddedFiles, /URI y /SubmitForm con pikepdf.", "ver": ["V27"], "estado": "pendiente"},
+        {"id": "F3.05", "accion": "En PDF, eliminar el diccionario /Info y los metadatos XMP.", "ver": ["V09"], "estado": "pendiente"},
+        {"id": "F3.06", "accion": "Aplicar el límite de páginas de PDF.", "ver": ["V14"], "estado": "pendiente"},
+        {"id": "F3.07", "accion": "Decidir si se recodifican las imágenes embebidas en PDF o se declaran como limitación, y registrarlo en docs/decisiones.md.", "ver": ["V09"], "estado": "pendiente"},
+        {"id": "F3.08", "accion": "Timeout por archivo: al vencer, el estado pasa a 'error', nunca a 'limpio'.", "ver": ["INV-09"], "estado": "pendiente"},
+        {"id": "F3.09", "accion": "Borrar el original de un archivo limpio en cuanto termina el CDR.", "ver": ["V16"], "estado": "pendiente"}
+      ],
+      "pruebas": {
+        "vectores": [4, 5, 9],
+        "adicionales": ["Datos anexados después del fin lógico de un JPEG o PDF", "PDF con bomba de flujos comprimidos (FlateDecode)", "PDF con una imagen embebida que trae EXIF/GPS"]
+      },
+      "skills": ["property-based-testing (imágenes y PDF malformados contra el CDR)"],
+      "criterio_salida": "Los vectores 4, 5 y 9 pasan y exiftool no encuentra metadatos en ninguna salida.",
+      "entregables": ["worker/ (CDR de imágenes y PDF)"]
+    },
+    {
+      "id": "F4",
+      "nombre": "Antimalware en dos capas",
+      "objetivo": ["O5"],
+      "depende_de": ["F2", "F3"],
+      "meta": "El archivo EICAR termina en 'en_cuarentena', detectado por ClamAV y por VirusTotal, sin subir ningún archivo a VirusTotal.",
+      "pasos": [
+        {"id": "F4.01", "accion": "Levantar clamd y el actualizador de firmas según D2, con las firmas en un volumen persistente para no descargarlas en cada reinicio.", "ver": ["V08"], "estado": "pendiente"},
+        {"id": "F4.02", "accion": "Enviar el ORIGINAL desde el worker a clamd por INSTREAM, antes de la validación de firma de F2.09.", "ver": ["V07"], "estado": "pendiente"},
+        {"id": "F4.03", "accion": "Servicio de reputación con httpx asíncrono y timeouts: GET /api/v3/files/{sha256}. Una respuesta 404 significa hash desconocido, no malicioso.", "ver": ["INV-05"], "estado": "pendiente"},
+        {"id": "F4.04", "accion": "Guardar los veredictos en caché de Redis con el TTL definido en D5.", "estado": "pendiente"},
+        {"id": "F4.05", "accion": "Encolar las consultas para respetar la cuota pública: 4 por minuto y 500 por día.", "ver": ["V25"], "estado": "pendiente"},
+        {"id": "F4.06", "accion": "Aplicar la regla de D3 cuando no haya cuota o respuesta, marcando la capa como 'no_evaluada'.", "ver": ["V25"], "estado": "pendiente"},
+        {"id": "F4.07", "accion": "Implementar la prioridad de decisión: en_cuarentena > rechazado > error > limpio.", "estado": "pendiente"},
+        {"id": "F4.08", "accion": "Aplicar el umbral de motores de VirusTotal definido en D5.", "estado": "pendiente"},
+        {"id": "F4.09", "accion": "Mover el original sospechoso al volumen quarantine y programar su borrado a los 30 días.", "ver": ["INV-07"], "estado": "pendiente"}
+      ],
+      "pruebas": {
+        "vectores": [11],
+        "adicionales": ["El servicio de reputación solo hace GET por hash y nunca envía el archivo"]
+      },
+      "skills": [],
+      "criterio_salida": "El vector 11 pasa con detección en ambas capas y la prueba de no envío también.",
+      "entregables": ["reputation/", "worker/ (integración con ClamAV)", "infra/ (clamd y freshclam)"]
+    },
+    {
+      "id": "F5",
+      "nombre": "Dashboard de SecOps",
+      "objetivo": ["O6"],
+      "depende_de": ["F2", "F4"],
+      "meta": "Toda liberación de cuarentena queda en la bitácora con usuario, fecha y motivo, y un nombre de archivo con HTML se muestra como texto.",
+      "pasos": [
+        {"id": "F5.01", "accion": "Login con contraseñas en Argon2 y TOTP obligatorio para administradores, con endpoint de alta del segundo factor.", "ver": ["V10"], "estado": "pendiente"},
+        {"id": "F5.02", "accion": "Access token JWT de 15 min guardado en memoria, nunca en localStorage.", "estado": "pendiente"},
+        {"id": "F5.03", "accion": "Refresh token en cookie HttpOnly, SameSite=Strict y Path=/v1/auth, con rotación; si se reutiliza un token ya rotado se revoca toda su familia.", "ver": ["V19"], "estado": "pendiente"},
+        {"id": "F5.04", "accion": "En /v1/auth/refresh, validar el header Origin y un token double-submit contra CSRF.", "ver": ["V12"], "estado": "pendiente"},
+        {"id": "F5.05", "accion": "RBAC con dependencias de FastAPI por rol: un analista recibe 403 en endpoints de admin.", "estado": "pendiente"},
+        {"id": "F5.06", "accion": "Liberación de cuarentena: motivo obligatorio, registro en la bitácora y reencolado en el CDR antes de quedar disponible.", "ver": ["V15", "INV-08", "INV-01"], "estado": "pendiente"},
+        {"id": "F5.07", "accion": "Vista de lista de archivos con filtros por estado, fecha y aplicación (tabla de Angular Material).", "estado": "pendiente"},
+        {"id": "F5.08", "accion": "Vista de detalle con el resultado de cada capa, incluida 'no_evaluada'.", "estado": "pendiente"},
+        {"id": "F5.09", "accion": "Vista de cuarentena con botón de liberar (solo admin) y campo de motivo.", "estado": "pendiente"},
+        {"id": "F5.10", "accion": "Vistas de métricas de amenazas bloqueadas y de bitácora de auditoría.", "estado": "pendiente"},
+        {"id": "F5.11", "accion": "Alertas en tiempo real: consumir el SSE con fetch y ReadableStream enviando Authorization, dentro de un Observable de RxJS. En Nginx, desactivar proxy_buffering para /v1/admin/events.", "ver": ["V11"], "estado": "pendiente"},
+        {"id": "F5.12", "accion": "Regla de código: sin bypassSecurityTrust* ni asignaciones directas a innerHTML.", "ver": ["V28"], "estado": "pendiente"}
+      ],
+      "pruebas": {
+        "vectores": [12],
+        "adicionales": ["Un analista invoca un endpoint de admin y recibe 403", "Reutilización de un refresh token ya rotado revoca la familia"]
+      },
+      "skills": ["angular-developer"],
+      "criterio_salida": "Las tres pruebas pasan y cada liberación aparece en /v1/admin/audit.",
+      "entregables": ["dashboard/", "api/ (autenticación, RBAC y endpoints de admin)"]
+    },
+    {
+      "id": "F6",
+      "nombre": "Validación y auditoría",
+      "objetivo": ["O7"],
+      "depende_de": ["F1", "F2", "F3", "F4", "F5"],
+      "meta": "15 de 15 vectores bloqueados y cero hallazgos de severidad alta sin corregir.",
+      "pasos": [
+        {"id": "F6.01", "accion": "Ejecutar la suite completa tests/attack-matrix/ y guardar la evidencia de cada vector: petición, respuesta y estado final.", "estado": "pendiente"},
+        {"id": "F6.02", "accion": "Correr OWASP ZAP contra la API importando la especificación OpenAPI.", "estado": "pendiente"},
+        {"id": "F6.03", "accion": "Correr Trivy sobre imágenes y dependencias, Bandit sobre el código Python y supply-chain-risk-auditor sobre PyPI y npm.", "estado": "pendiente"},
+        {"id": "F6.04", "accion": "Correr el plugin Claude Security por áreas: primero el worker y después la autenticación.", "estado": "pendiente"},
+        {"id": "F6.05", "accion": "Ejecutar /security-review sobre la rama antes del merge final.", "estado": "pendiente"},
+        {"id": "F6.06", "accion": "Ciclo de corrección: cada hallazgo alto en su propio commit, y volver a escanear hasta que ya no aparezca.", "estado": "pendiente"},
+        {"id": "F6.07", "accion": "Redactar el informe: matriz de 15 vectores con evidencia y la capa que detuvo cada uno; reportes de ZAP, Trivy, Bandit y Claude Security con hallazgos y correcciones; limitaciones declaradas.", "estado": "pendiente"}
+      ],
+      "pruebas": {
+        "vectores": "todos (1 a 15)",
+        "adicionales": "todos los casos adicionales de F3, F4 y F5"
+      },
+      "skills": ["claude-security", "/security-review", "static-analysis", "supply-chain-risk-auditor"],
+      "criterio_salida": "15/15 en CI y ningún hallazgo alto abierto en el informe.",
+      "entregables": ["docs/informe-auditoria", "README.md", "guion de demo"]
+    }
+  ],
+
+  "vectores_por_fase": {
+    "nota": "Fase en la que cada vector debe empezar a pasar; desde ahí se mantiene en verde en CI.",
+    "F2": [1, 2, 3, 6, 7, 8, 10, 13, 14, 15],
+    "F3": [4, 5, 9],
+    "F4": [11],
+    "F5": [12],
+    "F6": "verificación final de los 15"
+  },
+
+  "entregables": [
+    {"entregable": "Decisiones", "contenido": "docs/decisiones.md con D1 a D6 y las que surjan", "fase": "F0, se actualiza en cada fase"},
+    {"entregable": "Docker Compose", "contenido": "Servicios, redes aisladas y endurecimiento del worker", "fase": "F1"},
+    {"entregable": "Especificación OpenAPI", "contenido": "Endpoints con sus esquemas, generada desde FastAPI", "fase": "F1"},
+    {"entregable": "Modelo entidad-relación", "contenido": "Entidades de modelo_datos con sus relaciones", "fase": "F1"},
+    {"entregable": "Código del servicio", "contenido": "API, worker, servicio de reputación y dashboard", "fase": "F2 a F5"},
+    {"entregable": "Suite de la matriz", "contenido": "tests/attack-matrix/ con un test por vector y los casos adicionales", "fase": "F2 a F6"},
+    {"entregable": "Informe de auditoría", "contenido": "Evidencia de los 15 vectores y reportes de ZAP, Trivy, Bandit y Claude Security", "fase": "F6"},
+    {"entregable": "README", "contenido": "Cómo levantar el proyecto, la arquitectura y las limitaciones", "fase": "F6"},
+    {"entregable": "Demo", "contenido": "Guion corto: EICAR en cuarentena, un polyglot reconstruido y una liberación con motivo", "fase": "F6"}
+  ],
+
+  "riesgos": [
+    {"riesgo": "La fase de auditoría se satura", "senal_temprana": "Al cerrar F4 hay menos de 11 vectores en verde", "mitigacion": "Pruebas de la matriz en CI desde F2 y un ciclo de corrección explícito en F6"},
+    {"riesgo": "La cuota de VirusTotal frena las pruebas", "senal_temprana": "Errores 429 de VirusTotal", "mitigacion": "Caché por hash, archivos de prueba repetidos y la regla 'no_evaluada' de D3"},
+    {"riesgo": "El CDR de PDF se complica", "senal_temprana": "F3 avanza sin cerrar los vectores 4, 5 y 9", "mitigacion": "Limitarse al saneamiento estructural y declarar las imágenes embebidas como limitación"},
+    {"riesgo": "La autenticación del SSE se complica", "senal_temprana": "Las alertas no funcionan con el JWT", "mitigacion": "Plan B: consultar GET /v1/admin/files periódicamente"},
+    {"riesgo": "El alcance crece (SVG, DOCX, ZIP)", "senal_temprana": "Se pide un tipo de archivo nuevo", "mitigacion": "Fuera de alcance por diseño, según el anexo D de la propuesta"},
+    {"riesgo": "Vulnerabilidad en Pillow o pikepdf", "senal_temprana": "Trivy reporta un CVE en la imagen del worker", "mitigacion": "Worker aislado sin internet, versiones fijadas y actualización inmediata"},
+    {"riesgo": "Descargas repetidas de firmas de ClamAV", "senal_temprana": "Cada reinicio vuelve a descargar las firmas", "mitigacion": "Volumen persistente para las firmas"}
+  ],
+
+  "checklist_cierre": [
+    {"item": "15 de 15 vectores en verde en CI", "estado": "pendiente"},
+    {"item": "Cero hallazgos altos abiertos", "estado": "pendiente"},
+    {"item": "gatekeeper_contexto.json actualizado con las decisiones finales", "estado": "pendiente"},
+    {"item": "Propuesta corregida: endpoints, citas de CWE y KEV y limitación de VirusTotal", "estado": "pendiente"}
+  ]
+}

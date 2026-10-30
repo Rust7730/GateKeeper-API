@@ -1,0 +1,537 @@
+{
+  "meta": {
+    "archivo": "gatekeeper_contexto.json",
+    "version_contexto": "1.0.0",
+    "fecha": "2026-10-21",
+    "autor": "Rodolfo Ramírez Reyes",
+    "documento_fuente": "Gatekeeper — Propuesta de Proyecto (PDF)",
+    "idioma": "es-MX",
+    "uso": "Contexto estructurado del proyecto para planeación, desarrollo y para alimentar a asistentes de IA. Cada dato indica su origen y, cuando aplica, la verificación CoV que lo respalda (campo 'ver').",
+    "metodologia": {
+      "nombre": "Chain-of-Verification (CoV)",
+      "pasos": [
+        "1. Borrador base: extracción de todas las afirmaciones del documento (conteos, objetivos, stack, endpoints, matriz de pruebas, datos externos).",
+        "2. Plan de verificación: preguntas sobre conteos, consistencia interna entre secciones, viabilidad técnica del stack y exactitud de las fuentes externas.",
+        "3. Ejecución independiente: cada pregunta se respondió por separado, sin reutilizar el borrador, contra el propio documento, fuentes primarias (MITRE, OWASP, VirusTotal) o el comportamiento documentado de las librerías.",
+        "4. Respuesta final: este JSON. Lo verificado se conserva; lo inconsistente o no definido se marca y se acompaña de una corrección propuesta."
+      ],
+      "estados_verificacion": {
+        "verificado": "Coincide con el documento y con la fuente consultada.",
+        "verificado_con_matiz": "Correcto en lo esencial, pero requiere precisión, redacción más exacta o una condición adicional.",
+        "inconsistente": "Contradice otra parte del documento o no es alcanzable técnicamente tal como está planteado.",
+        "no_definido": "El documento no lo especifica y es necesario para implementar o probar."
+      },
+      "origenes": {
+        "documento": "Tomado de la propuesta.",
+        "inferido": "Deducido directamente de lo que dice la propuesta (no explícito).",
+        "recomendacion": "Propuesta de mejora derivada de la verificación; requiere decisión del equipo.",
+        "contexto_usuario": "Información del autor, externa al documento."
+      }
+    },
+    "resumen_cov": {
+      "preguntas_de_verificacion": 29,
+      "verificado": 6,
+      "verificado_con_matiz": 14,
+      "inconsistente": 3,
+      "no_definido": 6,
+      "hallazgos_prioritarios": ["V07", "V08", "V11", "V25", "V14", "V06"]
+    },
+    "fuentes_consultadas": [
+      {"nombre": "MITRE — 2025 CWE Top 25 Most Dangerous Software Weaknesses", "url": "https://cwe.mitre.org/top25/archive/2025/2025_cwe_top25.html"},
+      {"nombre": "OWASP — File Upload Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html"},
+      {"nombre": "VirusTotal — Public vs Premium API", "url": "https://docs.virustotal.com/reference/public-vs-premium-api"}
+    ]
+  },
+
+  "proyecto": {
+    "nombre": "Gatekeeper",
+    "titulo": "API de Validación, Saneamiento y Análisis Multicapa de Archivos para Prevenir la Ejecución Remota de Código",
+    "descripcion": "Servicio intermediario entre una aplicación cliente y su almacenamiento de archivos. Recibe cada archivo que sube un usuario, verifica qué es en realidad, lo reconstruye para eliminar contenido oculto, lo analiza contra malware conocido y solo entonces entrega a la aplicación la versión reconstruida. Un dashboard web permite a analistas de seguridad supervisar amenazas bloqueadas y gestionar la cuarentena.",
+    "origen": "documento",
+    "tipo": "Proyecto académico de ciberseguridad: solución web integrada con una API RESTful",
+    "requisito_curso": {
+      "texto": "Solución web o móvil integrada con una API RESTful o GraphQL",
+      "cumplimiento": "Dashboard web en Angular + API RESTful en FastAPI",
+      "origen": "contexto_usuario"
+    },
+    "duracion_semanas": 6,
+    "actores": [
+      {"actor": "Usuario final", "descripcion": "Sube archivos a la aplicación cliente; no interactúa directamente con Gatekeeper.", "origen": "inferido"},
+      {"actor": "Aplicación cliente", "descripcion": "Consume la API con API key: sube archivos, consulta estado y descarga la versión reconstruida.", "origen": "documento"},
+      {"actor": "Analista de seguridad", "descripcion": "Usa el dashboard con JWT (rol analista): lista archivos, métricas y alertas en tiempo real.", "origen": "documento"},
+      {"actor": "Administrador", "descripcion": "Usa el dashboard con JWT + TOTP (rol admin): libera falsos positivos, consulta bitácora y gestiona API keys.", "origen": "documento"}
+    ]
+  },
+
+  "problema": {
+    "contexto": "La subida de archivos sin restricciones es una de las debilidades de software más peligrosas. La validación típica solo revisa la extensión o el header Content-Type, ambos controlados por el atacante, por lo que un script renombrado como foto.jpg o una imagen válida con código incrustado (polyglot) llega al servidor. Implementar defensa en profundidad en cada aplicación es costoso, así que desarrolladores independientes, PyMEs e instituciones educativas rara vez lo hacen.",
+    "datos_externos": [
+      {"dato": "CWE-434 (Unrestricted Upload of File with Dangerous Type) ocupa el lugar 12 del CWE Top 25 de 2025.", "estado": "verificado", "ver": "V21"},
+      {"dato": "4 CVE asociadas a CWE-434 figuran en el catálogo KEV de CISA.", "estado": "verificado_con_matiz", "ver": "V22", "redaccion_sugerida": "4 de los CVE del conjunto de datos del Top 25 de 2025 mapeados a CWE-434 están en el catálogo KEV de CISA."},
+      {"dato": "XSS (CWE-79) lugar 1; path traversal (CWE-22) lugar 6; lugar 25 para la asignación de recursos sin límites.", "estado": "verificado_con_matiz", "ver": "V23", "redaccion_sugerida": "El lugar 25 es CWE-770 'Allocation of Resources Without Limits or Throttling' (asignación de recursos sin límites ni regulación); conviene citar el identificador."},
+      {"dato": "OWASP indica que ninguna técnica aislada basta, que la validación de firma por sí sola se evade con facilidad y recomienda defensa en profundidad (lista blanca, nombres generados por el servidor, almacenamiento fuera del webroot, antivirus y CDR).", "estado": "verificado_con_matiz", "ver": "V24"}
+    ],
+    "justificacion": [
+      "Impacto máximo: un ejecutable que llega al servidor permite ejecución remota de código (RCE) y control total del servidor y sus datos.",
+      "Ataque barato: basta con renombrar un archivo o modificar un header; existen herramientas públicas que lo automatizan.",
+      "Daño a terceros: un SVG o PDF con contenido activo puede ejecutar código en el navegador de quien lo abre, incluido el personal administrativo.",
+      "Privacidad: los archivos contienen metadatos sensibles (p. ej., GPS en fotos) que se publican sin que el usuario lo sepa.",
+      "No hay solución accesible y reutilizable: las soluciones CDR comerciales apuntan a grandes empresas; los equipos pequeños dependen de validaciones escritas a mano."
+    ],
+    "impacto_esperado": [
+      {"id": "I1", "texto": "Bloquear el 100% de los vectores del conjunto de pruebas (15 casos): evasión de extensión, polyglots, contenido activo en PDF, bombas de descompresión y malware conocido.", "ver": "V03"},
+      {"id": "I2", "texto": "Garantizar que ningún archivo original llegue a la aplicación cliente: solo la versión reconstruida y sin metadatos.", "ver": "V09"},
+      {"id": "I3", "texto": "Reducir la integración segura de archivos a una sola llamada a la API.", "ver": "V25"},
+      {"id": "I4", "texto": "Dar visibilidad a seguridad con dashboard de alertas, cuarentena y bitácora de auditoría."}
+    ]
+  },
+
+  "objetivos": {
+    "general": "Desarrollar un servicio API RESTful con dashboard web que reciba, valide, sanee y analice archivos antes de entregarlos a las aplicaciones cliente, para prevenir la ejecución remota de código, la distribución de malware y la fuga de metadatos a través de las funciones de carga de archivos.",
+    "especificos": [
+      {"id": "O1", "semana": "1", "objetivo": "Diseñar la arquitectura en contenedores: endpoints, modelo de datos y flujo de análisis por capas.", "criterio": "Docker Compose funcional con 7 servicios; especificación OpenAPI de 11 endpoints; modelo entidad-relación.", "ver": ["V01", "V02", "V08"]},
+      {"id": "O2", "semana": "1-2", "objetivo": "API de recepción con autenticación por API key y JWT, cola asíncrona y máquina de estados (pendiente, limpio, en cuarentena, rechazado).", "criterio": "Ningún archivo es descargable antes de terminar su análisis; respuesta 202 en menos de 1 s.", "ver": ["V06", "V20"]},
+      {"id": "O3", "semana": "2", "objetivo": "Motor de validación: lista blanca (JPEG, PNG, PDF) por firma real, límites de tamaño y almacenamiento con nombres UUID fuera del directorio público.", "criterio": "Se ignoran extensión, Content-Type y nombre original en todas las decisiones.", "ver": ["V05", "V14", "V24"]},
+      {"id": "O4", "semana": "3", "objetivo": "Saneamiento por reconstrucción (CDR) en un worker aislado sin internet: recodificación de imágenes, eliminación de EXIF y limpieza de elementos activos en PDF.", "criterio": "100% de los archivos entregados son reconstruidos y sin metadatos.", "ver": ["V09", "V17", "V26", "V27"]},
+      {"id": "O5", "semana": "4", "objetivo": "Análisis antimalware en dos capas: ClamAV local y consulta del SHA-256 en VirusTotal API, con caché y cuarentena.", "criterio": "Archivo de prueba EICAR detectado por ambas capas; ningún archivo se sube a VirusTotal.", "ver": ["V07", "V08", "V25"], "alerta": "Con el orden de pipeline documentado, el criterio no es alcanzable. Ver V07."},
+      {"id": "O6", "semana": "5", "objetivo": "Dashboard en Angular con RBAC, gestión de cuarentena, métricas, bitácora de auditoría y alertas en tiempo real.", "criterio": "Toda liberación de cuarentena queda registrada con usuario, fecha y motivo.", "ver": ["V11", "V12", "V15"]},
+      {"id": "O7", "semana": "6", "objetivo": "Validar la seguridad contra una matriz de 15 vectores y auditar la API con OWASP ZAP y Trivy.", "criterio": "15 de 15 vectores bloqueados; cero hallazgos de severidad alta sin corregir.", "ver": ["V03", "V04"]}
+    ]
+  },
+
+  "invariantes_de_seguridad": [
+    {"id": "INV-01", "regla": "Ningún archivo original llega a la aplicación cliente: solo se entrega la versión reconstruida y únicamente en estado limpio.", "origen": "documento"},
+    {"id": "INV-02", "regla": "Extensión, Content-Type y nombre original se ignoran en todas las decisiones de seguridad.", "origen": "documento"},
+    {"id": "INV-03", "regla": "Los archivos se almacenan con nombre UUID generado por el servidor, fuera del directorio público.", "origen": "documento"},
+    {"id": "INV-04", "regla": "El worker, único componente que abre archivos, no tiene salida a internet, corre como usuario no root, con sistema de archivos de solo lectura y límites de CPU/memoria.", "origen": "documento"},
+    {"id": "INV-05", "regla": "A VirusTotal solo se envía el hash SHA-256; nunca el archivo.", "origen": "documento"},
+    {"id": "INV-06", "regla": "Ningún archivo es descargable antes de terminar su análisis.", "origen": "documento"},
+    {"id": "INV-07", "regla": "La cuarentena nunca se expone por la API pública.", "origen": "documento"},
+    {"id": "INV-08", "regla": "Toda liberación de cuarentena registra usuario, fecha y motivo obligatorio.", "origen": "documento"},
+    {"id": "INV-09", "regla": "Fail-closed: un error, timeout o caída de una capa nunca produce el estado limpio.", "origen": "recomendacion", "ver": "V06"},
+    {"id": "INV-10", "regla": "Cada archivo solo es accesible por la aplicación (API key) que lo subió; ante acceso ajeno se responde 404 para no revelar su existencia.", "origen": "recomendacion", "ver": "V18"}
+  ],
+
+  "arquitectura": {
+    "estilo": "Microservicios en Docker Compose con zona aislada para el procesamiento de archivos",
+    "servicios": [
+      {"id": "nginx", "tecnologia": "Nginx", "rol": "Proxy inverso: TLS, límite de tamaño de petición, headers de seguridad (CSP, nosniff, HSTS). Sirve el dashboard Angular compilado como estático.", "zona": "perimetro", "internet": "entrada (HTTPS)", "origen": "documento"},
+      {"id": "api", "tecnologia": "Python + FastAPI", "rol": "Autenticación (API key / JWT), rate limiting, máquina de estados, encolado de trabajos y flujo de eventos SSE.", "zona": "interna", "internet": "no", "origen": "documento"},
+      {"id": "redis", "tecnologia": "Redis", "rol": "Cola de trabajos (ARQ), rate limiting por API key e IP, caché de resultados de VirusTotal.", "zona": "interna", "internet": "no", "origen": "documento"},
+      {"id": "postgres", "tecnologia": "PostgreSQL", "rol": "Metadatos y hashes de archivos, resultados de análisis, usuarios, API keys hasheadas y bitácora de auditoría.", "zona": "interna", "internet": "no", "origen": "documento"},
+      {"id": "worker", "tecnologia": "Python + ARQ + python-magic + Pillow + pikepdf", "rol": "Validación de firma real, reconstrucción (CDR) y envío a escaneo ClamAV.", "zona": "aislada", "internet": "no", "restricciones": ["sin salida a internet", "usuario no root", "sistema de archivos de solo lectura", "límites de CPU y memoria"], "origen": "documento", "ver": "V17"},
+      {"id": "clamav", "tecnologia": "ClamAV (clamd)", "rol": "Escaneo local con firmas actualizadas automáticamente.", "zona": "aislada", "internet": "no (según diagrama)", "origen": "documento", "alerta": "La actualización automática de firmas requiere salida a internet. Ver V08."},
+      {"id": "reputacion", "tecnologia": "Python + httpx", "rol": "Consulta la reputación del hash SHA-256 en VirusTotal API v3 con tiempos de espera y caché.", "zona": "interna", "internet": "solo salida hacia VirusTotal", "origen": "documento", "ver": "V25"}
+    ],
+    "conteo_servicios": {"valor": 7, "estado": "verificado", "ver": "V01", "nota": "Si se adopta la corrección de V08 con un contenedor freshclam separado, el conteo pasa a 8."},
+    "externos": [
+      {"id": "virustotal", "nombre": "VirusTotal API v3", "uso": "Reputación por hash SHA-256 sin subir archivos", "origen": "documento"}
+    ],
+    "almacenamiento": [
+      {"id": "almacen_limpio", "contenido": "Solo la versión reconstruida de archivos en estado limpio", "expuesto_por_api": "sí, vía GET /v1/files/{id}/content", "origen": "documento"},
+      {"id": "cuarentena", "contenido": "Originales sospechosos", "expuesto_por_api": "nunca", "retencion": "30 días", "origen": "documento", "ver": "V16"}
+    ],
+    "flujo_documentado": {
+      "origen": "documento",
+      "pasos": [
+        "1. La aplicación cliente envía el archivo con API key a través de Nginx.",
+        "2. La API autentica, aplica rate limiting, registra el estado pendiente, encola el trabajo en Redis y responde 202 con el ID.",
+        "3. El worker (zona aislada): (a) firma real con python-magic, (b) reconstrucción con Pillow/pikepdf, (c) escaneo con ClamAV.",
+        "4. El servicio de reputación recibe solo el hash SHA-256 y consulta VirusTotal.",
+        "5. Limpio: la versión reconstruida va al almacenamiento limpio. Sospechoso: el original va a cuarentena.",
+        "6. La aplicación cliente consulta el estado y descarga la versión reconstruida solo si está limpio."
+      ]
+    },
+    "flujo_recomendado": {
+      "origen": "recomendacion",
+      "motivo": "Corrige V07 (EICAR no llega a ClamAV) y deja explícitas las reglas de decisión y fail-closed.",
+      "pasos": [
+        "1. Nginx: TLS y client_max_body_size; peticiones mayores se cortan con 413.",
+        "2. API: autentica API key, aplica rate limit, guarda el original en almacenamiento temporal con nombre UUID calculando el SHA-256 mientras recibe, estado = pendiente, encola y responde 202.",
+        "3. Reputación: consulta el hash en caché Redis; si no existe, en VirusTotal (respetando la cuota).",
+        "4. Worker: escanea el ORIGINAL con ClamAV (clamd INSTREAM) antes de aplicar la lista blanca.",
+        "5. Worker: valida la firma real (python-magic) contra la lista blanca y aplica políticas (PDF cifrado, límites de píxeles y páginas).",
+        "6. Worker: reconstrucción (CDR) del archivo permitido y eliminación de metadatos.",
+        "7. Worker (opcional): re-escaneo del archivo reconstruido.",
+        "8. Decisión con prioridad: malware (ClamAV o VirusTotal ≥ umbral) → en_cuarentena; tipo o política no permitidos → rechazado; error o timeout → error (nunca limpio); todo correcto → limpio.",
+        "9. Limpio: se guarda solo la versión reconstruida y se elimina el original; se emite evento SSE."
+      ],
+      "reglas_decision": {
+        "prioridad": ["en_cuarentena", "rechazado", "error", "limpio"],
+        "virustotal_no_disponible": "Decisión pendiente del equipo: (a) esperar y reintentar dentro de un límite y luego decidir solo con ClamAV + CDR marcando la capa como no evaluada, o (b) dejar el archivo pendiente hasta tener respuesta. Ver V25."
+      }
+    },
+    "maquina_estados": {
+      "estados_documentados": ["pendiente", "limpio", "en_cuarentena", "rechazado"],
+      "estados_sugeridos": [
+        {"estado": "error", "motivo": "Fallo o timeout del análisis; nunca descargable; permite reintento.", "origen": "recomendacion"}
+      ],
+      "transiciones": [
+        {"de": "pendiente", "a": "limpio", "condicion": "Todas las capas sin hallazgos y CDR exitoso", "origen": "inferido"},
+        {"de": "pendiente", "a": "en_cuarentena", "condicion": "Detección por ClamAV o VirusTotal", "origen": "inferido"},
+        {"de": "pendiente", "a": "rechazado", "condicion": "Tipo fuera de lista blanca o violación de política", "origen": "inferido"},
+        {"de": "pendiente", "a": "error", "condicion": "Fallo o timeout del worker", "origen": "recomendacion"},
+        {"de": "en_cuarentena", "a": "limpio", "condicion": "Liberación por admin con motivo obligatorio; el archivo pasa por CDR antes de quedar disponible", "origen": "recomendacion", "ver": "V15"}
+      ],
+      "regla_descarga": "Solo el estado limpio permite GET /v1/files/{id}/content.",
+      "ver": "V06"
+    }
+  },
+
+  "stack": {
+    "frontend": [
+      {"tecnologia": "Angular + TypeScript", "uso": "Dashboard de SecOps", "justificacion": "Sanitización nativa contra XSS, necesaria porque el dashboard muestra nombres y metadatos de archivos maliciosos.", "ver": "V28"},
+      {"tecnologia": "HttpClient de Angular", "uso": "Comunicación con la API", "justificacion": "Soporte XSRF integrado e interceptores para adjuntar y renovar tokens.", "ver": ["V11", "V12"]},
+      {"tecnologia": "Angular Material", "uso": "Tablas de cuarentena y auditoría", "justificacion": "Paginación, filtros y ordenamiento listos."},
+      {"tecnologia": "RxJS + Server-Sent Events", "uso": "Alertas en tiempo real", "justificacion": "Consume el flujo de eventos de la API sin un servidor adicional.", "ver": "V11"}
+    ],
+    "frontend_decisiones": {
+      "despliegue": "Compilado como aplicación estática servida por Nginx.",
+      "descartado": {"tecnologia": "Next.js", "motivo": "El dashboard no requiere SEO ni renderizado en servidor; esa capa ampliaría la superficie de ataque."},
+      "ver": "V29"
+    },
+    "backend": [
+      {"tecnologia": "Python + FastAPI", "uso": "API RESTful", "justificacion": "OpenAPI automática y validación estricta de entradas con Pydantic."},
+      {"tecnologia": "ARQ (cola sobre Redis)", "uso": "Procesamiento asíncrono", "justificacion": "La API responde de inmediato y los análisis no la bloquean."},
+      {"tecnologia": "python-magic", "uso": "Validación de firma", "justificacion": "Identifica el tipo real por magic numbers (requiere libmagic en la imagen)."},
+      {"tecnologia": "Pillow", "uso": "CDR de imágenes", "justificacion": "Decodifica y recodifica desde los píxeles, elimina EXIF y limita píxeles contra bombas de descompresión.", "ver": "V26"},
+      {"tecnologia": "pikepdf", "uso": "Saneamiento de PDF", "justificacion": "Elimina JavaScript, acciones automáticas y archivos embebidos.", "ver": ["V09", "V27"]},
+      {"tecnologia": "httpx", "uso": "Cliente de VirusTotal API v3", "justificacion": "Cliente HTTP asíncrono con tiempos de espera."}
+    ],
+    "datos": [
+      {"tecnologia": "PostgreSQL", "uso": "Metadatos y hashes, resultados de análisis, usuarios, API keys hasheadas y bitácora de auditoría."},
+      {"tecnologia": "Redis", "uso": "Cola de trabajos, rate limiting por API key e IP, caché de VirusTotal."}
+    ],
+    "seguridad_e_infraestructura": [
+      {"categoria": "Contenedores", "herramienta": "Docker + Docker Compose", "uso": "7 servicios aislados; worker sin internet, no root, FS de solo lectura y límites de CPU/memoria."},
+      {"categoria": "Proxy", "herramienta": "Nginx", "uso": "TLS, límite de tamaño de petición y headers CSP, nosniff y HSTS."},
+      {"categoria": "Antimalware", "herramienta": "ClamAV", "uso": "Escaneo local con firmas actualizadas automáticamente.", "ver": "V08"},
+      {"categoria": "Threat intelligence", "herramienta": "VirusTotal API v3", "uso": "Reputación por hash SHA-256 sin subir archivos.", "ver": "V25"},
+      {"categoria": "Autenticación de apps", "herramienta": "API keys", "uso": "Hasheadas en base de datos, revocables y rotables.", "ver": "V13"},
+      {"categoria": "Autenticación del dashboard", "herramienta": "JWT + refresh token", "uso": "Access token de 15 min; refresh en cookie HttpOnly y SameSite con rotación; MFA TOTP para administradores.", "ver": ["V10", "V19"]},
+      {"categoria": "Autorización", "herramienta": "RBAC", "uso": "Roles administrador y analista."},
+      {"categoria": "Criptografía", "herramienta": "TLS 1.3, Argon2, SHA-256", "uso": "Tráfico en tránsito, hash de contraseñas y huella de archivos.", "ver": "V13"},
+      {"categoria": "Pruebas dinámicas", "herramienta": "OWASP ZAP", "uso": "Auditoría de la API."},
+      {"categoria": "Análisis estático", "herramienta": "Bandit", "uso": "Código Python."},
+      {"categoria": "Dependencias e imágenes", "herramienta": "Trivy", "uso": "Vulnerabilidades conocidas en librerías y contenedores."}
+    ]
+  },
+
+  "api": {
+    "estilo": "REST",
+    "prefijo_version": "/v1",
+    "conteo": {"filas_tabla": 11, "operaciones_metodo_ruta": 12, "estado": "verificado_con_matiz", "ver": "V02"},
+    "endpoints": [
+      {"metodo": "POST", "ruta": "/v1/files", "auth": "API key", "uso": "Subir archivo; responde 202 con ID."},
+      {"metodo": "GET", "ruta": "/v1/files/{id}", "auth": "API key", "uso": "Estado y resultado del análisis."},
+      {"metodo": "GET", "ruta": "/v1/files/{id}/content", "auth": "API key", "uso": "Descargar la versión reconstruida (solo si está limpio)."},
+      {"metodo": "POST", "ruta": "/v1/auth/login", "auth": "Credenciales + TOTP", "uso": "Inicio de sesión del dashboard.", "ver": "V10"},
+      {"metodo": "POST", "ruta": "/v1/auth/refresh", "auth": "Cookie de refresh", "uso": "Renovar token de acceso.", "ver": ["V12", "V19"]},
+      {"metodo": "GET", "ruta": "/v1/admin/files", "auth": "JWT (analista)", "uso": "Listar archivos con filtros por estado, fecha y aplicación."},
+      {"metodo": "POST", "ruta": "/v1/admin/files/{id}/release", "auth": "JWT (admin)", "uso": "Liberar falso positivo con motivo obligatorio.", "ver": "V15"},
+      {"metodo": "GET", "ruta": "/v1/admin/metrics", "auth": "JWT (analista)", "uso": "Métricas de amenazas bloqueadas."},
+      {"metodo": "GET", "ruta": "/v1/admin/audit", "auth": "JWT (admin)", "uso": "Bitácora de acciones."},
+      {"metodo": "GET", "ruta": "/v1/admin/events", "auth": "JWT (analista)", "uso": "Alertas en tiempo real (Server-Sent Events).", "ver": "V11"},
+      {"metodo": ["POST", "DELETE"], "ruta": "/v1/admin/api-keys", "auth": "JWT (admin)", "uso": "Crear y revocar API keys.", "ver": "V02"}
+    ],
+    "endpoints_sugeridos": [
+      {"metodo": "DELETE", "ruta": "/v1/admin/api-keys/{id}", "motivo": "La revocación necesita identificar la key en la ruta.", "origen": "recomendacion"},
+      {"metodo": "GET", "ruta": "/v1/admin/api-keys", "motivo": "Listar keys (prefijo, aplicación, fecha, estado) para poder rotarlas y revocarlas desde el dashboard.", "origen": "recomendacion"},
+      {"metodo": "POST", "ruta": "/v1/auth/logout", "motivo": "Revocar la familia de refresh tokens al cerrar sesión.", "origen": "recomendacion"},
+      {"metodo": "POST", "ruta": "/v1/auth/totp/enroll", "motivo": "Alta del segundo factor de administradores.", "origen": "recomendacion"}
+    ],
+    "convenciones_http_sugeridas": {
+      "origen": "recomendacion",
+      "202": "Archivo recibido y encolado",
+      "401": "API key o JWT ausente o inválido",
+      "403": "Rol insuficiente (analista en endpoint de admin)",
+      "404": "Archivo inexistente o de otra aplicación (anti-IDOR)",
+      "409": "Descarga solicitada en estado distinto de limpio",
+      "413": "Archivo excede el límite (Nginx)",
+      "429": "Rate limit excedido"
+    }
+  },
+
+  "modelo_datos": {
+    "origen": "inferido",
+    "nota": "El documento enumera qué guarda PostgreSQL; las entidades se derivan de eso, del filtro por aplicación y de la prueba de IDOR.",
+    "entidades": [
+      {"entidad": "aplicacion", "campos_clave": ["id", "nombre", "activa"], "ver": "V18"},
+      {"entidad": "api_key", "campos_clave": ["id", "aplicacion_id", "prefijo", "hash", "creada_en", "revocada_en"], "ver": "V13"},
+      {"entidad": "archivo", "campos_clave": ["id (UUID)", "aplicacion_id", "nombre_original (solo para mostrar)", "tipo_detectado", "tamano_bytes", "sha256", "estado", "creado_en", "analizado_en"]},
+      {"entidad": "resultado_analisis", "campos_clave": ["archivo_id", "capa (firma | cdr | clamav | virustotal)", "veredicto", "detalle", "duracion_ms"]},
+      {"entidad": "usuario", "campos_clave": ["id", "email", "hash_password (Argon2)", "rol (admin | analista)", "totp_secreto_cifrado", "activo"]},
+      {"entidad": "refresh_token", "campos_clave": ["jti", "usuario_id", "familia", "expira_en", "revocado"], "origen": "recomendacion", "ver": "V19"},
+      {"entidad": "evento_auditoria", "campos_clave": ["id", "usuario_id", "accion", "objetivo_id", "motivo", "ip", "fecha"]}
+    ],
+    "redis": ["cola ARQ", "contadores de rate limit por API key e IP", "caché VT: sha256 → veredicto con TTL"]
+  },
+
+  "matriz_pruebas": {
+    "conteo": {"valor": 15, "estado": "verificado", "ver": "V03"},
+    "nota": "La columna 'capa' es del documento; 'cwe' y 'resultado_esperado' son recomendaciones para volver cada caso medible.",
+    "casos": [
+      {"id": 1, "vector": "Script con extensión de imagen", "capa": "Validación de firma", "cwe": "CWE-434", "resultado_esperado": "rechazado"},
+      {"id": 2, "vector": "Doble extensión", "capa": "Validación de firma", "cwe": "CWE-434", "resultado_esperado": "rechazado"},
+      {"id": 3, "vector": "Nombre con ../ o byte nulo", "capa": "Almacenamiento con UUID", "cwe": "CWE-22", "resultado_esperado": "El archivo se guarda solo con UUID; ninguna ruta escapa del almacenamiento"},
+      {"id": 4, "vector": "Imagen polyglot", "capa": "Reconstrucción de imagen", "cwe": "CWE-434", "resultado_esperado": "limpio; el archivo entregado ya no contiene la carga útil"},
+      {"id": 5, "vector": "PDF con JavaScript o acciones automáticas", "capa": "Saneamiento de PDF", "cwe": null, "resultado_esperado": "limpio; sin /JavaScript, /OpenAction ni /AA en el PDF entregado"},
+      {"id": 6, "vector": "PDF cifrado", "capa": "Rechazo por política", "cwe": null, "resultado_esperado": "rechazado (incluye PDF con solo contraseña de propietario)"},
+      {"id": 7, "vector": "SVG", "capa": "Lista blanca", "cwe": "CWE-434", "resultado_esperado": "rechazado"},
+      {"id": 8, "vector": "ZIP", "capa": "Lista blanca", "cwe": "CWE-434", "resultado_esperado": "rechazado"},
+      {"id": 9, "vector": "Bomba de píxeles", "capa": "Límite de Pillow", "cwe": "CWE-770", "resultado_esperado": "rechazado sin agotar la memoria del worker", "ver": "V26"},
+      {"id": 10, "vector": "Archivo de 500 MB", "capa": "Límite de Nginx", "cwe": "CWE-770", "resultado_esperado": "HTTP 413; la petición no llega a la API"},
+      {"id": 11, "vector": "Archivo de prueba EICAR", "capa": "ClamAV y VirusTotal", "cwe": null, "resultado_esperado": "en_cuarentena con detección en ambas capas", "ver": "V07"},
+      {"id": 12, "vector": "Nombre de archivo con HTML/JS", "capa": "Escape en dashboard (Angular)", "cwe": "CWE-79", "resultado_esperado": "Se muestra como texto; no se ejecuta"},
+      {"id": 13, "vector": "Acceso a archivo de otra aplicación (IDOR)", "capa": "Verificación de propiedad", "cwe": "CWE-639", "resultado_esperado": "HTTP 404"},
+      {"id": 14, "vector": "200 subidas en un minuto", "capa": "Rate limiting", "cwe": "CWE-770", "resultado_esperado": "HTTP 429 al superar el umbral", "ver": "V14"},
+      {"id": 15, "vector": "Descarga de archivo en estado pendiente", "capa": "Máquina de estados", "cwe": null, "resultado_esperado": "HTTP 409"}
+    ],
+    "casos_sugeridos_adicionales": [
+      {"vector": "PDF con bomba de flujos comprimidos (FlateDecode)", "motivo": "El impacto esperado menciona bombas de descompresión en plural y la matriz solo prueba la de píxeles.", "ver": "V03"},
+      {"vector": "PDF o JPEG con datos anexados al final del archivo", "motivo": "Confirmar que la reconstrucción descarta lo que va después del fin lógico del archivo."},
+      {"vector": "PDF con imagen embebida que contiene EXIF/GPS", "motivo": "Comprobar el criterio 'sin metadatos' en PDF.", "ver": "V09"},
+      {"vector": "Analista invoca un endpoint de admin", "motivo": "Probar RBAC (CWE-862, lugar 4 del Top 25 de 2025)."},
+      {"vector": "Reutilización de un refresh token ya rotado", "motivo": "Probar detección de robo de token.", "ver": "V19"}
+    ]
+  },
+
+  "alcance_y_limitaciones": {
+    "origen": "documento",
+    "items": [
+      "Solo se aceptan JPEG, PNG y PDF; SVG, comprimidos y documentos de Office se rechazan por diseño.",
+      "El malware nuevo (zero-day) no se detecta por firma; se neutraliza mediante la reconstrucción.",
+      "La reconstrucción de PDF elimina elementos activos, pero no protege contra vulnerabilidades del lector de PDF del usuario final.",
+      "No se analiza el contenido semántico: un PDF de phishing con texto engañoso puede clasificarse como limpio.",
+      "Los originales en cuarentena se eliminan a los 30 días."
+    ],
+    "sugeridas": [
+      {"texto": "La consulta a VirusTotal con la API pública está limitada en cuota y en uso comercial; en producción se requeriría la API Premium.", "origen": "recomendacion", "ver": "V25"},
+      {"texto": "La recodificación de JPEG es con pérdida; la imagen entregada no es idéntica bit a bit a la original.", "origen": "recomendacion"}
+    ]
+  },
+
+  "parametros_por_definir": {
+    "estado": "no_definido",
+    "ver": "V14",
+    "nota": "Los valores son propuestas iniciales para un contexto académico; el equipo debe confirmarlos.",
+    "items": [
+      {"parametro": "tamano_maximo_archivo", "propuesta": "10 MB (igual en Nginx y en la API)"},
+      {"parametro": "rate_limit_subidas", "propuesta": "30 por minuto por API key y 60 por minuto por IP"},
+      {"parametro": "max_pixeles_imagen", "propuesta": "40 000 000 px, con la advertencia de Pillow tratada como error"},
+      {"parametro": "max_paginas_pdf", "propuesta": "200"},
+      {"parametro": "timeout_analisis_por_archivo", "propuesta": "30 s; al vencer → estado error"},
+      {"parametro": "umbral_virustotal", "propuesta": "≥ 3 motores 'malicious' → en_cuarentena; 1–2 → en_cuarentena para revisión del analista"},
+      {"parametro": "ttl_cache_virustotal", "propuesta": "24 h"},
+      {"parametro": "medicion_202_menor_1s", "propuesta": "Medido desde que termina la recepción del cuerpo hasta la respuesta, con archivos ≤ tamaño máximo"},
+      {"parametro": "retencion_originales", "propuesta": "Limpio: borrar el original al terminar el CDR. Rechazado: guardar solo hash y metadatos. Cuarentena: 30 días."}
+    ]
+  },
+
+  "verificacion_cov": [
+    {
+      "id": "V01", "tipo": "consistencia_interna",
+      "pregunta": "¿Son 7 los servicios de Docker Compose y coinciden con el diagrama?",
+      "respuesta": "Sí: nginx, api, redis, postgres, worker, clamav y reputacion. El dashboard Angular lo sirve Nginx, los almacenamientos son volúmenes y VirusTotal es externo.",
+      "estado": "verificado", "severidad": "ninguna"
+    },
+    {
+      "id": "V02", "tipo": "consistencia_interna",
+      "pregunta": "¿La especificación tiene 11 endpoints?",
+      "respuesta": "La tabla tiene 11 filas, pero son 12 operaciones porque POST y DELETE de /v1/admin/api-keys comparten fila. Además, DELETE no incluye el {id} de la key a revocar.",
+      "estado": "verificado_con_matiz", "severidad": "baja",
+      "correccion": "Declarar '11 rutas / 12 operaciones' o separar la fila; usar DELETE /v1/admin/api-keys/{id} y considerar GET /v1/admin/api-keys."
+    },
+    {
+      "id": "V03", "tipo": "consistencia_interna",
+      "pregunta": "¿La matriz tiene 15 vectores y cubre todo lo prometido en el impacto esperado?",
+      "respuesta": "Tiene 15 casos, coherentes con O7 e I1. I1 habla de 'bombas de descompresión' en plural, pero solo se prueba la bomba de píxeles; no hay caso para flujos comprimidos en PDF, que pikepdf/qpdf también descomprime.",
+      "estado": "verificado_con_matiz", "severidad": "media",
+      "correccion": "Añadir un caso de bomba de flujos en PDF o reformular I1 para que solo mencione bombas de píxeles."
+    },
+    {
+      "id": "V04", "tipo": "consistencia_interna",
+      "pregunta": "¿El cronograma es coherente con los 7 objetivos y las 6 semanas?",
+      "respuesta": "Sí: O1 en semana 1, O2 en 1–2, O3 a O7 en las semanas 2 a 6, sin huecos. La semana 6 concentra pruebas y correcciones, por lo que conviene reservar tiempo para corregir hallazgos.",
+      "estado": "verificado", "severidad": "ninguna"
+    },
+    {
+      "id": "V05", "tipo": "consistencia_interna",
+      "pregunta": "¿La lista blanca es la misma en todo el documento?",
+      "respuesta": "Sí: JPEG, PNG y PDF en O3 y en el anexo D; SVG y ZIP rechazados en la matriz.",
+      "estado": "verificado", "severidad": "ninguna"
+    },
+    {
+      "id": "V06", "tipo": "completitud",
+      "pregunta": "¿Los 4 estados cubren todos los resultados posibles del análisis?",
+      "respuesta": "No. Falta un estado para fallos o timeouts del worker o de VirusTotal, y no se define a qué estado pasa un archivo liberado de cuarentena.",
+      "estado": "no_definido", "severidad": "media",
+      "correccion": "Agregar el estado 'error' (nunca descargable, con reintento) y definir la transición en_cuarentena → limpio tras la liberación y el CDR. Aplicar fail-closed (INV-09)."
+    },
+    {
+      "id": "V07", "tipo": "viabilidad_tecnica",
+      "pregunta": "Con el orden del worker (firma → reconstrucción → ClamAV), ¿puede detectarse EICAR en ambas capas?",
+      "respuesta": "No. El archivo EICAR estándar es texto ASCII de 68 bytes: la lista blanca lo rechaza antes de llegar a ClamAV. Si se incrusta en un PDF, el CDR elimina los archivos embebidos y el hash resultante es único, así que VirusTotal no lo reconocería. El criterio de O5 y el caso 11 no son alcanzables tal como están.",
+      "estado": "inconsistente", "severidad": "alta",
+      "correccion": "Calcular el SHA-256 y escanear con ClamAV el ORIGINAL antes de la lista blanca (flujo_recomendado). El SHA-256 del EICAR estándar (275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f) es conocido por VirusTotal, de modo que ambas capas lo detectan. Si hay malware, prevalece en_cuarentena sobre rechazado."
+    },
+    {
+      "id": "V08", "tipo": "viabilidad_tecnica",
+      "pregunta": "¿Puede ClamAV estar en la zona sin internet y a la vez actualizar sus firmas automáticamente?",
+      "respuesta": "No sin un ajuste: freshclam necesita salida a internet para descargar las firmas. El diagrama ubica a ClamAV dentro de la zona aislada.",
+      "estado": "inconsistente", "severidad": "media",
+      "correccion": "Opción A: contenedor freshclam separado, con salida a internet, que escribe las firmas en un volumen montado como solo lectura en clamd (8 servicios). Opción B: permitir a clamav salida únicamente hacia el espejo de firmas mediante un proxy de egreso, manteniendo al worker sin salida. En ambos casos clamd no debe compartir red con internet y con el worker a la vez."
+    },
+    {
+      "id": "V09", "tipo": "viabilidad_tecnica",
+      "pregunta": "¿El stack garantiza que los PDF entregados no tengan metadatos?",
+      "respuesta": "No está especificado. pikepdf se describe para quitar JavaScript, acciones y archivos embebidos, pero no el diccionario /Info ni los metadatos XMP. Tampoco se contemplan imágenes JPEG embebidas en el PDF, que pueden conservar EXIF/GPS.",
+      "estado": "no_definido", "severidad": "media",
+      "correccion": "Incluir en el CDR de PDF la eliminación de /Info y /Metadata (XMP) y decidir si se recodifican las imágenes embebidas o se declara como limitación."
+    },
+    {
+      "id": "V10", "tipo": "consistencia_interna",
+      "pregunta": "¿El inicio de sesión exige TOTP a todos los usuarios?",
+      "respuesta": "Ambiguo: el endpoint de login indica 'Credenciales + TOTP', pero el stack dice que el MFA con TOTP es para administradores. No hay endpoint para dar de alta el TOTP.",
+      "estado": "verificado_con_matiz", "severidad": "baja",
+      "correccion": "Definir: TOTP obligatorio para admin y opcional (o también obligatorio) para analista; agregar POST /v1/auth/totp/enroll."
+    },
+    {
+      "id": "V11", "tipo": "viabilidad_tecnica",
+      "pregunta": "¿Las alertas por SSE pueden autenticarse con el JWT y los interceptores de HttpClient?",
+      "respuesta": "No con EventSource nativo: no permite enviar el header Authorization y los interceptores de HttpClient no se aplican a EventSource. Poner el token en la query string lo expone en logs.",
+      "estado": "inconsistente", "severidad": "media",
+      "correccion": "Consumir el SSE con fetch y ReadableStream (o una librería tipo fetch-event-source) enviando Authorization, envuelto en un Observable de RxJS; alternativa: HttpClient con withFetch() y reportProgress para leer texto parcial. En Nginx, desactivar proxy_buffering en /v1/admin/events."
+    },
+    {
+      "id": "V12", "tipo": "viabilidad_tecnica",
+      "pregunta": "¿La protección CSRF 'integrada' de Angular basta?",
+      "respuesta": "Parcialmente. HttpClient envía el header X-XSRF-TOKEN leído de una cookie, pero el backend debe emitir y validar ese token; FastAPI no lo hace por defecto. El endpoint expuesto a CSRF es /v1/auth/refresh, que usa cookie; el resto usa el header Authorization.",
+      "estado": "verificado_con_matiz", "severidad": "baja",
+      "correccion": "En /v1/auth/refresh: cookie SameSite=Strict con Path=/v1/auth, validación de Origin y token double-submit."
+    },
+    {
+      "id": "V13", "tipo": "precision_tecnica",
+      "pregunta": "¿Está definido cómo se hashean las API keys y es correcta la categoría 'Cifrado'?",
+      "respuesta": "No se indica el algoritmo para las API keys. Argon2 es adecuado para contraseñas pero costoso por petición; para keys aleatorias de alta entropía basta HMAC-SHA-256 con un secreto del servidor. Argon2 y SHA-256 son funciones hash, no cifrado.",
+      "estado": "verificado_con_matiz", "severidad": "baja",
+      "correccion": "API keys: HMAC-SHA-256 con pepper y prefijo visible para identificarlas. Renombrar la categoría a 'Criptografía: cifrado (TLS 1.3) y hash (Argon2, SHA-256)'."
+    },
+    {
+      "id": "V14", "tipo": "completitud",
+      "pregunta": "¿Están definidos los límites numéricos necesarios para probar la matriz?",
+      "respuesta": "No: falta el tamaño máximo de archivo, el umbral de rate limit, el límite de píxeles, el máximo de páginas de PDF, los timeouts y el umbral de detecciones de VirusTotal.",
+      "estado": "no_definido", "severidad": "media",
+      "correccion": "Ver 'parametros_por_definir'."
+    },
+    {
+      "id": "V15", "tipo": "consistencia_interna",
+      "pregunta": "¿Liberar un archivo de cuarentena respeta que 'ningún original llega a la aplicación'?",
+      "respuesta": "No está definido. En cuarentena se guarda el original; si se libera sin pasar por CDR se entregaría el original, lo que viola INV-01.",
+      "estado": "no_definido", "severidad": "media",
+      "correccion": "La liberación reencola el archivo en el paso de CDR con el veredicto antimalware anulado y registrado; solo la versión reconstruida queda disponible."
+    },
+    {
+      "id": "V16", "tipo": "completitud",
+      "pregunta": "¿Se define la retención de originales fuera de la cuarentena?",
+      "respuesta": "Solo para cuarentena (30 días). No se indica qué pasa con los originales de archivos limpios o rechazados, lo cual importa para el argumento de privacidad.",
+      "estado": "no_definido", "severidad": "baja",
+      "correccion": "Borrar el original al terminar el CDR; de los rechazados conservar solo hash y metadatos."
+    },
+    {
+      "id": "V17", "tipo": "viabilidad_tecnica",
+      "pregunta": "¿Un worker con sistema de archivos de solo lectura puede escribir la versión reconstruida?",
+      "respuesta": "Sí, siempre que se monte un tmpfs y un volumen de salida escribibles; el resto del sistema de archivos permanece de solo lectura.",
+      "estado": "verificado_con_matiz", "severidad": "baja",
+      "correccion": "Declarar en Compose read_only: true, un tmpfs para /tmp y el volumen de salida como únicos puntos escribibles."
+    },
+    {
+      "id": "V18", "tipo": "completitud",
+      "pregunta": "¿El modelo de datos permite verificar la propiedad de los archivos (caso 13)?",
+      "respuesta": "Implícitamente: el filtro 'por aplicación' y la prueba de IDOR requieren una entidad aplicación ligada a API keys y archivos, aunque la sección de base de datos no la menciona.",
+      "estado": "verificado_con_matiz", "severidad": "baja",
+      "correccion": "Incluir la entidad 'aplicacion' en el modelo ER y filtrar toda consulta por aplicacion_id de la API key."
+    },
+    {
+      "id": "V19", "tipo": "completitud",
+      "pregunta": "¿Se especifica cómo se implementa la rotación del refresh token?",
+      "respuesta": "No. La rotación con detección de reutilización requiere persistir el identificador y la familia de cada token, y no se indica dónde.",
+      "estado": "no_definido", "severidad": "baja",
+      "correccion": "Tabla refresh_token (jti, familia, expiración, revocado) en PostgreSQL o en Redis con TTL; si un token rotado se reutiliza, revocar toda la familia."
+    },
+    {
+      "id": "V20", "tipo": "precision_tecnica",
+      "pregunta": "¿El criterio de 202 en menos de 1 s es medible?",
+      "respuesta": "Es alcanzable porque el análisis es asíncrono, pero el tiempo total depende de cuánto tarde en subirse el archivo; falta definir desde qué momento se mide.",
+      "estado": "verificado_con_matiz", "severidad": "baja",
+      "correccion": "Medir desde que termina la recepción del cuerpo hasta la respuesta, con archivos dentro del tamaño máximo."
+    },
+    {
+      "id": "V21", "tipo": "fuente_externa",
+      "pregunta": "¿CWE-434 ocupa el lugar 12 del CWE Top 25 de 2025?",
+      "respuesta": "Sí, según la lista oficial de MITRE (bajó 2 lugares respecto a 2024).",
+      "estado": "verificado", "severidad": "ninguna",
+      "fuente": "https://cwe.mitre.org/top25/archive/2025/2025_cwe_top25.html"
+    },
+    {
+      "id": "V22", "tipo": "fuente_externa",
+      "pregunta": "¿Hay 4 vulnerabilidades de este tipo en el catálogo KEV de CISA?",
+      "respuesta": "El 4 es correcto, pero se refiere a los CVE del conjunto de datos del Top 25 de 2025 que están en KEV, no al total de CVE de CWE-434 en todo el catálogo.",
+      "estado": "verificado_con_matiz", "severidad": "baja",
+      "correccion": "Usar la redacción sugerida en problema.datos_externos.",
+      "fuente": "https://cwe.mitre.org/top25/archive/2025/2025_cwe_top25.html"
+    },
+    {
+      "id": "V23", "tipo": "fuente_externa",
+      "pregunta": "¿XSS es el lugar 1, path traversal el 6 y 'consumo de recursos sin límite' el 25?",
+      "respuesta": "Sí: CWE-79 en el 1, CWE-22 en el 6 y CWE-770 en el 25. El nombre exacto de CWE-770 es 'Allocation of Resources Without Limits or Throttling', distinto de CWE-400 'Uncontrolled Resource Consumption'.",
+      "estado": "verificado_con_matiz", "severidad": "baja",
+      "correccion": "Citar los identificadores CWE junto a cada nombre.",
+      "fuente": "https://cwe.mitre.org/top25/archive/2025/2025_cwe_top25.html"
+    },
+    {
+      "id": "V24", "tipo": "fuente_externa",
+      "pregunta": "¿La guía de OWASP dice lo que el documento le atribuye?",
+      "respuesta": "Sí: afirma que no existe una solución única, recomienda defensa en profundidad y advierte que la validación de firma no debe usarse sola porque evadirla es común. Entre sus controles también figuran lista blanca de extensiones, límite de longitud del nombre, actualización de librerías y protección CSRF. Además advierte que reescribir imágenes no garantiza eliminar todo el contenido malicioso y que el procesador también maneja entrada no confiable, lo que respalda el worker aislado.",
+      "estado": "verificado_con_matiz", "severidad": "baja",
+      "correccion": "Ignorar la extensión en las decisiones es defendible porque el servidor reasigna nombre y tipo, pero conviene registrar la discordancia extensión/firma como indicador para el dashboard y mencionar las demás recomendaciones de OWASP que sí se cubren.",
+      "fuente": "https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html"
+    },
+    {
+      "id": "V25", "tipo": "fuente_externa",
+      "pregunta": "¿La API de VirusTotal es viable para el uso descrito?",
+      "respuesta": "Técnicamente sí: se puede consultar la reputación por hash sin subir el archivo. Pero la API pública está limitada a 4 peticiones por minuto y 500 por día, no puede usarse en productos o servicios comerciales ni en flujos de negocio que no aporten archivos nuevos. Sirve para el proyecto académico, pero choca con el impacto planteado para PyMEs y limita el rendimiento a unos 4 archivos nuevos por minuto. El documento no define qué pasa cuando se agota la cuota.",
+      "estado": "verificado_con_matiz", "severidad": "media",
+      "correccion": "Declarar el uso de la API pública como limitación académica (en producción, API Premium), apoyarse en la caché por hash y definir el comportamiento ante cuota agotada (ver arquitectura.flujo_recomendado.reglas_decision).",
+      "fuente": "https://docs.virustotal.com/reference/public-vs-premium-api"
+    },
+    {
+      "id": "V26", "tipo": "precision_tecnica",
+      "pregunta": "¿El límite de píxeles de Pillow detiene las bombas por defecto?",
+      "respuesta": "Solo en parte. Por defecto Image.MAX_IMAGE_PIXELS es 89 478 485: por encima emite DecompressionBombWarning y solo lanza DecompressionBombError al superar el doble. Una imagen entre ambos valores pasaría con una simple advertencia.",
+      "estado": "verificado_con_matiz", "severidad": "media",
+      "correccion": "Fijar MAX_IMAGE_PIXELS de forma explícita, convertir la advertencia en error y validar dimensiones antes de llamar a load().",
+      "fuente": "Documentación de Pillow (conocimiento técnico; no consultada en esta sesión)"
+    },
+    {
+      "id": "V27", "tipo": "precision_tecnica",
+      "pregunta": "¿pikepdf realiza un CDR completo del PDF?",
+      "respuesta": "Realiza un saneamiento estructural: reescribe el archivo con qpdf y permite eliminar objetos activos, pero conserva los flujos de contenido. Un CDR completo implicaría re-renderizar o rasterizar. El documento ya lo llama 'saneamiento de PDF' en la matriz.",
+      "estado": "verificado_con_matiz", "severidad": "baja",
+      "correccion": "Usar 'saneamiento estructural' para PDF y 'reconstrucción' para imágenes; eliminar al menos /JavaScript, /OpenAction, /AA, /Launch, /EmbeddedFiles, /URI y /SubmitForm, además de /Info y XMP."
+    },
+    {
+      "id": "V28", "tipo": "precision_tecnica",
+      "pregunta": "¿Angular escapa por defecto los nombres y metadatos maliciosos?",
+      "respuesta": "Sí: la interpolación escapa el contenido y [innerHTML] pasa por el sanitizador. La protección se pierde si se usan los métodos bypassSecurityTrust* o manipulación directa del DOM.",
+      "estado": "verificado", "severidad": "ninguna",
+      "correccion": "Regla de código: prohibir bypassSecurityTrust* y ElementRef.nativeElement.innerHTML; verificarlo en revisión."
+    },
+    {
+      "id": "V29", "tipo": "consistencia_interna",
+      "pregunta": "¿La decisión de descartar Next.js es coherente con la arquitectura?",
+      "respuesta": "Sí: un dashboard interno no necesita SEO ni SSR, y servirlo como estático desde Nginx elimina un servidor Node con exposición propia.",
+      "estado": "verificado", "severidad": "ninguna"
+    }
+  ]
+}

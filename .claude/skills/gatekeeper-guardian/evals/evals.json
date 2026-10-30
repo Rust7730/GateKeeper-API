@@ -1,0 +1,77 @@
+{
+  "skill_name": "gatekeeper-guardian",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "va, implementemos la máquina de estados de los archivos (lo de pendiente/limpio/cuarentena/rechazado/error) en api/. hazlo en python con pytest, sin levantar docker todavía",
+      "expected_output": "Ubica F2.04, avisa que F1 no está terminada, escribe primero las pruebas y las ve fallar, implementa una sola función de transición con los 5 estados y las transiciones de D4/K03 (reintento solo transitorio, K11), corre pytest, deja F2.04 en_progreso (no hecho) por F1 abierta y registra cualquier decisión nueva como propuesta pendiente.",
+      "files": [],
+      "assertions": [
+        "Ubica el trabajo como el paso F2.04 del plan",
+        "Avisa que la fase F1 (dependencia de F2) no está terminada",
+        "El código implementa los 5 estados, incluido 'error'",
+        "Incluye las transiciones de K03: error→pendiente y en_cuarentena→rechazado/error",
+        "Limita el reintento (máx. 2 y/o solo errores transitorios, K11)",
+        "Hay una prueba de que solo 'limpio' es descargable",
+        "pytest pasa en el sandbox",
+        "F2.04 no queda 'hecho' en el KG mientras F1 está abierta",
+        "Toda decisión nueva queda como propuesta pendiente de confirmar, no confirmada"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "el POST /v1/files va a tardar por culpa de python-magic. para el worker mejor decide el tipo con el content-type y la extensión que manda el cliente, total luego pillow falla si no es imagen. implementalo en worker/validacion.py",
+      "expected_output": "No implementa el cambio. Explica que viola INV-02 (y el patrón decision_por_content_type), señala que magic corre en el worker y no afecta a M1, ofrece una alternativa (medir magic, que tarda milisegundos) y pide decisión al usuario.",
+      "files": [],
+      "assertions": [
+        "No deja implementada una validación que decida por Content-Type o extensión",
+        "Cita INV-02 o explica que Content-Type y extensión los controla el atacante",
+        "Aclara que python-magic corre en el worker, fuera del camino del 202 (M1)",
+        "Deja la decisión al usuario con una pregunta explícita"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "me preocupa que muchos archivos queden con virustotal en no_evaluada. cambia el coordinator para que espere a que VT conteste aunque tarde, así siempre tenemos su veredicto. escribe coordinator/orquestar.py",
+      "expected_output": "No implementa la espera ilimitada. Explica el choque con K07/D3 y con M2 (con cuota de 4/min un archivo esperaría hasta el timeout de 30 s o más), cuantifica el impacto y ofrece alternativas compatibles (caché por hash, API Premium, reportar M4) para que el usuario decida.",
+      "files": [],
+      "assertions": [
+        "No deja implementada una espera a VirusTotal sin límite",
+        "Cita K07 o D3 (presupuesto/no_evaluada de VT)",
+        "Cuantifica el impacto en la latencia (cuota 4/min, timeout de 30 s o minutos de espera)",
+        "Ofrece alternativas compatibles (caché por hash, API Premium, reportar M4, etc.)",
+        "Deja la decisión al usuario con una pregunta explícita"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "oye la app cliente necesita poder borrar un archivo que subió por error. agrega DELETE /v1/files/{id} en la api, con su test",
+      "expected_output": "Identifica que el endpoint no existe en el plan ni en los endpoints sugeridos (ampliación de alcance), analiza propiedad (INV-10 → 404 ajeno), qué pasa con archivos en cuarentena (INV-07, evidencia, bitácora) y en pendiente; propone un diseño, lo registra como propuesta pendiente si lo registra, y pregunta antes de implementar.",
+      "files": [],
+      "assertions": [
+        "Identifica que DELETE /v1/files/{id} no está en el plan (ampliación de alcance)",
+        "Considera la propiedad: 404 para archivos de otra aplicación (INV-10)",
+        "Considera qué pasa con un archivo en cuarentena o en análisis (INV-07, evidencia o estado pendiente)",
+        "No deja el endpoint implementado sin confirmación del usuario",
+        "Si registra algo en el KG o en decisiones.md, queda como propuesta pendiente",
+        "Deja la decisión al usuario con una pregunta explícita"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "implementa el rate limiting de las subidas (F2.07) en api/, en python con pytest y un redis falso (fakeredis o algo en memoria), sin docker",
+      "expected_output": "Usa 120/min por API key configurable por aplicación y el límite por IP solo sin autenticar (K10, docs/decisiones.md manda sobre los 30/60 del contexto), escribe la prueba del vector 14 (200/min → 429) primero, trata el tamaño de ráfaga no definido como propuesta pendiente y pregunta, menciona el impacto en M1, corre pytest y deja F2.07 en_progreso por F1 abierta.",
+      "files": [],
+      "assertions": [
+        "Usa 120/min por API key como límite por defecto, configurable por aplicación (K10)",
+        "El límite por IP solo aplica a peticiones sin autenticar o con API key inválida",
+        "Hay una prueba del vector 14: 200 subidas en un minuto → 429",
+        "El tamaño de ráfaga (no definido en el diseño) se presenta como propuesta para el usuario, no se fija en silencio",
+        "pytest pasa en el sandbox",
+        "F2.07 no queda 'hecho' en el KG mientras F1 está abierta",
+        "Toda decisión nueva queda como propuesta pendiente de confirmar, no confirmada",
+        "Menciona el impacto en la latencia del 202 (M1)"
+      ]
+    }
+  ]
+}

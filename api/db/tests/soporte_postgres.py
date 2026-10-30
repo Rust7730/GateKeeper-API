@@ -9,10 +9,13 @@ fallen si alguien cambia una de las dos cosas.
 
 import contextlib
 import secrets
-from typing import Protocol
+from typing import Protocol, Self
 
 import pytest
+import testcontainers.core.container as _modulo_container
 from testcontainers.community.postgres import PostgresContainer
+from testcontainers.core.config import testcontainers_config
+from testcontainers.core.container import DockerContainer, Reaper
 from testcontainers.core.docker_client import DockerClient
 
 IMAGEN_POSTGRES = "postgres:16"
@@ -116,5 +119,86 @@ def arrancar_contenedor(contenedor: Contenedor) -> None:
             contenedor.stop()
         pytest.fail(
             f"El PostgreSQL desechable no arrancó. Detalle: {error_arranque}",
+            pytrace=False,
+        )
+
+
+class _ContenedorEnLoopback(DockerContainer):
+    """``DockerContainer`` que publica cada puerto expuesto solo en ``IP_PUBLICACION``.
+
+    Solo se usa para crear el reaper (ryuk) de testcontainers 4.15, que expone su 8080
+    con ``with_exposed_ports`` (o sea, en 0.0.0.0 y ::) y no deja configurar la IP.
+    """
+
+    def with_exposed_ports(self, *ports: str | int) -> Self:
+        for puerto in ports:
+            # docker-py traduce (ip, None) a {"HostIp": ip, "HostPort": ""}.
+            self.ports[str(puerto)] = (IP_PUBLICACION, None)  # type: ignore[assignment]
+        return self
+
+    def get_container_host_ip(self) -> str:
+        # El reaper se conecta a esta IP con un socket AF_INET: la misma del binding.
+        return IP_PUBLICACION
+
+    def start(self) -> Self:
+        # Si una versión futura de testcontainers expusiera el puerto por otro camino,
+        # falla en vez de publicarlo en todas las interfaces.
+        abiertos = {p: v for p, v in self.ports.items() if v != (IP_PUBLICACION, None)}
+        if abiertos:
+            raise RuntimeError(
+                f"el reaper publicaría puertos fuera de {IP_PUBLICACION}: {abiertos}"
+            )
+        return super().start()
+
+
+def arrancar_reaper_en_loopback() -> None:
+    """Crea el reaper (ryuk) de la sesión con su 8080 publicado solo en 127.0.0.1 (CWE-668).
+
+    Hay que llamarla antes de arrancar cualquier contenedor: testcontainers crea el
+    reaper la primera vez que arranca uno y después lo reutiliza. Durante
+    ``Reaper.get_instance()`` sustituye la global ``DockerContainer`` del módulo
+    ``testcontainers.core.container`` (que ``Reaper._create_instance`` busca en ese
+    momento) por ``_ContenedorEnLoopback`` y la restaura al terminar, falle o no.
+    Depende de esos internos de testcontainers 4.15.0; si cambian,
+    ``test_el_reaper_publica_8080_solo_en_127_0_0_1`` falla.
+
+    Falla (no omite) si ryuk está desactivado, porque sin él un pytest que muere con
+    SIGKILL dejaría el PostgreSQL corriendo; o si ya existe un reaper creado sin este
+    ajuste, porque estaría escuchando en todas las interfaces.
+    """
+    if testcontainers_config.ryuk_disabled:
+        pytest.fail(
+            "El reaper de testcontainers (ryuk) está desactivado "
+            "(TESTCONTAINERS_RYUK_DISABLED): sin él, un pytest que muere sin terminar "
+            "deja el PostgreSQL de las pruebas corriendo. Quita esa variable.",
+            pytrace=False,
+        )
+    if Reaper._instance is not None:
+        if isinstance(Reaper._container, _ContenedorEnLoopback):
+            return
+        pytest.fail(
+            "Ya existe un reaper de testcontainers creado sin publicar su puerto solo en "
+            f"{IP_PUBLICACION} (algo arrancó un contenedor antes que el fixture de la "
+            "BD). Llama a arrancar_reaper_en_loopback() antes de arrancar contenedores.",
+            pytrace=False,
+        )
+
+    original = _modulo_container.DockerContainer
+    _modulo_container.DockerContainer = _ContenedorEnLoopback  # type: ignore[misc]
+    error_reaper = None
+    try:
+        Reaper.get_instance()
+    # Amplio a propósito: cualquier error al crear el reaper termina en pytest.fail.
+    except Exception as exc:  # noqa: BLE001
+        error_reaper = f"{type(exc).__name__}: {exc}"
+    finally:
+        _modulo_container.DockerContainer = original  # type: ignore[misc]
+    if error_reaper is not None:
+        # Si el contenedor de ryuk llegó a crearse, se quita.
+        with contextlib.suppress(Exception):
+            Reaper.delete_instance()
+        pytest.fail(
+            f"El reaper de testcontainers (ryuk) no arrancó en {IP_PUBLICACION}. "
+            f"Detalle: {error_reaper}",
             pytrace=False,
         )

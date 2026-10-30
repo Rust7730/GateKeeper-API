@@ -23,11 +23,17 @@ comportan distinto y la prueba no demostraría nada.
 Con ``pytest -l`` (showlocals) un fallo en estos fixtures muestra sus variables locales.
 Por eso ninguna guarda la contraseña: vive solo en ``contenedor.password`` (el ``repr``
 del contenedor no la muestra) y en la ``URL`` (que la oculta), y se lee de ahí cuando
-hace falta (CWE-532).
+hace falta (CWE-532). Eso no basta cuando falla una conexión: con ``-l`` pytest muestra
+también las locales de SQLAlchemy (``cparams``) y psycopg (``conninfo``, ``params``),
+que sí la llevan. Por eso ``pytest_runtest_makereport`` reemplaza la contraseña por
+``***`` en todos los reportes de ``api/db/`` (setup, prueba y teardown) antes de mostrarlos.
+
+El reaper de testcontainers (ryuk) se crea antes que PostgreSQL con
+``arrancar_reaper_en_loopback``, para que su 8080 también quede solo en 127.0.0.1.
 """
 
 import time
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 
 import pytest
 from sqlalchemy import Connection, Engine, create_engine
@@ -41,19 +47,24 @@ from api.db.tests.soporte_postgres import (
     PUERTO_POSTGRES,
     USUARIO_SUPERUSUARIO,
     arrancar_contenedor,
+    arrancar_reaper_en_loopback,
     crear_contenedor,
     exigir_docker,
 )
 
 _CLAVE_ARRANQUE = pytest.StashKey[float]()
+# El contenedor (no la contraseña) para que el saneado de reportes la lea de ahí.
+_CLAVE_CONTENEDOR = pytest.StashKey[PostgresContainer]()
 
 
 @pytest.fixture(scope="session")
 def contenedor_postgres(pytestconfig: pytest.Config) -> Iterator[PostgresContainer]:
     """PostgreSQL 16 desechable de la sesión, publicado solo en 127.0.0.1."""
     exigir_docker()
-    contenedor = crear_contenedor()
     inicio = time.perf_counter()
+    arrancar_reaper_en_loopback()
+    contenedor = crear_contenedor()
+    pytestconfig.stash[_CLAVE_CONTENEDOR] = contenedor
     arrancar_contenedor(contenedor)
     try:
         pytestconfig.stash[_CLAVE_ARRANQUE] = time.perf_counter() - inicio
@@ -101,10 +112,32 @@ def conexion(motor_postgres: Engine) -> Iterator[Connection]:
                 transaccion.rollback()
 
 
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(
+    item: pytest.Item, call: pytest.CallInfo[None]
+) -> Generator[None, pytest.TestReport, pytest.TestReport]:
+    """Quita la contraseña del PostgreSQL de las pruebas de cualquier reporte (CWE-532).
+
+    Aplica a las pruebas de ``api/db/`` (las de este conftest). El reporte con
+    traceback se convierte en texto solo si la contraseña aparece en él.
+    """
+    reporte = yield
+    contenedor = item.config.stash.get(_CLAVE_CONTENEDOR, None)
+    if contenedor is None or not contenedor.password:
+        return reporte
+    if reporte.longrepr is not None and contenedor.password in str(reporte.longrepr):
+        reporte.longrepr = str(reporte.longrepr).replace(contenedor.password, "***")
+    reporte.sections = [
+        (titulo, texto.replace(contenedor.password, "***"))
+        for titulo, texto in reporte.sections
+    ]
+    return reporte
+
+
 def pytest_terminal_summary(
     terminalreporter: pytest.TerminalReporter, config: pytest.Config
 ) -> None:
-    """Reporta cuánto tardó en arrancar el contenedor (incluye el reaper de testcontainers)."""
+    """Reporta cuánto tardó en arrancar el contenedor (incluye crear el reaper de testcontainers)."""
     segundos = config.stash.get(_CLAVE_ARRANQUE, None)
     if segundos is not None:
         terminalreporter.write_line(

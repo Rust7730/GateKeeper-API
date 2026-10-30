@@ -223,3 +223,14 @@ def test_gk_commit_sin_atribucion_a_claude(agente):
     c = agente("gk-commit").cuerpo
     assert "noreply@anthropic.com" not in c
     assert "Sin líneas `Co-Authored-By`" in c
+
+
+def test_gk_commit_admite_funcionalidad_en_curso(agente):
+    c = agente("gk-commit").cuerpo
+    assert "Funcionalidad en curso:" in c
+    assert "Cierre de funcionalidad:" in c
+
+
+def test_gk_security_revisa_el_rango_de_una_funcionalidad(agente):
+    c = agente("gk-security").cuerpo
+    assert "Cierre de funcionalidad:" in c and "git diff <base>" in c

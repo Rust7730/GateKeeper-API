@@ -118,13 +118,13 @@ class _ContenedorQueNoArranca:
     """Imita el error real de testcontainers 4.15 cuando vence la espera de PostgreSQL."""
 
     def __init__(self, contrasena: str) -> None:
-        self.contrasena = contrasena
+        self.password = contrasena
         self.detenido = False
 
     def start(self) -> object:
         raise TimeoutError(
             "Command execution did not succeed within 0.000 seconds. Command: sh -c "
-            f"PGPASSWORD='{self.contrasena}' psql --username gk_pruebas --dbname gatekeeper_pruebas "
+            f"PGPASSWORD='{self.password}' psql --username gk_pruebas --dbname gatekeeper_pruebas "
             "--host 127.0.0.1 -c 'select version();'."
         )
 
@@ -137,7 +137,7 @@ def test_si_el_contenedor_no_arranca_falla_sin_mostrar_la_contrasena() -> None:
     contenedor = _ContenedorQueNoArranca(contrasena)
 
     with pytest.raises(pytest.fail.Exception) as falla:
-        arrancar_contenedor(contenedor, contrasena)
+        arrancar_contenedor(contenedor)
 
     mensaje = str(falla.value)
     assert "El PostgreSQL desechable no arrancó" in mensaje

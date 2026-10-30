@@ -12,6 +12,12 @@ KG_PY = (
     / ".claude/skills/gatekeeper-guardian/scripts/kg.py"
 )
 
+# La skill está en .gitignore: en un clon limpio no existe y no hay script que probar.
+if not KG_PY.exists():
+    pytest.skip(
+        "la skill gatekeeper-guardian no está en este clon", allow_module_level=True
+    )
+
 BASE = {
     "meta": {"conteos": {}},
     "nodos": [

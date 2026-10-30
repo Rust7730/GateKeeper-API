@@ -5,6 +5,9 @@ gk-security lo anota como "Árbol revisado" en su veredicto y gk-commit lo compa
 archivo cambió después de la revisión, el hash difiere y el veredicto deja de valer. Incluye archivos sin seguimiento,
 respeta .gitignore y no toca el índice real.
 
+Excluye los archivos de gk-kg: los escribe después de la revisión de seguridad (el flujo registra el estado antes
+del commit) y su contenido lo valida gk-commit con `kg.py validar`, no la revisión de seguridad.
+
 Uso: arbol.py [ruta del repo]   (por defecto, el directorio actual)
 """
 
@@ -14,12 +17,21 @@ import sys
 import tempfile
 from pathlib import Path
 
+EXCLUIDOS_GK_KG = ("context/gatekeeper_kg.json", "docs/decisiones.md")
+
 
 def hash_arbol(repo: Path) -> str:
     with tempfile.TemporaryDirectory() as tmp:
         env = {**os.environ, "GIT_INDEX_FILE": str(Path(tmp) / "index")}
         subprocess.run(
             ["git", "add", "-A"], cwd=repo, env=env, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "rm", "--cached", "-q", "--ignore-unmatch", "--", *EXCLUIDOS_GK_KG],
+            cwd=repo,
+            env=env,
+            check=True,
+            capture_output=True,
         )
         salida = subprocess.run(
             ["git", "write-tree"],

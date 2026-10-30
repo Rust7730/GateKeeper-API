@@ -62,3 +62,15 @@ def test_no_toca_indice_real(repo):
     assert _git(repo, "diff", "--cached", "--name-only") == ""
     arbol.hash_arbol(repo)
     assert _git(repo, "diff", "--cached", "--name-only") == ""
+
+
+def test_archivos_de_gk_kg_no_cambian_hash(repo):
+    arbol = _modulo()
+    (repo / "context").mkdir()
+    (repo / "docs").mkdir()
+    (repo / "context/gatekeeper_kg.json").write_text("{}\n")
+    (repo / "docs/decisiones.md").write_text("# v1\n")
+    antes = arbol.hash_arbol(repo)
+    (repo / "context/gatekeeper_kg.json").write_text('{"estado": "en_progreso"}\n')
+    (repo / "docs/decisiones.md").write_text("# v2\n")
+    assert arbol.hash_arbol(repo) == antes

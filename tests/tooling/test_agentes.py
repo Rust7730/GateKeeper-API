@@ -82,3 +82,42 @@ def test_gk_api_dev_latencia(agente):
 
 def test_gk_api_dev_reporte(agente):
     assert "Reporte · gk-api-dev · <paso>" in agente("gk-api-dev").cuerpo
+
+
+def test_gk_commit_frontmatter(agente):
+    a = agente("gk-commit")
+    assert a.tools == {"Read", "Grep", "Glob", "Bash"}
+    assert a.model == "sonnet"
+
+
+def test_gk_commit_controles(agente):
+    c = agente("gk-commit").cuerpo
+    for x in (
+        "main",
+        "<fase>/<paso>-<slug>",
+        ".env",
+        "ruff check",
+        "ruff format --check",
+        "bandit -r api/",
+        "kg.py validar",
+        "Árbol revisado",
+        "arbol.py",
+        "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    ):
+        assert x in c
+
+
+def test_gk_commit_prohibiciones(agente):
+    c = agente("gk-commit").cuerpo
+    for x in ("--no-verify", "--amend", "push", "--force", "reset --hard"):
+        assert x in c
+
+
+def test_gk_commit_fail_closed_y_no_descarta(agente):
+    c = agente("gk-commit").cuerpo
+    assert "si una herramienta no está disponible" in c
+    assert "nunca borres, reviertas ni saques de staging" in c
+
+
+def test_gk_commit_reporte(agente):
+    assert "Reporte · gk-commit · <paso>" in agente("gk-commit").cuerpo

@@ -15,3 +15,11 @@ def test_skill_trabajo_con_agentes():
         "seguridad escribe las pruebas → api-dev implementa → seguridad revisa → commit"
         in s
     )
+
+
+def test_skill_flujo_con_bd():
+    s = SKILL.read_text(encoding="utf-8").split("## Trabajo con agentes")[1]
+    assert (
+        "seguridad escribe las pruebas → gk-db → api-dev implementa → seguridad revisa → commit"
+        in s
+    )

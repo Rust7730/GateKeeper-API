@@ -1,6 +1,7 @@
 # Agentes para el desarrollo de la API — Diseño
 
-**Fecha:** 2026-10-29 · **Estado:** pendiente de revisión del usuario
+**Fecha:** 2026-10-29 · **Estado:** aprobada; ampliada el mismo día con `gk-db` (aprobado por el usuario tras el análisis
+`docs/superpowers/analisis/2026-10-29-bd-repo-y-motor.md`: PostgreSQL en un solo repositorio)
 
 ## 1. Objetivo y alcance
 
@@ -19,8 +20,9 @@ Se definen como archivos en `.claude/agents/` dentro del repositorio, para que v
 
 | Agente | Responsabilidad | Escribe en | Herramientas | Modelo |
 |---|---|---|---|---|
-| `gk-api-dev` | Implementa los pasos de api y coordinator siguiendo `gatekeeper-guardian`: pruebas unitarias primero, parámetros del KG, nada inventado, latencia medida | `api/` (código y `api/tests/`) | Read, Grep, Glob, Edit, Write, Bash | opus |
+| `gk-api-dev` | Implementa los pasos de api y coordinator siguiendo `gatekeeper-guardian`: pruebas unitarias primero, parámetros del KG, nada inventado, latencia medida. Usa los repositorios de gk-db sin escribir SQL | `api/` excepto `api/db/` y `api/migrations/` (código y `api/tests/`) | Read, Grep, Glob, Edit, Write, Bash | opus |
 | `gk-security` | **Antes:** escribe las pruebas de los vectores del paso en `tests/attack-matrix/` y comprueba que fallen. **Después:** revisa el diff contra INV-01…INV-10, decisiones, OWASP y CWE, y corre Bandit. Veredicto `aprobado` o `cambios requeridos` | `tests/attack-matrix/` | Read, Grep, Glob, Write, Edit, Bash | opus |
+| `gk-db` | Base de datos (PostgreSQL 16): modelos SQLAlchemy, migraciones Alembic reversibles y capa de acceso. `aplicacion_id` obligatorio en toda consulta de archivos (INV-10), transición atómica, bitácora en la misma transacción (INV-08), nada sensible en claro. Prueba contra PostgreSQL real en Docker, nunca SQLite | `api/db/`, `api/migrations/` | Read, Grep, Glob, Edit, Write, Bash | opus |
 | `gk-kg` | **Único escritor** del KG y de `docs/decisiones.md`: contexto del paso, estados y decisiones como propuestas pendientes. Confirma solo con la aprobación textual del usuario que le pasa la sesión principal | `context/gatekeeper_kg.json`, `docs/decisiones.md` | Read, Grep, Glob, Edit, Bash (solo `kg.py`) | sonnet |
 | `gk-commit` | Controles del diff y commit local en una rama (sección 5) | git local | Read, Grep, Glob, Bash | sonnet |
 
@@ -60,6 +62,8 @@ decide por el usuario.**
 4. **`gk-security`**: revisa el diff. Si el veredicto es `cambios requeridos`, vuelve al punto 3, **con un
    máximo de 2 vueltas**. Si a la tercera revisión sigue sin aprobarse, la sesión principal lleva el caso al
    usuario.
+   Si el paso toca la base de datos, **`gk-db`** trabaja entre el punto 2 y el 3: esquema, migración y repositorios,
+   que gk-api-dev usa después.
 5. **`gk-kg`**: registra el estado del paso y, si las hay, las decisiones nuevas como propuestas. El usuario
    decide.
 6. **`gk-commit`**: controles y commit local.
@@ -115,7 +119,7 @@ Se aplican en orden. El primero que falla detiene el commit y el reporte explica
 1. **Repositorio y rama.** El repo existe. Nunca se hace commit en `main`/`master`: si estamos ahí, se crea la rama
    `<fase>/<paso>-<slug>` (p. ej. `f2/f2.07-rate-limit`).
 2. **Alcance.** Cada archivo cambiado pertenece a la carpeta de un agente: `api/` → gk-api-dev,
-   `tests/attack-matrix/` → gk-security, `context/gatekeeper_kg.json` y `docs/decisiones.md` → gk-kg. Cualquier
+   `tests/attack-matrix/` → gk-security, `api/db/` y `api/migrations/` → gk-db, `context/gatekeeper_kg.json` y `docs/decisiones.md` → gk-kg. Cualquier
    otro archivo se rechaza y se lista. Lo de infraestructura y configuración (p. ej. `pyproject.toml` en la raíz,
    CI) requiere que la sesión principal lo autorice de forma explícita para ese commit.
 3. **Secretos.** `.env` no está en staging y figura en `.gitignore`. El diff no contiene llaves privadas,
@@ -186,6 +190,7 @@ del agente.
 - `.claude/agents/gk-security.md`
 - `.claude/agents/gk-kg.md`
 - `.claude/agents/gk-commit.md`
+- `.claude/agents/gk-db.md`
 - Ajuste en `.claude/skills/gatekeeper-guardian/SKILL.md`: una sección "Trabajo con agentes" con las dos
   adaptaciones de la regla 3.1.
 

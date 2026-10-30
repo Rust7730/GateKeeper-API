@@ -140,7 +140,10 @@ Cuando el trabajo se reparte entre los agentes de `.claude/agents/` (diseño en
 - **Las pruebas de la matriz las escribe gk-security** en `tests/attack-matrix/`. gk-api-dev escribe sus pruebas
   unitarias en `api/tests/` y no modifica las de ataque. Así el autor de un control no escribe la prueba que lo
   aprueba.
-- **Orden de cada paso:** seguridad escribe las pruebas → api-dev implementa → seguridad revisa → commit. Entre
+- **gk-db es el dueño de la BD:** `api/db/` (modelos, sesión, repositorios) y `api/migrations/` (Alembic), con
+  pruebas contra PostgreSQL 16 en Docker. gk-api-dev usa sus repositorios y no escribe SQL.
+- **Orden de cada paso:** seguridad escribe las pruebas → api-dev implementa → seguridad revisa → commit. Si el
+  paso toca la BD: seguridad escribe las pruebas → gk-db → api-dev implementa → seguridad revisa → commit. Entre
   la revisión y el commit, gk-kg registra el estado y las propuestas.
 - **Orquestación (sesión principal):** nunca lances dos gk-kg a la vez. Permite como máximo 2 vueltas de
   corrección entre gk-security y gk-api-dev; si a la tercera revisión no hay `aprobado`, la decisión pasa al

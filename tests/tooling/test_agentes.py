@@ -121,3 +121,54 @@ def test_gk_commit_fail_closed_y_no_descarta(agente):
 
 def test_gk_commit_reporte(agente):
     assert "Reporte · gk-commit · <paso>" in agente("gk-commit").cuerpo
+
+
+def test_gk_db_frontmatter(agente):
+    a = agente("gk-db")
+    assert a.tools == {"Read", "Grep", "Glob", "Edit", "Write", "Bash"}
+    assert a.model == "opus"
+
+
+def test_gk_db_territorio_y_pruebas(agente):
+    c = agente("gk-db").cuerpo
+    for x in (
+        "api/db/",
+        "api/migrations/",
+        "api/db/tests/",
+        "PostgreSQL 16",
+        "nunca SQLite",
+    ):
+        assert x in c
+
+
+def test_gk_db_reglas_de_acceso(agente):
+    c = agente("gk-db").cuerpo
+    for x in (
+        "aplicacion_id",
+        "sin valor por defecto",
+        "RETURNING",
+        "misma transacción",
+        "HMAC",
+        "Argon2",
+        "CWE-89",
+        "upgrade → downgrade → upgrade",
+    ):
+        assert x in c
+
+
+def test_gk_db_reporte(agente):
+    assert "Reporte · gk-db · <paso>" in agente("gk-db").cuerpo
+
+
+def test_gk_api_dev_no_escribe_bd(agente):
+    assert "excepto api/db/ y api/migrations/" in agente("gk-api-dev").cuerpo
+
+
+def test_gk_security_revisa_sql(agente):
+    assert "CWE-89" in agente("gk-security").cuerpo
+
+
+def test_gk_commit_asigna_bd_a_gk_db(agente):
+    c = agente("gk-commit").cuerpo
+    assert "`api/db/` y `api/migrations/` → gk-db" in c
+    assert "Docker" in c

@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 399,
-   "aristas": 899,
+   "nodos": 406,
+   "aristas": 918,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 13,
+    "Observacion": 20,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 92,
+    "afecta": 111,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -2658,9 +2658,17 @@
    "tipo": "Paso",
    "label": "Confirmar las decisiones D1 a D6 con el usuario y escribirlas en docs/decisiones.md.",
    "props": {
-    "estado": "en_progreso",
+    "estado": "hecho",
     "orden": 1,
-    "nota": "Decisiones confirmadas y escritas en docs/decisiones.md el 2026-10-28; falta la revisión del usuario"
+    "nota": "Decisiones confirmadas y escritas en docs/decisiones.md el 2026-10-28; falta la revisión del usuario",
+    "historial": [
+     {
+      "fecha": "2026-10-29",
+      "de": "en_progreso",
+      "a": "hecho",
+      "nota": "Aprobación del usuario (2026-10-29): \"docs/decisisones aprovada\"; D1–D6 escritas en docs/decisiones.md"
+     }
+    ]
    }
   },
   {
@@ -2668,8 +2676,16 @@
    "tipo": "Paso",
    "label": "Crear el repositorio 'gatekeeper' con la estructura de 'estructura_repositorio'.",
    "props": {
-    "estado": "pendiente",
-    "orden": 2
+    "estado": "en_progreso",
+    "orden": 2,
+    "historial": [
+     {
+      "fecha": "2026-10-29",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "repo git con api/, tests/attack-matrix/, tests/tooling/, docs/, context/, .claude/; worker/, reputation/, dashboard/ e infra/ se crean al llegar su fase"
+     }
+    ]
    }
   },
   {
@@ -2677,8 +2693,16 @@
    "tipo": "Paso",
    "label": "Instalar Docker con Compose, Python 3.12 con uv y Node LTS con Angular CLI. Fijar versiones en pyproject.toml y package.json.",
    "props": {
-    "estado": "pendiente",
-    "orden": 3
+    "estado": "en_progreso",
+    "orden": 3,
+    "historial": [
+     {
+      "fecha": "2026-10-29",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "uv 0.13.6 + Python 3.12.16 + pytest 9.2.0, ruff 0.17.3, bandit 1.9.4, pyyaml 6.0.3 fijados en pyproject.toml/uv.lock; falta Node LTS + Angular CLI (fuera de alcance por ahora)"
+     }
+    ]
    }
   },
   {
@@ -2695,8 +2719,16 @@
    "tipo": "Paso",
    "label": "Crear la cuenta de VirusTotal y guardar la API key en .env, incluido en .gitignore. Ningún secreto va en el repositorio.",
    "props": {
-    "estado": "pendiente",
-    "orden": 5
+    "estado": "en_progreso",
+    "orden": 5,
+    "historial": [
+     {
+      "fecha": "2026-10-29",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": ".gitignore con .env; falta crear la cuenta de VirusTotal y guardar la API key"
+     }
+    ]
    }
   },
   {
@@ -2713,8 +2745,16 @@
    "tipo": "Paso",
    "label": "Instalar el plugin security-guidance y crear .claude/claude-security-guidance.md con los invariantes INV-01 a INV-10.",
    "props": {
-    "estado": "pendiente",
-    "orden": 7
+    "estado": "en_progreso",
+    "orden": 7,
+    "historial": [
+     {
+      "fecha": "2026-10-29",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "agentes gk-api-dev, gk-security, gk-db, gk-kg, gk-commit en .claude/agents/ con skill gatekeeper-guardian; falta el plugin security-guidance y .claude/claude-security-guidance.md"
+     }
+    ]
    }
   },
   {
@@ -4030,6 +4070,92 @@
    "props": {
     "objetivo": "alerta si la espera > 2 s",
     "origen": "K12"
+   }
+  },
+  {
+   "id": "K14",
+   "tipo": "Observacion",
+   "label": "Contexto de transiciones de estado",
+   "props": {
+    "propuesta": "error→pendiente exige tipo_error (transitorio|final) y reintentos (int ≥ 0, < 2); en_cuarentena→* exige usuario, motivo, liberado_en (datetime con zona) y resultado_cdr coincidente con el destino; claves faltantes o extra se rechazan",
+    "hallazgo": "Propuesta de gk-api-dev (piloto)",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-29",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K15",
+   "tipo": "Observacion",
+   "label": "Tipos estrictos en la máquina de estados",
+   "props": {
+    "propuesta": "transicionar y es_descargable solo aceptan miembros de Estado; la persistencia convierte con Estado(valor)",
+    "hallazgo": "Propuesta de gk-api-dev (piloto)",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-29",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K16",
+   "tipo": "Observacion",
+   "label": "Evidencia del análisis en pendiente→{limpio,en_cuarentena,rechazado}",
+   "props": {
+    "propuesta": "Exigir el resultado del CDR y el veredicto antes de F3",
+    "hallazgo": "Hallazgo media de gk-security (piloto)",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-29",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K17",
+   "tipo": "Observacion",
+   "label": "Contador de reintentos persistido en la BD",
+   "props": {
+    "propuesta": "Persistir el contador de reintentos en la BD y coordinarlo con arq_max_tries",
+    "hallazgo": "Propuesta de gk-security (piloto)",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-29",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K18",
+   "tipo": "Observacion",
+   "label": "Tope y filtro de caracteres de control en usuario y motivo de liberación",
+   "props": {
+    "propuesta": "Tope de longitud y filtro de caracteres de control para usuario y motivo; el valor del tope NO está definido",
+    "hallazgo": "Propuesta de gk-security (piloto); requiere que el usuario fije el tope",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-29",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K19",
+   "tipo": "Observacion",
+   "label": "liberado_en generado por el servidor",
+   "props": {
+    "propuesta": "liberado_en lo genera el servidor, nunca se toma del cliente",
+    "hallazgo": "Propuesta de gk-security (piloto)",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-29",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K20",
+   "tipo": "Observacion",
+   "label": "Privacidad en el dashboard: detalle solo de cuarentena o malware",
+   "props": {
+    "propuesta": "Desde el dashboard (analista y admin), de un archivo limpio, rechazado, pendiente o error sin detección de malware solo se ven metadatos mínimos: id, aplicación, estado, tipo detectado, tamaño y fechas; nunca el contenido ni el nombre original. El detalle completo (nombre original, SHA-256, resultado por capa) solo se ve de archivos en_cuarentena o con malware detectado por alguna capa. El contenido nunca se sirve desde el dashboard salvo lo que ya define la liberación de cuarentena. Las funciones de lectura de admin van en un módulo separado del público y aplican esta restricción (resuelve la pregunta de gk-db en P9).",
+    "hallazgo": "Privacidad: el usuario decidió no ver archivos salvo malware detectado o cuarentena; para el resto, solo metadatos mínimos.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-29",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Desde el dashboard (analista y admin), de un archivo limpio, rechazado, pendiente o error sin detección de malware solo se ven metadatos mínimos: id, aplicación, estado, tipo detectado, tamaño y fechas; nunca el contenido ni el nombre original. El detalle completo (nombre original, SHA-256, resultado por capa) solo se ve de archivos en_cuarentena o con malware detectado por alguna capa. El contenido nunca se sirve desde el dashboard salvo lo que ya define la liberación de cuarentena. Las funciones de lectura de admin van en un módulo separado del público y aplican esta restricción (resuelve la pregunta de gk-db en P9).",
+    "fecha_decision": "2026-10-29"
    }
   }
  ],
@@ -8626,6 +8752,101 @@
    "de": "M1",
    "rel": "mide",
    "a": "O2"
+  },
+  {
+   "de": "K14",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K15",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K15",
+   "rel": "afecta",
+   "a": "F2.05"
+  },
+  {
+   "de": "K16",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K16",
+   "rel": "afecta",
+   "a": "INV-01"
+  },
+  {
+   "de": "K16",
+   "rel": "afecta",
+   "a": "INV-09"
+  },
+  {
+   "de": "K17",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K17",
+   "rel": "afecta",
+   "a": "F1.07"
+  },
+  {
+   "de": "K17",
+   "rel": "afecta",
+   "a": "param:arq_max_tries"
+  },
+  {
+   "de": "K18",
+   "rel": "afecta",
+   "a": "F5.06"
+  },
+  {
+   "de": "K19",
+   "rel": "afecta",
+   "a": "F5.06"
+  },
+  {
+   "de": "K19",
+   "rel": "afecta",
+   "a": "INV-08"
+  },
+  {
+   "de": "K20",
+   "rel": "afecta",
+   "a": "ep:GET /v1/admin/files"
+  },
+  {
+   "de": "K20",
+   "rel": "afecta",
+   "a": "ent:archivo"
+  },
+  {
+   "de": "K20",
+   "rel": "afecta",
+   "a": "INV-10"
+  },
+  {
+   "de": "K20",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K20",
+   "rel": "afecta",
+   "a": "F5.07"
+  },
+  {
+   "de": "K20",
+   "rel": "afecta",
+   "a": "F5.08"
+  },
+  {
+   "de": "K20",
+   "rel": "afecta",
+   "a": "F5.09"
   }
  ]
 }

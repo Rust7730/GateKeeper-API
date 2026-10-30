@@ -1,6 +1,7 @@
 # Agentes para el desarrollo de la API — Diseño
 
-**Fecha:** 2026-10-29 · **Estado:** pendiente de revisión del usuario
+**Fecha:** 2026-10-29 · **Estado:** aprobada; ampliada el mismo día con `gk-db` (aprobado por el usuario tras el análisis
+`docs/superpowers/analisis/2026-10-29-bd-repo-y-motor.md`: PostgreSQL en un solo repositorio)
 
 ## 1. Objetivo y alcance
 
@@ -19,8 +20,9 @@ Se definen como archivos en `.claude/agents/` dentro del repositorio, para que v
 
 | Agente | Responsabilidad | Escribe en | Herramientas | Modelo |
 |---|---|---|---|---|
-| `gk-api-dev` | Implementa los pasos de api y coordinator siguiendo `gatekeeper-guardian`: pruebas unitarias primero, parámetros del KG, nada inventado, latencia medida | `api/` (código y `api/tests/`) | Read, Grep, Glob, Edit, Write, Bash | opus |
+| `gk-api-dev` | Implementa los pasos de api y coordinator siguiendo `gatekeeper-guardian`: pruebas unitarias primero, parámetros del KG, nada inventado, latencia medida. Usa los repositorios de gk-db sin escribir SQL | `api/` excepto `api/db/` y `api/migrations/` (código y `api/tests/`) | Read, Grep, Glob, Edit, Write, Bash | opus |
 | `gk-security` | **Antes:** escribe las pruebas de los vectores del paso en `tests/attack-matrix/` y comprueba que fallen. **Después:** revisa el diff contra INV-01…INV-10, decisiones, OWASP y CWE, y corre Bandit. Veredicto `aprobado` o `cambios requeridos` | `tests/attack-matrix/` | Read, Grep, Glob, Write, Edit, Bash | opus |
+| `gk-db` | Base de datos (PostgreSQL 16): modelos SQLAlchemy, migraciones Alembic reversibles y capa de acceso. `aplicacion_id` obligatorio en toda consulta de archivos (INV-10), transición atómica, bitácora en la misma transacción (INV-08), nada sensible en claro. Prueba contra PostgreSQL real en Docker, nunca SQLite | `api/db/`, `api/migrations/` | Read, Grep, Glob, Edit, Write, Bash | opus |
 | `gk-kg` | **Único escritor** del KG y de `docs/decisiones.md`: contexto del paso, estados y decisiones como propuestas pendientes. Confirma solo con la aprobación textual del usuario que le pasa la sesión principal | `context/gatekeeper_kg.json`, `docs/decisiones.md` | Read, Grep, Glob, Edit, Bash (solo `kg.py`) | sonnet |
 | `gk-commit` | Controles del diff y commit local en una rama (sección 5) | git local | Read, Grep, Glob, Bash | sonnet |
 
@@ -60,6 +62,8 @@ decide por el usuario.**
 4. **`gk-security`**: revisa el diff. Si el veredicto es `cambios requeridos`, vuelve al punto 3, **con un
    máximo de 2 vueltas**. Si a la tercera revisión sigue sin aprobarse, la sesión principal lleva el caso al
    usuario.
+   Si el paso toca la base de datos, **`gk-db`** trabaja entre el punto 2 y el 3: esquema, migración y repositorios,
+   que gk-api-dev usa después.
 5. **`gk-kg`**: registra el estado del paso y, si las hay, las decisiones nuevas como propuestas. El usuario
    decide.
 6. **`gk-commit`**: controles y commit local.
@@ -94,7 +98,9 @@ Con un solo hallazgo de severidad **alta**, el resultado es `cambios requeridos`
 
 El veredicto también incluye la línea `Árbol revisado: <hash>`, que es el hash del árbol de trabajo que se revisó
 y lo calcula `.claude/skills/gatekeeper-guardian/scripts/arbol.py`. Así la aprobación queda atada a ese contenido
-exacto. Si después cambia un solo archivo, el veredicto deja de valer.
+exacto. Si después cambia un solo archivo, el veredicto deja de valer. El hash excluye `context/gatekeeper_kg.json`
+y `docs/decisiones.md`: gk-kg los escribe después de la revisión (paso 5 del flujo) y su validez la comprueba el
+control 6 de gk-commit.
 
 ### 4.4 Latencia mientras no exista `gk-performance`
 
@@ -113,7 +119,7 @@ Se aplican en orden. El primero que falla detiene el commit y el reporte explica
 1. **Repositorio y rama.** El repo existe. Nunca se hace commit en `main`/`master`: si estamos ahí, se crea la rama
    `<fase>/<paso>-<slug>` (p. ej. `f2/f2.07-rate-limit`).
 2. **Alcance.** Cada archivo cambiado pertenece a la carpeta de un agente: `api/` → gk-api-dev,
-   `tests/attack-matrix/` → gk-security, `context/gatekeeper_kg.json` y `docs/decisiones.md` → gk-kg. Cualquier
+   `tests/attack-matrix/` → gk-security, `api/db/` y `api/migrations/` → gk-db, `context/gatekeeper_kg.json` y `docs/decisiones.md` → gk-kg. Cualquier
    otro archivo se rechaza y se lista. Lo de infraestructura y configuración (p. ej. `pyproject.toml` en la raíz,
    CI) requiere que la sesión principal lo autorice de forma explícita para ese commit.
 3. **Secretos.** `.env` no está en staging y figura en `.gitignore`. El diff no contiene llaves privadas,
@@ -130,8 +136,8 @@ Se aplican en orden. El primero que falla detiene el commit y el reporte explica
 6. **KG.** `kg.py validar` sin aristas rotas. Una decisión que aparece `confirmada` en el diff solo pasa si la
    sesión principal declara que el usuario la aprobó.
 7. **Mensaje.** Conventional Commits, con el paso en el asunto (p. ej. `feat(api): rate limit por API key [F2.07]`),
-   y un cuerpo con invariantes tocadas, vectores en verde, latencia medida y decisiones pendientes. Termina con:
-   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
+   y un cuerpo con invariantes tocadas, vectores en verde, latencia medida y decisiones pendientes. Sin líneas
+   `Co-Authored-By` ni atribución a Claude (decisión del usuario del 2026-10-30).
 
 **Nunca:** `--no-verify`, `--amend` sobre commits ajenos, `push`, `--force`, `reset --hard`.
 
@@ -184,6 +190,7 @@ del agente.
 - `.claude/agents/gk-security.md`
 - `.claude/agents/gk-kg.md`
 - `.claude/agents/gk-commit.md`
+- `.claude/agents/gk-db.md`
 - Ajuste en `.claude/skills/gatekeeper-guardian/SKILL.md`: una sección "Trabajo con agentes" con las dos
   adaptaciones de la regla 3.1.
 
@@ -191,3 +198,19 @@ del agente.
 
 La iteración 2 de la evaluación de `gatekeeper-guardian` quedó incompleta: dos ejecuciones, máquina de estados y
 rate limit, ambas con la skill, no terminaron al cerrarse la sesión. Se retoma aparte; no bloquea este diseño.
+
+## 11. Correcciones de la revisión final (2026-10-29)
+
+La revisión de toda la rama encontró un hallazgo crítico y cuatro importantes. Se corrigieron así; donde esta
+sección contradice a las anteriores, manda esta.
+
+| Id | Problema | Corrección |
+|---|---|---|
+| C1 | La revisión y la búsqueda de secretos usaban `git diff`, que no muestra lo que ya está en staging, aunque el hash sí lo incluía | `arbol.py --diff` y `--archivos` muestran de HEAD al árbol exactamente lo que cubre el hash; seguridad revisa eso y gk-commit lo escanea. Ningún agente salvo gk-commit hace `git add` |
+| I1 | Los archivos de gk-kg, excluidos del hash, no tenían lista blanca | `kg.py diff-permitido HEAD`: solo pasan estado, historial y nota de pasos y fases (con las reglas de `hecho`), propuestas K## nuevas en `pendiente` con sus aristas `afecta`, y `meta.conteos`. Todo lo demás exige `Aprobación del usuario (<id>): "…"` con el id exacto. gk-kg cierra con `KG registrado: <hashes>` y gk-commit los compara |
+| I2 | Las pruebas de ataque no tenían sello | En la fase A, gk-security reporta `Pruebas de ataque: <arbol.py --sello tests/attack-matrix>`; la fase B y gk-commit verifican que no cambió |
+| I3 | Huecos en la búsqueda de secretos | `detect-secrets scan --all-files` (determinista) sobre los archivos del diff, más nombres en español, contraseñas, DSN y URLs con credenciales; `.gitignore` cubre `.env.*` excepto `.env.example` |
+| I4 | El control 5 exigía siempre un reporte de gk-api-dev | Se exige el reporte del implementador real (gk-api-dev y/o gk-db). Un commit de solo documentación o KG no requiere reporte de implementador, pero sí el veredicto de seguridad |
+
+Además, desde el 2026-10-29 `.claude/agents/` está en `.gitignore` por decisión del usuario. Las pruebas de contrato
+de `tests/tooling/` se omiten si la carpeta no existe.

@@ -2668,8 +2668,16 @@
    "tipo": "Paso",
    "label": "Crear el repositorio 'gatekeeper' con la estructura de 'estructura_repositorio'.",
    "props": {
-    "estado": "pendiente",
-    "orden": 2
+    "estado": "en_progreso",
+    "orden": 2,
+    "historial": [
+     {
+      "fecha": "2026-10-29",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "repo git con api/, tests/attack-matrix/, tests/tooling/, docs/, context/, .claude/; worker/, reputation/, dashboard/ e infra/ se crean al llegar su fase"
+     }
+    ]
    }
   },
   {
@@ -2677,8 +2685,16 @@
    "tipo": "Paso",
    "label": "Instalar Docker con Compose, Python 3.12 con uv y Node LTS con Angular CLI. Fijar versiones en pyproject.toml y package.json.",
    "props": {
-    "estado": "pendiente",
-    "orden": 3
+    "estado": "en_progreso",
+    "orden": 3,
+    "historial": [
+     {
+      "fecha": "2026-10-29",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "uv 0.13.6 + Python 3.12.16 + pytest 9.2.0, ruff 0.17.3, bandit 1.9.4, pyyaml 6.0.3 fijados en pyproject.toml/uv.lock; falta Node LTS + Angular CLI (fuera de alcance por ahora)"
+     }
+    ]
    }
   },
   {
@@ -2695,8 +2711,16 @@
    "tipo": "Paso",
    "label": "Crear la cuenta de VirusTotal y guardar la API key en .env, incluido en .gitignore. Ningún secreto va en el repositorio.",
    "props": {
-    "estado": "pendiente",
-    "orden": 5
+    "estado": "en_progreso",
+    "orden": 5,
+    "historial": [
+     {
+      "fecha": "2026-10-29",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": ".gitignore con .env; falta crear la cuenta de VirusTotal y guardar la API key"
+     }
+    ]
    }
   },
   {
@@ -2713,8 +2737,16 @@
    "tipo": "Paso",
    "label": "Instalar el plugin security-guidance y crear .claude/claude-security-guidance.md con los invariantes INV-01 a INV-10.",
    "props": {
-    "estado": "pendiente",
-    "orden": 7
+    "estado": "en_progreso",
+    "orden": 7,
+    "historial": [
+     {
+      "fecha": "2026-10-29",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "agentes gk-api-dev, gk-security, gk-db, gk-kg, gk-commit en .claude/agents/ con skill gatekeeper-guardian; falta el plugin security-guidance y .claude/claude-security-guidance.md"
+     }
+    ]
    }
   },
   {

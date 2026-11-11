@@ -11,14 +11,20 @@ Reglas de este módulo:
   convertido a ``Estado`` (K15): ``es_descargable`` exige el miembro, no el texto.
 - **CWE-89:** solo constructor de consultas de SQLAlchemy, siempre con parámetros.
 
-- **CWE-117/CWE-532:** ningún ``IntegrityError`` sale de aquí. Su DETAIL trae la fila
-  completa ("Failing row contains ..."), con ``nombre_original`` sin escapar y el hash de
-  la key. Toda escritura pasa por ``_escribir``, que lo cambia por
-  ``ViolacionDeRestriccion``, con solo el nombre de la restricción.
+- **CWE-117/CWE-532:** ningún error de una escritura sale de aquí con datos. Toda escritura
+  pasa por ``_escribir``, que hace dos cambios:
 
-Tras una ``ViolacionDeRestriccion`` la transacción queda abortada en PostgreSQL: un
-``COMMIT`` sería en realidad un ``ROLLBACK``. Quien llama debe salir del bloque
-``fabrica.begin()``, que la revierte, y no seguir usando esa sesión.
+  - ``IntegrityError`` por ``ViolacionDeRestriccion``, con solo el nombre de la restricción.
+    Su DETAIL trae la fila completa ("Failing row contains ..."), con ``nombre_original``
+    sin escapar y el hash de la key.
+  - ``DataError`` y ``ValueError`` por ``DatoRechazado``, sin nada del valor. El ``CONTEXT``
+    de PostgreSQL trae un trozo del dato y ``.params`` todos los valores. Un surrogate llega
+    como ``UnicodeEncodeError`` sin envolver, y su ``.object`` guarda el texto completo.
+
+Tras cualquiera de las dos, quien llama debe salir del bloque ``fabrica.begin()``, que
+revierte, y no seguir usando esa sesión. Si el rechazo vino del servidor la transacción ya
+está abortada y un ``COMMIT`` sería en realidad un ``ROLLBACK``. Si vino de psycopg, la
+sentencia no llegó a enviarse y la transacción sigue viva: confirmar guardaría a medias.
 """
 
 import uuid
@@ -41,7 +47,7 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app.estados import Estado, TransicionInvalida, transicionar
@@ -82,6 +88,16 @@ class ViolacionDeRestriccion(Exception):
     def __init__(self, restriccion: str | None) -> None:
         super().__init__(f"la BD rechazó la escritura: {restriccion or 'sin nombre'}")
         self.restriccion = restriccion
+
+
+class DatoRechazado(Exception):
+    """Un valor no se puede guardar: NUL, surrogate o no cabe en la columna.
+
+    No lleva nada del valor, ni en el mensaje ni en atributos.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("la BD no puede guardar uno de los valores")
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,17 +161,25 @@ def _nombre_de_restriccion(error: IntegrityError) -> str | None:
 
 
 async def _escribir(sesion: AsyncSession, sentencia: Executable) -> Result[Any]:
-    """Ejecuta una escritura y traduce el choque con una restricción.
+    """Ejecuta una escritura y traduce lo que la BD rechaza por los datos.
+
+    ``ValueError`` cubre lo que psycopg lanza al codificar un parámetro antes de enviarlo
+    (``UnicodeEncodeError`` es una subclase) y SQLAlchemy deja pasar sin envolver. El ``try``
+    abarca solo la ejecución, y todo lo demás (BD caída, timeout) sale tal cual: no es
+    culpa del dato.
 
     El ``raise`` va fuera del ``except`` a propósito: dentro, ``from None`` solo evita que
-    se imprima el contexto, pero el ``IntegrityError`` seguiría en ``__context__`` con el
+    se imprima el contexto, pero el error original seguiría en ``__context__`` con el
     DETAIL completo, al alcance de cualquier manejador de errores.
     """
+    rechazo: ViolacionDeRestriccion | DatoRechazado
     try:
         return await sesion.execute(sentencia)
     except IntegrityError as error:
-        restriccion = _nombre_de_restriccion(error)
-    raise ViolacionDeRestriccion(restriccion) from None
+        rechazo = ViolacionDeRestriccion(_nombre_de_restriccion(error))
+    except (DataError, ValueError):
+        rechazo = DatoRechazado()
+    raise rechazo from None
 
 
 # ------------------------------------------------------------------- aplicaciones y keys
@@ -287,7 +311,8 @@ async def cambiar_estado(
     Lanza ``TransicionInvalida`` si el cambio no se permite (sin tocar la BD),
     ``ArchivoNoEncontrado`` si el archivo no existe o es de otra aplicación,
     ``ConflictoDeEstado`` si otro proceso cambió el estado antes, ``SinEvidenciaCDR`` si
-    falta la evidencia y ``ViolacionDeRestriccion`` si la BD rechaza los valores.
+    falta la evidencia, ``ViolacionDeRestriccion`` si los valores rompen una restricción y
+    ``DatoRechazado`` si no se pueden guardar.
     """
     _validar_cambio(actual, nuevo, tipo_error)
 
@@ -344,8 +369,9 @@ async def registrar_resultado(
     """Guarda el resultado de una capa y devuelve su id.
 
     La fila sale de un ``INSERT ... SELECT`` sobre el archivo filtrado por aplicación: si
-    no es de esa aplicación no se inserta nada y se lanza ``ArchivoNoEncontrado``. Si la BD
-    rechaza los valores se lanza ``ViolacionDeRestriccion``.
+    no es de esa aplicación no se inserta nada y se lanza ``ArchivoNoEncontrado``. Si los
+    valores rompen una restricción se lanza ``ViolacionDeRestriccion``, y si no se pueden
+    guardar (un NUL o un NaN en ``detalle``, por ejemplo), ``DatoRechazado``.
     """
     fuente = select(
         Archivo.id,

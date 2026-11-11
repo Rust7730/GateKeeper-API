@@ -21,6 +21,7 @@ from api.app.principal import crear_app
 from api.app.v1 import crear_router_v1
 from api.db.config import VARIABLE_URL_BD
 from api.db.modelos import ApiKey, Aplicacion
+from api.db.repositorios import DatoRechazado
 from api.tests.soporte_api import url_cruda, url_sin_servidor
 
 RAIZ = Path(__file__).resolve().parents[2]
@@ -184,6 +185,27 @@ def test_el_error_no_repite_el_nombre_recibido(
     # Un nombre con secuencias de escape no debe llegar a la terminal de quien lo corre.
     alta.main(["\x1b[31mportal"])
     assert "\x1b" not in capsys.readouterr().err
+
+
+@pytest.mark.usefixtures("entorno")
+def test_dato_que_la_bd_rechaza_da_mensaje_claro_sin_repetir_el_nombre(
+    bd_limpia: URL,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _rechaza(*_: object) -> None:
+        raise DatoRechazado
+
+    monkeypatch.setattr(alta, "crear_aplicacion", _rechaza)
+    nombre = f"nombre-{secrets.token_hex(8)}"
+
+    assert alta.main([nombre]) != 0
+
+    salida = capsys.readouterr()
+    assert salida.out == ""
+    assert "no es válido" in salida.err
+    assert nombre not in salida.err
+    assert _filas(bd_limpia) == ([], [])
 
 
 @pytest.mark.usefixtures("entorno")

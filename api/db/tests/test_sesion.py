@@ -4,11 +4,18 @@ import asyncio
 import secrets
 import socket
 import time
+import traceback
+from collections.abc import Callable
 
 import pytest
 from sqlalchemy import insert, text
-from sqlalchemy.engine import URL
-from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
+from sqlalchemy.engine import URL, make_url
+from sqlalchemy.exc import (
+    ArgumentError,
+    DBAPIError,
+    IntegrityError,
+    OperationalError,
+)
 from sqlalchemy.exc import TimeoutError as TimeoutDelPool
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
@@ -17,7 +24,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 
-from api.db.config import ConfiguracionBDError
+from api.db.config import ESQUEMA_PERMITIDO, ConfiguracionBDError
 from api.db.modelos import ApiKey, Aplicacion
 from api.db.sesion import crear_motor
 
@@ -99,6 +106,84 @@ def test_acepta_url_como_objeto() -> None:
     # Las pruebas la pasan como URL porque ese objeto oculta la contraseña en su repr.
     url = URL.create("postgresql+psycopg", host="127.0.0.1", database="gk")
     assert crear_motor(url).dialect.driver == "psycopg"
+
+
+# --- CWE-532: una URL que no se puede leer no sale en el error -------------------------
+
+
+def _url_sin_escapar(contrasena: str) -> str:
+    # El esquema va en la constante: el control de secretos no admite la forma completa.
+    return f"{ESQUEMA_PERMITIDO}usuario:{contrasena}@127.0.0.1:5432/gk"
+
+
+def _sin_rastro(error: BaseException, *datos: str) -> None:
+    assert error.__cause__ is None
+    assert error.__context__ is None
+    texto = "\n".join(
+        [
+            str(error),
+            repr(error),
+            repr(error.args),
+            "".join(traceback.format_exception(error)),
+        ]
+    )
+    for dato in datos:
+        assert dato not in texto
+
+
+def test_una_contrasena_con_arroba_y_dos_puntos_no_sale_en_el_error() -> None:
+    trozos = [secrets.token_hex(8) for _ in range(3)]
+    contrasena = "".join((trozos[0], "@", trozos[1], ":", trozos[2]))
+    texto = _url_sin_escapar(contrasena)
+
+    # Premisa: sin el control, el último trozo llega al mensaje como si fuera el puerto.
+    with pytest.raises(ValueError, match=trozos[2]):
+        make_url(texto)
+
+    with pytest.raises(ConfiguracionBDError) as error:
+        crear_motor(texto)
+
+    _sin_rastro(error.value, contrasena, *trozos)
+
+
+@pytest.mark.parametrize(
+    "armar",
+    [
+        lambda contrasena: f"esto no es una url {contrasena}",
+        lambda contrasena: _url_sin_escapar(contrasena).encode(),
+    ],
+    ids=["sin_esquema", "bytes"],
+)
+def test_una_url_que_no_se_entiende_no_sale_en_el_error(
+    armar: Callable[[str], str],
+) -> None:
+    contrasena = secrets.token_hex(16)
+    url = armar(contrasena)
+
+    # Premisa: es el otro error de make_url, y con bytes también repite el valor.
+    with pytest.raises(ArgumentError):
+        make_url(url)
+
+    with pytest.raises(ConfiguracionBDError) as error:
+        crear_motor(url)
+
+    _sin_rastro(error.value, contrasena)
+
+
+def test_el_error_de_la_url_dice_que_hay_que_escapar_la_contrasena() -> None:
+    contrasena = "".join((secrets.token_hex(8), "@", secrets.token_hex(8), ":x"))
+
+    with pytest.raises(ConfiguracionBDError, match="%40"):
+        crear_motor(_url_sin_escapar(contrasena))
+
+
+def test_una_contrasena_escapada_se_acepta_completa() -> None:
+    contrasena = "".join((secrets.token_hex(8), "@", secrets.token_hex(8), ":x"))
+    url = _url_con_credencial("postgresql+psycopg", contrasena)
+
+    motor = crear_motor(url.render_as_string(hide_password=False))
+
+    assert motor.url.password == contrasena
 
 
 # --- CWE-532: los parámetros no salen en los errores ---------------------------------

@@ -16,6 +16,11 @@ HEADERS_SEGURIDAD = {
 RUTAS_DOCS = ("/docs", "/redoc", "/openapi.json")
 # /docs y /redoc no existen nunca; solo /openapi.json puede encenderse.
 RUTAS_DOCS_SIEMPRE_APAGADAS = ("/docs", "/docs/oauth2-redirect", "/redoc")
+RUTAS_V1 = {
+    "/v1/files",
+    "/v1/files/{archivo_id}",
+    "/v1/files/{archivo_id}/content",
+}
 
 
 @pytest.fixture
@@ -86,17 +91,27 @@ def test_docs_y_redoc_apagados_incluso_con_1(
     _assert_headers_seguridad(respuesta)
 
 
-def test_sin_otras_rutas_que_health(cliente: TestClient) -> None:
-    rutas = {getattr(r, "path", None) for r in cliente.app.routes}
-    assert rutas == {"/health"}
+def _rutas(app) -> set[str]:
+    """Rutas de la app. FastAPI 0.162 deja cada `include_router` como un solo objeto."""
+    rutas: set[str] = set()
+    for ruta in app.routes:
+        incluido = getattr(ruta, "original_router", None)
+        if incluido is None:
+            rutas.add(ruta.path)
+        else:
+            rutas |= {r.path for r in incluido.routes}
+    return rutas
 
 
-def test_sin_otras_rutas_que_health_y_docs_con_docs_encendidos(
+def test_sin_otras_rutas_que_health_y_v1(cliente: TestClient) -> None:
+    assert _rutas(cliente.app) == {"/health"} | RUTAS_V1
+
+
+def test_sin_otras_rutas_que_health_v1_y_docs_con_docs_encendidos(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("GATEKEEPER_DOCS", "1")
-    rutas = {getattr(r, "path", None) for r in crear_app().routes}
-    assert rutas == {"/health", "/openapi.json"}
+    assert _rutas(crear_app()) == {"/health", "/openapi.json"} | RUTAS_V1
 
 
 def test_sin_header_server(cliente: TestClient) -> None:

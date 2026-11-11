@@ -1,9 +1,11 @@
 """Configuración de la API (diseño §2): falla al arrancar y nunca muestra un valor."""
 
+import math
 import os
 import secrets
 import stat
 import string
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -319,3 +321,60 @@ def test_una_base_que_es_archivo_falla_sin_mostrar_la_ruta(tmp_path: Path) -> No
 def test_una_ruta_con_nul_falla_como_configuracion(tmp_path: Path) -> None:
     with pytest.raises(ConfiguracionError):
         preparar_directorios(tmp_path / "con\0nul")
+
+
+# ----------------------------------------------------------------- costura del proceso hijo
+
+
+def test_el_comando_y_el_timeout_del_cdr_tienen_valor_por_defecto() -> None:
+    ajustes = _ajustes()
+    assert ajustes.comando_cdr == (sys.executable, "-m", "api.app.cdr_hijo")
+    assert ajustes.timeout_cdr_s == 30
+
+
+def test_el_tope_de_recepcion_tiene_valor_por_defecto() -> None:
+    """K40: 60 s para recibir el cuerpo de `POST /v1/files`."""
+    assert _ajustes().timeout_recepcion_s == 60
+
+
+@pytest.mark.usefixtures("entorno")
+def test_leer_ajustes_deja_la_costura_en_su_valor_por_defecto(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GATEKEEPER_COMANDO_CDR", "/bin/true")
+    monkeypatch.setenv("GATEKEEPER_TIMEOUT_CDR_S", "1")
+    monkeypatch.setenv("GATEKEEPER_TIMEOUT_RECEPCION_S", "9999")
+    assert leer_ajustes().comando_cdr == _ajustes().comando_cdr
+    assert leer_ajustes().timeout_cdr_s == _ajustes().timeout_cdr_s
+    assert leer_ajustes().timeout_recepcion_s == _ajustes().timeout_recepcion_s
+
+
+@pytest.mark.parametrize(
+    "comando",
+    [(), [sys.executable], "python", ("",), (sys.executable, 1)],
+    ids=["vacio", "lista", "texto", "vacio_dentro", "no_texto"],
+)
+def test_un_comando_invalido_no_crea_ajustes(comando: object) -> None:
+    with pytest.raises(ConfiguracionError):
+        Ajustes(
+            url_bd=URL_FALSA,
+            pepper=PEPPER_VALIDO,
+            datos=Path("/x/d"),
+            comando_cdr=comando,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    [0, -1, math.nan, math.inf, "30", True, None],
+    ids=["cero", "negativo", "nan", "infinito", "texto", "booleano", "nulo"],
+)
+@pytest.mark.parametrize("campo", ["timeout_cdr_s", "timeout_recepcion_s"])
+def test_un_timeout_invalido_no_crea_ajustes(timeout: object, campo: str) -> None:
+    with pytest.raises(ConfiguracionError):
+        Ajustes(
+            url_bd=URL_FALSA,
+            pepper=PEPPER_VALIDO,
+            datos=Path("/x/d"),
+            **{campo: timeout},  # type: ignore[arg-type]
+        )

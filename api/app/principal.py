@@ -1,5 +1,6 @@
 """Fábrica de la aplicación FastAPI de Gatekeeper."""
 
+import asyncio
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -8,7 +9,9 @@ from fastapi import FastAPI, Response
 from starlette.middleware import Middleware
 
 from api.app.ajustes import Ajustes, abrir_motor, leer_ajustes, preparar_directorios
+from api.app.analisis import cancelar_analisis
 from api.app.seguridad import HeadersSeguridad
+from api.app.v1 import crear_router_v1
 from api.db.sesion import fabrica_sesiones
 
 # Middlewares de la app, del más externo al más interno. Todo middleware nuevo se añade AQUÍ, no con
@@ -34,9 +37,13 @@ def crear_app(ajustes: Ajustes | None = None) -> FastAPI:
         app.state.ajustes = vigentes
         app.state.motor = motor
         app.state.sesiones = fabrica_sesiones(motor)
+        # K09: un proceso hijo por archivo, y como mucho uno por núcleo a la vez.
+        app.state.cupos = asyncio.Semaphore(os.cpu_count() or 1)
+        app.state.tareas = set()
         try:
             yield
         finally:
+            await cancelar_analisis(app.state)
             await motor.dispose()
 
     app = FastAPI(
@@ -53,6 +60,8 @@ def crear_app(ajustes: Ajustes | None = None) -> FastAPI:
     # HeadersSeguridad tiene que ser el middleware más externo: `add_middleware` inserta en la posición 0.
     # Por eso va al final y ningún middleware se añade después de esta línea (ver MIDDLEWARES_INTERNOS).
     app.add_middleware(HeadersSeguridad)
+
+    app.include_router(crear_router_v1())
 
     @app.get("/health")
     def health() -> dict[str, str]:

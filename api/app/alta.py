@@ -15,6 +15,7 @@ from api.app.ajustes import ConfiguracionError, abrir_motor, leer_pepper
 from api.app.autenticacion import calcular_hash, generar_key
 from api.db.config import ConfiguracionBDError, url_bd
 from api.db.repositorios import (
+    DatoRechazado,
     ViolacionDeRestriccion,
     crear_api_key,
     crear_aplicacion,
@@ -84,6 +85,8 @@ def main(argumentos: list[str] | None = None) -> int:
         key = asyncio.run(_crear(url_bd(), leer_pepper(), nombre))
     except (ConfiguracionError, ConfiguracionBDError) as error:
         return _fallo(str(error))
+    except DatoRechazado:
+        return _fallo(_NOMBRE_INVALIDO)
     except ViolacionDeRestriccion as error:
         return _fallo(
             _MENSAJES_DE_RESTRICCION.get(

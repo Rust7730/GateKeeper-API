@@ -18,8 +18,8 @@ from functools import partial
 from typing import Any
 
 import pytest
-from sqlalchemy import func, select, text, update
-from sqlalchemy.exc import DataError
+from sqlalchemy import func, insert, select, text, update
+from sqlalchemy.exc import DataError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from api.app.estados import Estado, TransicionInvalida, es_descargable
@@ -28,6 +28,7 @@ from api.db.modelos import ApiKey, Aplicacion, Archivo, ResultadoAnalisis
 from api.db.repositorios import (
     ArchivoNoEncontrado,
     ConflictoDeEstado,
+    DatoRechazado,
     DatosApiKey,
     DatosArchivo,
     SinEvidenciaCDR,
@@ -1112,25 +1113,6 @@ async def test_crear_archivo_no_filtra_nombre_ni_sha256(sesiones: Sesiones) -> N
     _sin_rastro(error.value, "linea1", "INFO falsa", SHA_MARCADO)
 
 
-@pytest.mark.parametrize("cola", ["x" * 256, "\x00"], ids=["demasiado_largo", "nul"])
-async def test_nombre_que_no_cabe_en_el_tipo_no_se_muestra(
-    sesiones: Sesiones, cola: str
-) -> None:
-    # No choca con una restricción sino con el tipo: es un DataError y no se traduce. Lo
-    # que importa es que el nombre, que lo elige quien sube el archivo, no vaya en él.
-    app_id = await _aplicacion(sesiones)
-    marca = secrets.token_hex(8)
-
-    with pytest.raises(DataError) as error:
-        async with sesiones.begin() as sesion:
-            await crear_archivo(
-                sesion, app_id, uuid.uuid4(), marca + cola, 1, SHA_MARCADO
-            )
-
-    assert marca not in _texto_visible(error.value)
-    assert SHA_MARCADO not in _texto_visible(error.value)
-
-
 async def test_crear_archivo_con_id_repetido(sesiones: Sesiones) -> None:
     app_id = await _aplicacion(sesiones)
     creado = await _archivo(sesiones, app_id)
@@ -1255,6 +1237,304 @@ async def test_registrar_resultado_con_not_null_tampoco_filtra(
 
     assert error.value.restriccion is None
     _sin_rastro(error.value, marca)
+
+
+# --- CWE-117/CWE-532: un valor que la BD no puede guardar no arrastra datos --------------------
+
+# Cada escritura pública con cada forma de romper el valor: unas las rechaza psycopg y otras
+# el servidor. ``marca`` es lo que no debe salir; la cola solo hace que el valor no quepa.
+Escritura = Callable[[AsyncSession, uuid.UUID, uuid.UUID, str], Awaitable[object]]
+
+
+def _a_crear_aplicacion(cola: str) -> Escritura:
+    return lambda sesion, _app, _archivo, marca: crear_aplicacion(sesion, marca + cola)
+
+
+def _a_crear_api_key_prefijo(cola: str) -> Escritura:
+    return lambda sesion, app, _archivo, marca: crear_api_key(
+        sesion, app, marca + cola, _hash_hmac()
+    )
+
+
+def _a_crear_api_key_hash(cola: str) -> Escritura:
+    return lambda sesion, app, _archivo, marca: crear_api_key(
+        sesion, app, _prefijo(), marca + cola
+    )
+
+
+def _a_crear_archivo_nombre(cola: str) -> Escritura:
+    return lambda sesion, app, _archivo, marca: crear_archivo(
+        sesion, app, uuid.uuid4(), marca + cola, 1, SHA_MARCADO
+    )
+
+
+def _a_crear_archivo_sha256(cola: str) -> Escritura:
+    return lambda sesion, app, _archivo, marca: crear_archivo(
+        sesion, app, uuid.uuid4(), "a.pdf", 1, marca + cola
+    )
+
+
+def _a_cambiar_estado(cola: str) -> Escritura:
+    return lambda sesion, app, archivo, marca: cambiar_estado(
+        sesion,
+        app,
+        archivo,
+        Estado.PENDIENTE,
+        Estado.RECHAZADO,
+        tipo_detectado=marca + cola,
+    )
+
+
+def _a_registrar_capa(cola: str) -> Escritura:
+    return lambda sesion, app, archivo, marca: registrar_resultado(
+        sesion, app, archivo, marca + cola, "limpio", {}, 1
+    )
+
+
+def _a_registrar_detalle(cola: Any) -> Escritura:
+    return lambda sesion, app, archivo, marca: registrar_resultado(
+        sesion, app, archivo, "firma", "limpio", {"pista": marca, "cola": cola}, 1
+    )
+
+
+def _a_registrar_clave_de_detalle(cola: str) -> Escritura:
+    return lambda sesion, app, archivo, marca: registrar_resultado(
+        sesion, app, archivo, "firma", "limpio", {marca + cola: 1}, 1
+    )
+
+
+def _a_tamano_que_no_cabe(_cola: str) -> Escritura:
+    return lambda sesion, app, _archivo, marca: crear_archivo(
+        sesion, app, uuid.uuid4(), marca, 2**63, SHA_MARCADO
+    )
+
+
+def _a_duracion_que_no_cabe(_cola: str) -> Escritura:
+    return lambda sesion, app, archivo, marca: registrar_resultado(
+        sesion, app, archivo, "firma", "limpio", {"pista": marca}, 2**31
+    )
+
+
+def _a_detalle_circular(_cola: str) -> Escritura:
+    def escribir(
+        sesion: AsyncSession, app: uuid.UUID, archivo: uuid.UUID, marca: str
+    ) -> Awaitable[object]:
+        detalle: dict[str, object] = {"pista": marca}
+        detalle["yo"] = detalle
+        return registrar_resultado(sesion, app, archivo, "firma", "limpio", detalle, 1)
+
+    return escribir
+
+
+NUL = "\x00"
+SURROGATE = "\ud800"
+
+ESCRITURAS_RECHAZADAS = {
+    "aplicacion_nul": _a_crear_aplicacion(NUL),
+    "aplicacion_surrogate": _a_crear_aplicacion(SURROGATE),
+    "prefijo_nul": _a_crear_api_key_prefijo(NUL),
+    "hash_surrogate": _a_crear_api_key_hash(SURROGATE),
+    "nombre_nul": _a_crear_archivo_nombre(NUL),
+    "nombre_surrogate": _a_crear_archivo_nombre(SURROGATE),
+    "nombre_largo": _a_crear_archivo_nombre("x" * 256),
+    "sha256_nul": _a_crear_archivo_sha256(NUL),
+    "tamano_fuera_de_bigint": _a_tamano_que_no_cabe(""),
+    "tipo_nul": _a_cambiar_estado(NUL),
+    "tipo_surrogate": _a_cambiar_estado(SURROGATE),
+    "tipo_largo": _a_cambiar_estado("x" * 101),
+    "capa_nul": _a_registrar_capa(NUL),
+    "capa_surrogate": _a_registrar_capa(SURROGATE),
+    "detalle_nul": _a_registrar_detalle(NUL),
+    "detalle_surrogate": _a_registrar_detalle(SURROGATE),
+    "detalle_nan": _a_registrar_detalle(float("nan")),
+    "detalle_infinito": _a_registrar_detalle(float("inf")),
+    "detalle_clave_nul": _a_registrar_clave_de_detalle(NUL),
+    "detalle_circular": _a_detalle_circular(""),
+    "duracion_fuera_de_integer": _a_duracion_que_no_cabe(""),
+}
+
+
+@pytest.mark.parametrize(
+    "escribir", ESCRITURAS_RECHAZADAS.values(), ids=ESCRITURAS_RECHAZADAS.keys()
+)
+async def test_un_valor_rechazado_no_deja_rastro(
+    sesiones: Sesiones, escribir: Escritura
+) -> None:
+    app_id = await _aplicacion(sesiones)
+    creado = await _archivo(sesiones, app_id)
+    marca = secrets.token_hex(8)
+
+    with pytest.raises(DatoRechazado) as error:
+        async with sesiones.begin() as sesion:
+            await escribir(sesion, app_id, creado.id, marca)
+
+    _sin_rastro(error.value, marca)
+    # Ni el mensaje depende del valor ni la excepción guarda copias (.params, .orig, .object).
+    assert str(error.value) == str(DatoRechazado())
+    assert vars(error.value) == {}
+
+
+async def test_el_id_que_no_es_uuid_tampoco_se_muestra(sesiones: Sesiones) -> None:
+    # Con el cast de SQLAlchemy llega al servidor, y su mensaje repite el valor completo.
+    app_id = await _aplicacion(sesiones)
+    marca = secrets.token_hex(8)
+
+    with pytest.raises(DatoRechazado) as error:
+        async with sesiones.begin() as sesion:
+            await crear_archivo(
+                sesion,
+                app_id,
+                marca,  # type: ignore[arg-type]
+                "a.pdf",
+                1,
+                SHA_MARCADO,
+            )
+
+    _sin_rastro(error.value, marca)
+
+
+@pytest.mark.parametrize(
+    ("armar_detalle", "dato_en"),
+    [
+        (lambda marca: {"pista": marca + NUL}, str),
+        (lambda marca: {"pista": marca, "cola": float("nan")}, str),
+        (lambda marca: {"pista": marca + NUL}, lambda e: repr(e.params)),
+    ],
+    ids=["nul_en_el_context", "nan_en_el_context", "valores_en_params"],
+)
+async def test_premisa_el_dataerror_de_detalle_trae_el_dato(
+    sesiones: Sesiones,
+    armar_detalle: Callable[[str], dict[str, object]],
+    dato_en: Callable[[DataError], str],
+) -> None:
+    # Va sin el repositorio: es lo que _escribir no debe dejar salir. Si esto dejara de ser
+    # cierto, las pruebas de arriba podrían estar pasando sin demostrar nada.
+    app_id = await _aplicacion(sesiones)
+    creado = await _archivo(sesiones, app_id)
+    marca = secrets.token_hex(8)
+
+    with pytest.raises(DataError) as error:
+        async with sesiones.begin() as sesion:
+            await sesion.execute(
+                insert(ResultadoAnalisis).values(
+                    archivo_id=creado.id,
+                    capa="firma",
+                    veredicto="limpio",
+                    detalle=armar_detalle(marca),
+                )
+            )
+
+    assert marca in dato_en(error.value)
+
+
+async def test_premisa_el_surrogate_llega_sin_envolver_y_con_todo_el_texto(
+    sesiones: Sesiones,
+) -> None:
+    # psycopg no lo convierte en DataError y SQLAlchemy lo deja pasar tal cual: por eso
+    # no basta con capturar DataError. ``object`` guarda el valor completo.
+    marca = secrets.token_hex(8)
+
+    with pytest.raises(UnicodeEncodeError) as error:
+        async with sesiones.begin() as sesion:
+            await sesion.execute(insert(Aplicacion).values(nombre=marca + SURROGATE))
+
+    assert marca in error.value.object
+
+
+async def test_premisa_psycopg_tambien_lanza_valueerror_puro(
+    sesiones: Sesiones,
+) -> None:
+    app_id = await _aplicacion(sesiones)
+    creado = await _archivo(sesiones, app_id)
+    detalle: dict[str, object] = {}
+    detalle["yo"] = detalle
+
+    with pytest.raises(ValueError, match="Circular") as error:
+        async with sesiones.begin() as sesion:
+            await sesion.execute(
+                insert(ResultadoAnalisis).values(
+                    archivo_id=creado.id,
+                    capa="firma",
+                    veredicto="limpio",
+                    detalle=detalle,
+                )
+            )
+
+    assert type(error.value) is ValueError
+
+
+@pytest.mark.parametrize(
+    "escritura",
+    ["detalle_nul", "capa_nul", "capa_surrogate", "detalle_circular"],
+)
+async def test_un_valor_rechazado_revierte_toda_la_transaccion(
+    sesiones: Sesiones, escritura: str
+) -> None:
+    # detalle_nul lo rechaza el servidor (transacción abortada); los otros tres, el cliente
+    # (transacción sana). En los dos casos salir de begin() no debe guardar nada.
+    app_id = await _aplicacion(sesiones)
+    archivo_id = uuid.uuid4()
+
+    with pytest.raises(DatoRechazado):
+        async with sesiones.begin() as sesion:
+            await crear_archivo(sesion, app_id, archivo_id, "a.pdf", 1, SHA_MARCADO)
+            await ESCRITURAS_RECHAZADAS[escritura](
+                sesion, app_id, archivo_id, secrets.token_hex(8)
+            )
+
+    async with sesiones() as sesion:
+        assert await obtener_archivo(sesion, app_id, archivo_id) is None
+
+
+@pytest.mark.parametrize("escritura", ["capa_nul", "capa_surrogate", "detalle_nul"])
+async def test_la_conexion_sigue_sirviendo_tras_un_valor_rechazado(
+    sesiones: Sesiones, escritura: str
+) -> None:
+    app_id = await _aplicacion(sesiones)
+    creado = await _archivo(sesiones, app_id)
+
+    # Más veces que conexiones tiene el pool: si una quedara rota, alguna vuelta la tomaría.
+    for _ in range(20):
+        with pytest.raises(DatoRechazado):
+            async with sesiones.begin() as sesion:
+                await ESCRITURAS_RECHAZADAS[escritura](
+                    sesion, app_id, creado.id, secrets.token_hex(8)
+                )
+
+    await _resultado_cdr(sesiones, app_id, creado.id)
+    assert await _resultados(sesiones, creado.id) == 1
+
+
+@pytest.mark.parametrize(
+    ("escritura", "queda_guardado"),
+    [("capa_nul", True), ("capa_surrogate", True), ("detalle_nul", False)],
+)
+async def test_premisa_atrapar_el_rechazo_dentro_de_begin_no_es_seguro(
+    sesiones: Sesiones, escritura: str, queda_guardado: bool
+) -> None:
+    # Por qué el docstring del módulo exige salir del bloque: si el rechazo es de psycopg, la
+    # sentencia nunca se envió y el COMMIT guarda lo anterior, sin la parte rechazada.
+    app_id = await _aplicacion(sesiones)
+    archivo_id = uuid.uuid4()
+
+    async with sesiones.begin() as sesion:
+        await crear_archivo(sesion, app_id, archivo_id, "a.pdf", 1, SHA_MARCADO)
+        with pytest.raises(DatoRechazado):
+            await ESCRITURAS_RECHAZADAS[escritura](
+                sesion, app_id, archivo_id, secrets.token_hex(8)
+            )
+
+    async with sesiones() as sesion:
+        guardado = await obtener_archivo(sesion, app_id, archivo_id)
+    assert (guardado is not None) is queda_guardado
+
+
+async def test_un_error_que_no_es_del_dato_no_se_disfraza(sesiones: Sesiones) -> None:
+    # Una tabla que no existe es un fallo nuestro: como DatoRechazado parecería culpa del
+    # cliente. La misma regla protege una caída de la BD (INV-09: nunca decide "limpio").
+    with pytest.raises(ProgrammingError):
+        async with sesiones.begin() as sesion:
+            await repositorios._escribir(sesion, text("SELECT * FROM no_existe"))
 
 
 # --- CWE-532: los resultados no llevan datos sensibles al repr ------------------------------

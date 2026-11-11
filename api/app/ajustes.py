@@ -13,7 +13,9 @@ contraseña de la URL.
 """
 
 import contextlib
+import math
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -48,6 +50,21 @@ def _validar_pepper(pepper: object) -> None:
         )
 
 
+def _validar_comando(comando: object) -> None:
+    if (
+        type(comando) is not tuple
+        or not comando
+        or not all(type(parte) is str and parte for parte in comando)
+    ):
+        raise ConfiguracionError("El comando del CDR debe ser una tupla de textos.")
+
+
+def _validar_timeout(nombre: str, timeout: object) -> None:
+    # type() y no isinstance(): True pasaría por 1.
+    if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
+        raise ConfiguracionError(f"El {nombre} debe ser un número positivo.")
+
+
 @dataclass(frozen=True, slots=True)
 class Ajustes:
     """Ajustes ya válidos: si el objeto existe, sus valores se pueden usar.
@@ -59,6 +76,11 @@ class Ajustes:
     url_bd: str | URL = field(repr=False)
     pepper: bytes = field(repr=False, compare=False)
     datos: Path
+    # Costura de pruebas: ``leer_ajustes()`` nunca los lee del entorno. Una variable que
+    # cambiara el comando sería ejecución de código por configuración.
+    comando_cdr: tuple[str, ...] = (sys.executable, "-m", "api.app.cdr_hijo")
+    timeout_cdr_s: float = 30  # param:timeout_analisis_por_archivo
+    timeout_recepcion_s: float = 60  # K40
 
     def __post_init__(self) -> None:
         if not self.url_bd:
@@ -71,6 +93,9 @@ class Ajustes:
                 f"El directorio ({VARIABLE_DATOS}) debe ser una ruta absoluta "
                 "(la ruta no se muestra)."
             )
+        _validar_comando(self.comando_cdr)
+        _validar_timeout("timeout del CDR", self.timeout_cdr_s)
+        _validar_timeout("timeout de la recepción", self.timeout_recepcion_s)
 
     @property
     def uploads_tmp(self) -> Path:

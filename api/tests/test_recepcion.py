@@ -3,6 +3,8 @@
 import hashlib
 import secrets
 import stat
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -253,4 +255,44 @@ def test_descartar_es_idempotente_y_borra_lo_ya_terminado(tmp_path: Path) -> Non
     receptor.terminar()
     receptor.descartar()
     receptor.descartar()
+    assert list(tmp_path.iterdir()) == []
+
+
+# ------------------------------------- cancelación con `alimentar` todavía en el hilo
+
+
+def test_alimentar_despues_de_descartar_no_crea_el_temporal(tmp_path: Path) -> None:
+    """Cancelar la petición no detiene el hilo: su `alimentar` puede llegar tarde."""
+    receptor = Receptor(LIMITE, tmp_path)
+    receptor.descartar()
+    receptor.alimentar(_cuerpo(_parte(b"file", PNG)))
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_descartar_espera_al_alimentar_en_curso(tmp_path: Path) -> None:
+    """`descartar` mientras el hilo está a punto de crear el temporal: no queda nada."""
+    receptor = Receptor(LIMITE, tmp_path)
+    dentro = threading.Event()
+    original = receptor._parser.callbacks["on_headers_finished"]
+
+    def _lento() -> None:
+        dentro.set()
+        time.sleep(0.2)
+        original()
+
+    # El parser guarda sus callbacks al crearse: se cambia el suyo.
+    receptor._parser.callbacks["on_headers_finished"] = _lento
+    errores: list[BaseException] = []
+
+    def _alimentar() -> None:
+        try:
+            receptor.alimentar(_cuerpo(_parte(b"file", PNG)))
+        except BaseException as error:  # noqa: BLE001
+            errores.append(error)
+
+    hilo = threading.Thread(target=_alimentar)
+    hilo.start()
+    assert dentro.wait(5)
+    receptor.descartar()
+    hilo.join(5)
     assert list(tmp_path.iterdir()) == []

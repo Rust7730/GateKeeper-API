@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from api.app import principal
 from api.app.ajustes import (
     CLEAN_STORE,
     UPLOADS_TMP,
@@ -31,6 +32,19 @@ CONTRASENA_BD = secrets.token_urlsafe(24)
 URL_SIN_SERVIDOR = url_sin_servidor(CONTRASENA_BD)
 PEPPER = secrets.token_hex(16).encode()
 PEPPER_CORTO = secrets.token_hex(15)
+
+
+async def _sin_barrido(*_: object) -> None:
+    return None
+
+
+@pytest.fixture(autouse=True)
+def sin_barrido(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Aquí no hay BD: el barrido del arranque tiene sus pruebas en ``test_arranque.py``.
+
+    El subproceso de uvicorn no lo ve, pero ahí el arranque falla antes por el pepper.
+    """
+    monkeypatch.setattr(principal, "barrer_restos", _sin_barrido)
 
 
 @pytest.fixture

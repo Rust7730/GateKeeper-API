@@ -6,6 +6,7 @@ vacías. El tope es holgado a propósito: detecta regresiones sin volverse inest
 número útil es el p95 que se imprime; se ve con ``pytest -s``.
 """
 
+import asyncio
 import hashlib
 import secrets
 import statistics
@@ -15,16 +16,19 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
-from sqlalchemy import insert, text
+from sqlalchemy import func, insert, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from api.app.estados import Estado
 from api.db.modelos import Archivo, ResultadoAnalisis
 from api.db.repositorios import (
+    DatosArchivo,
     cambiar_estado,
+    contar_pendientes,
     crear_api_key,
     crear_aplicacion,
     crear_archivo,
+    crear_archivo_con_cupo,
     obtener_api_key_activa,
     obtener_archivo,
 )
@@ -50,11 +54,7 @@ async def _medir(
         await operacion(i)
         tiempos_ms.append((time.perf_counter() - inicio) * 1000)
 
-    p95 = statistics.quantiles(tiempos_ms, n=100)[94]
-    mediana = statistics.median(tiempos_ms)
-    record_property(f"{nombre}_p95_ms", round(p95, 3))
-    print(f"\n{nombre} ({MUESTRAS}): p50 = {mediana:.3f} ms, p95 = {p95:.3f} ms")
-    assert p95 < TOPE_P95_MS, f"p95 de {nombre} = {p95:.2f} ms"
+    _reportar(nombre, tiempos_ms, record_property)
 
 
 async def _preparar(sesiones: Sesiones) -> uuid.UUID:
@@ -191,6 +191,143 @@ async def test_latencia_obtener_archivo(
             assert await obtener_archivo(sesion, app_id, ids[i]) is not None
 
     await _medir("obtener_archivo", _operacion, record_property)
+
+
+TOPE_K48 = 20
+PENDIENTES_DE_FONDO = 10  # Cola a medio llenar: 10 + 8 escritores < 20, nunca se agota.
+ESCRITORES = 8
+# Con contención las altas con cupo de una aplicación se forman en fila: el bloqueo dura hasta
+# el COMMIT, y el COMMIT espera el fsync del WAL (~3.5 ms aquí). Lo esperable es cerca de
+# ESCRITORES x COMMIT; el tope es el doble, para detectar regresiones sin volverse inestable.
+TOPE_P95_CONTENCION_MS = 2 * ESCRITORES * 3.5
+
+
+async def _rechazar(sesiones: Sesiones, archivo_id: uuid.UUID) -> None:
+    """Saca el archivo de pendiente fuera de la medición, para que la cola no crezca."""
+    async with sesiones.begin() as sesion:
+        await sesion.execute(
+            update(Archivo)
+            .where(Archivo.id == archivo_id)
+            .values(estado="rechazado", analizado_en=func.now())
+        )
+
+
+async def test_latencia_contar_pendientes(
+    sesiones: Sesiones, record_property: Any
+) -> None:
+    app_id = await _preparar(sesiones)
+    await _crear_pendientes(sesiones, app_id, PENDIENTES_DE_FONDO)
+    await _analizar(sesiones)
+
+    async def _operacion(_i: int) -> None:
+        async with sesiones() as sesion:
+            assert await contar_pendientes(sesion, app_id) == PENDIENTES_DE_FONDO
+
+    await _medir("contar_pendientes", _operacion, record_property)
+
+
+async def test_latencia_crear_archivo_con_cupo(
+    sesiones: Sesiones, record_property: Any
+) -> None:
+    # Cada muestra: bloqueo de la aplicación, cuenta, INSERT y COMMIT, como en el 202.
+    app_id = await _preparar(sesiones)
+    await _crear_pendientes(sesiones, app_id, PENDIENTES_DE_FONDO)
+    await _analizar(sesiones)
+    tiempos_ms: list[float] = []
+
+    async def _operacion(_i: int) -> None:
+        inicio = time.perf_counter()
+        async with sesiones.begin() as sesion:
+            creado = await crear_archivo_con_cupo(
+                sesion,
+                app_id,
+                uuid.uuid4(),
+                "medida.pdf",
+                1024,
+                SHA256,
+                tope_pendientes=TOPE_K48,
+            )
+        tiempos_ms.append((time.perf_counter() - inicio) * 1000)
+        await _rechazar(sesiones, creado.id)
+
+    for i in range(MUESTRAS):
+        await _operacion(i)
+    _reportar("crear_archivo_con_cupo", tiempos_ms, record_property)
+
+
+async def _medir_concurrente(
+    sesiones: Sesiones,
+    app_id: uuid.UUID,
+    crear: Callable[[AsyncSession], Awaitable[DatosArchivo]],
+) -> list[float]:
+    """``ESCRITORES`` tareas simultáneas de la misma aplicación; ``MUESTRAS`` en total."""
+    tiempos_ms: list[float] = []
+    barrera = asyncio.Event()
+
+    async def _escritor() -> None:
+        await barrera.wait()
+        for _ in range(MUESTRAS // ESCRITORES):
+            inicio = time.perf_counter()
+            async with sesiones.begin() as sesion:
+                creado = await crear(sesion)
+            tiempos_ms.append((time.perf_counter() - inicio) * 1000)
+            await _rechazar(sesiones, creado.id)
+
+    tareas = [asyncio.create_task(_escritor()) for _ in range(ESCRITORES)]
+    barrera.set()
+    await asyncio.gather(*tareas)
+    return tiempos_ms
+
+
+async def test_latencia_con_escritores_simultaneos_de_la_misma_aplicacion(
+    sesiones: Sesiones, record_property: Any
+) -> None:
+    # El bloqueo de la aplicación serializa sus altas: se compara con crear_archivo, que
+    # no espera a nadie, bajo la misma carga.
+    app_id = await _preparar(sesiones)
+    await _crear_pendientes(sesiones, app_id, PENDIENTES_DE_FONDO)
+    await _analizar(sesiones)
+
+    def _con_cupo(sesion: AsyncSession) -> Awaitable[DatosArchivo]:
+        return crear_archivo_con_cupo(
+            sesion,
+            app_id,
+            uuid.uuid4(),
+            "medida.pdf",
+            1024,
+            SHA256,
+            tope_pendientes=TOPE_K48,
+        )
+
+    def _sin_cupo(sesion: AsyncSession) -> Awaitable[DatosArchivo]:
+        return crear_archivo(sesion, app_id, uuid.uuid4(), "medida.pdf", 1024, SHA256)
+
+    _reportar(
+        f"crear_archivo x{ESCRITORES}",
+        await _medir_concurrente(sesiones, app_id, _sin_cupo),
+        record_property,
+    )
+    _reportar(
+        f"crear_archivo_con_cupo x{ESCRITORES}",
+        await _medir_concurrente(sesiones, app_id, _con_cupo),
+        record_property,
+        tope_ms=TOPE_P95_CONTENCION_MS,
+    )
+
+
+def _reportar(
+    nombre: str,
+    tiempos_ms: list[float],
+    record_property: Any,
+    *,
+    tope_ms: float = TOPE_P95_MS,
+) -> None:
+    p95 = statistics.quantiles(tiempos_ms, n=100)[94]
+    mediana = statistics.median(tiempos_ms)
+    record_property(f"{nombre}_p95_ms", round(p95, 3))
+    print(f"\n{nombre} ({len(tiempos_ms)}): p50 = {mediana:.3f} ms, p95 = {p95:.3f} ms")
+    assert len(tiempos_ms) == MUESTRAS
+    assert p95 < tope_ms, f"p95 de {nombre} = {p95:.2f} ms"
 
 
 async def test_latencia_obtener_api_key_activa(

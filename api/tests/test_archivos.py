@@ -25,7 +25,8 @@ from sqlalchemy.engine import URL
 from api.app import analisis, v1
 from api.app.ajustes import Ajustes
 from api.app.principal import crear_app
-from api.db.repositorios import DatoRechazado, ViolacionDeRestriccion
+from api.db.repositorios import DatoRechazado, ViolacionDeRestriccion, crear_archivo
+from api.db.sesion import crear_motor, fabrica_sesiones
 from api.tests.soporte_api import KeySembrada, sembrar_key
 
 PNG_MINIMO = (
@@ -196,7 +197,7 @@ def test_si_el_insert_falla_no_queda_temporal_ni_analisis(
     async def _falla(*_: object, **__: object) -> None:
         raise error
 
-    monkeypatch.setattr(v1, "crear_archivo", _falla)
+    monkeypatch.setattr(v1, "crear_archivo_con_cupo", _falla)
     cuerpo, tipo = _cuerpo()
     with banco.api() as cliente:
         respuesta = cliente.post(
@@ -574,3 +575,172 @@ def test_la_tarea_se_guarda_y_se_retira_al_terminar(
         while cliente.app.state.tareas and time.monotonic() < limite:
             time.sleep(0.01)
         assert cliente.app.state.tareas == set()
+
+
+# ------------------------------------------------------------- K46 al publicar
+
+
+def test_k46_salida_sobre_el_tope_es_rechazado_sin_rastro(
+    banco: Banco, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(analisis, "TOPE_SALIDA", 100)
+    comando = _comando(
+        tmp_path,
+        "import sys\n"
+        "open(sys.argv[2], 'xb').write(b'x' * 101)\n"
+        f"print({json.dumps(json.dumps(LIMPIO))})\n",
+    )
+    with banco.api(comando_cdr=comando) as cliente:
+        archivo_id = _subir(cliente)
+        assert _esperar(cliente, archivo_id)["estado"] == "rechazado"
+        assert cliente.get(f"/v1/files/{archivo_id}/content").status_code == 409
+    assert list(banco.clean.iterdir()) == []
+    assert ("cdr", "limpio") not in banco.resultados(archivo_id)
+    assert ("cdr", "rechazado") in banco.resultados(archivo_id)
+
+
+# ----------------------------------------- cancelación entre publicar y confirmar
+
+
+def test_cancelar_entre_publicar_y_confirmar_no_deja_la_salida(
+    banco: Banco, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sin el `limpio` confirmado, `clean_store/<uuid>` no puede quedarse."""
+    publicado = anyio.Event()
+
+    async def _colgado(*_: object) -> None:
+        publicado.set()
+        await anyio.sleep(30)
+
+    monkeypatch.setattr(analisis, "_registrar_veredicto", _colgado)
+    with banco.api(comando_cdr=_hijo_limpio(tmp_path)) as cliente:
+        archivo_id = _subir(cliente)
+        limite = time.monotonic() + TOPE_S
+        while not (banco.clean / archivo_id).exists():
+            assert time.monotonic() < limite, "no llegó a publicarse"
+            time.sleep(0.01)
+    assert banco.fila(archivo_id)["estado"] == "pendiente"
+    assert list(banco.clean.iterdir()) == []
+
+
+# ------------------------------------------------------------------ K48: 429
+
+
+def _sembrar_pendientes(banco: Banco, cantidad: int) -> None:
+    async def _sembrar() -> None:
+        motor = crear_motor(banco.url)
+        try:
+            async with fabrica_sesiones(motor).begin() as sesion:
+                for _ in range(cantidad):
+                    await crear_archivo(
+                        sesion,
+                        banco.app_a.aplicacion_id,
+                        uuid.uuid4(),
+                        "sembrado",
+                        1,
+                        "0" * 64,
+                    )
+        finally:
+            await motor.dispose()
+
+    anyio.run(_sembrar)
+
+
+def _exigir_429(respuesta: Any) -> None:
+    assert respuesta.status_code == 429
+    assert respuesta.json() == {"detail": "Too Many Requests"}
+    assert respuesta.headers["connection"] == "close"
+
+
+def test_k48_el_tope_es_el_de_la_decision() -> None:
+    assert v1.TOPE_PENDIENTES == 20
+
+
+def test_k48_con_el_cupo_lleno_429_sin_leer_ni_guardar(banco: Banco) -> None:
+    # Se siembra con la API ya arrancada: el barrido del arranque cerraría los pendientes.
+    with banco.api() as cliente:
+        _sembrar_pendientes(banco, 20)
+        cuerpo, tipo = _cuerpo()
+        _exigir_429(
+            cliente.post("/v1/files", content=cuerpo, headers={"Content-Type": tipo})
+        )
+    assert list(banco.uploads.iterdir()) == []
+    assert banco.contar() == 20
+
+
+def test_k48_con_19_pendientes_entra_una_mas(banco: Banco, tmp_path: Path) -> None:
+    with banco.api(comando_cdr=_hijo_limpio(tmp_path)) as cliente:
+        _sembrar_pendientes(banco, 19)
+        _subir(cliente)
+
+
+def test_k48_el_alta_con_cupo_decide_aunque_la_lectura_previa_diga_que_cabe(
+    banco: Banco, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La lectura previa es un atajo: entre ella y el alta cabe otra subida entera."""
+
+    async def _cero(*_: object) -> int:
+        return 0
+
+    monkeypatch.setattr(v1, "contar_pendientes", _cero)
+    with banco.api() as cliente:
+        _sembrar_pendientes(banco, 20)
+        cuerpo, tipo = _cuerpo()
+        _exigir_429(
+            cliente.post("/v1/files", content=cuerpo, headers={"Content-Type": tipo})
+        )
+    assert list(banco.uploads.iterdir()) == []
+    assert banco.contar() == 20
+
+
+def test_k48_la_subida_usa_solo_el_alta_con_cupo() -> None:
+    assert "crear_archivo" not in vars(v1)
+
+
+# ------------------------------------------- K53: directorio de trabajo de cada hijo
+
+
+def test_k53_el_hijo_escribe_en_un_parcial_privado_que_luego_desaparece(
+    banco: Banco, tmp_path: Path
+) -> None:
+    registro = tmp_path / "trabajo.json"
+    comando = _comando(
+        tmp_path,
+        "import json, os, shutil, stat, sys\n"
+        "trabajo = os.path.dirname(sys.argv[2])\n"
+        "info = os.lstat(trabajo)\n"
+        f"open({str(registro)!r}, 'w').write(json.dumps({{\n"
+        "    'trabajo': trabajo, 'salida': sys.argv[2],\n"
+        "    'es_dir': stat.S_ISDIR(info.st_mode), 'modo': stat.S_IMODE(info.st_mode),\n"
+        "    'vacio': os.listdir(trabajo) == []}))\n"
+        "shutil.copyfile(sys.argv[1], sys.argv[2])\n"
+        f"print({json.dumps(json.dumps(LIMPIO))})\n",
+    )
+    with banco.api(comando_cdr=comando) as cliente:
+        archivo_id = _subir(cliente)
+        assert _esperar(cliente, archivo_id)["estado"] == "limpio"
+    visto = json.loads(registro.read_text())
+    assert visto["trabajo"] == str(banco.clean / f"{archivo_id}.parcial")
+    assert Path(visto["salida"]).parent == Path(visto["trabajo"])
+    assert visto["es_dir"] and visto["vacio"]
+    assert visto["modo"] == 0o700
+    assert sorted(p.name for p in banco.clean.iterdir()) == [archivo_id]
+
+
+def test_k53_lo_que_deje_el_hijo_en_su_parcial_se_borra(
+    banco: Banco, tmp_path: Path
+) -> None:
+    comando = _comando(
+        tmp_path,
+        "import os, sys\n"
+        "trabajo = os.path.dirname(sys.argv[2])\n"
+        "for nombre in ('a', 'b'):\n"
+        "    open(os.path.join(trabajo, nombre), 'w').write('x')\n"
+        "os.mkdir(os.path.join(trabajo, 'sub'))\n"
+        "open(os.path.join(trabajo, 'sub', 'c'), 'w').write('x')\n"
+        "sys.exit(3)\n",
+    )
+    with banco.api(comando_cdr=comando) as cliente:
+        archivo_id = _subir(cliente)
+        assert _esperar(cliente, archivo_id)["estado"] == "error"
+    assert list(banco.clean.iterdir()) == []

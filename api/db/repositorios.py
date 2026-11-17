@@ -6,7 +6,8 @@ Reglas de este módulo:
   fabrica.begin() as sesion``), para poder juntar operaciones en una sola.
 - **INV-10:** toda función sobre un ``archivo`` o sus resultados recibe ``aplicacion_id``
   sin valor por defecto y lo usa en el ``WHERE``. Un archivo ajeno se comporta igual que
-  uno inexistente.
+  uno inexistente. La única excepción es ``cerrar_pendientes_huerfanos`` (K51), que es
+  mantenimiento del arranque y devuelve solo ids.
 - **Resultados:** devuelven dataclasses inmutables, nunca entidades ORM, y ``estado`` ya
   convertido a ``Estado`` (K15): ``es_descargable`` exige el miembro, no el texto.
 - **CWE-89:** solo constructor de consultas de SQLAlchemy, siempre con parámetros.
@@ -33,11 +34,13 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     ColumnElement,
     Executable,
     Integer,
     Result,
     Row,
+    Select,
     Text,
     exists,
     func,
@@ -46,7 +49,7 @@ from sqlalchemy import (
     select,
     update,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -77,6 +80,16 @@ class SinEvidenciaCDR(Exception):
 
     def __init__(self) -> None:
         super().__init__("el archivo no tiene un resultado limpio del CDR")
+
+
+class CupoDePendientesAgotado(Exception):
+    """La aplicación ya tiene el máximo de archivos en ``pendiente`` (K48): la API responde 429.
+
+    No se insertó nada. No lleva datos: ni la aplicación, ni el archivo, ni la cuenta.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("la aplicación no tiene cupo de archivos pendientes")
 
 
 class ViolacionDeRestriccion(Exception):
@@ -150,6 +163,11 @@ _CDR_LIMPIO: ColumnElement[bool] = exists().where(
     ResultadoAnalisis.capa == "cdr",
     ResultadoAnalisis.veredicto == "limpio",
 )
+
+
+# Límite del tipo, no política: K48 lo fija quien llama. Más allá de un int4 el valor no es
+# un tope sino un error de configuración, y no debe llegar a la BD como un DatoRechazado.
+_MAX_TOPE = 2**31 - 1
 
 
 def _a_datos_archivo(fila: Row[Any]) -> DatosArchivo:
@@ -251,6 +269,113 @@ async def crear_archivo(
         .returning(*_COLUMNAS_ARCHIVO)
     )
     return _a_datos_archivo((await _escribir(sesion, sentencia)).one())
+
+
+def _cuenta_pendientes(aplicacion_id: uuid.UUID) -> Select[tuple[int]]:
+    # La sirve ix_archivo_aplicacion_id_estado (las dos columnas, por igualdad).
+    return select(func.count()).where(
+        Archivo.aplicacion_id == aplicacion_id,
+        Archivo.estado == Estado.PENDIENTE.value,
+    )
+
+
+async def contar_pendientes(sesion: AsyncSession, aplicacion_id: uuid.UUID) -> int:
+    """Cuántos archivos de esa aplicación están en ``pendiente`` (K48).
+
+    Solo cuenta los de esa aplicación (INV-10); una aplicación inexistente da 0. Es una
+    lectura sin bloqueo: sirve para informar, no para decidir si cabe otro archivo. Esa
+    decisión la toma ``crear_archivo_con_cupo`` en el mismo paso que inserta.
+    """
+    return (await sesion.execute(_cuenta_pendientes(aplicacion_id))).scalar_one()
+
+
+# Toma el turno de altas de la aplicación. FOR NO KEY UPDATE choca consigo mismo, pero no con
+# el FOR KEY SHARE que toman las FK al insertar un archivo o una key de esa aplicación, ni
+# con nada de otra aplicación. La columna sirve para comprobar el aislamiento sin otra ida y
+# vuelta a la BD.
+def _turno_de_altas(aplicacion_id: uuid.UUID) -> Select[tuple[str]]:
+    return (
+        select(func.current_setting("transaction_isolation"))
+        .select_from(Aplicacion)
+        .where(Aplicacion.id == aplicacion_id)
+        .with_for_update(key_share=True)
+    )
+
+
+async def crear_archivo_con_cupo(
+    sesion: AsyncSession,
+    aplicacion_id: uuid.UUID,
+    archivo_id: uuid.UUID,
+    nombre_original: str,
+    tamano_bytes: int,
+    sha256: str,
+    *,
+    tope_pendientes: int,
+) -> DatosArchivo:
+    """Igual que ``crear_archivo``, pero solo si la aplicación tiene cupo (K48).
+
+    Inserta si la aplicación tiene menos de ``tope_pendientes`` archivos en ``pendiente``;
+    los que ya tienen veredicto no cuentan, ni los de otra aplicación (INV-10). El tope lo
+    pasa la API: aquí no hay un valor por defecto.
+
+    **Atomicidad.** Dos sentencias dentro de la transacción de quien llama:
+
+    1. ``SELECT ... FROM aplicacion WHERE id = :app FOR NO KEY UPDATE``: bloquea la fila de
+       la aplicación. Las altas con cupo de la misma aplicación se forman en fila; las de
+       otra aplicación, los veredictos y las keys nuevas no esperan.
+    2. ``INSERT ... SELECT ... WHERE (cuenta de pendientes) < :tope RETURNING ...``.
+
+    Van separadas a propósito: en ``READ COMMITTED`` cada sentencia toma su foto al empezar,
+    así que la cuenta del paso 2 ya ve lo que confirmó quien tenía el turno antes. En una
+    sola sentencia la foto sería anterior a la espera y dos altas podrían pasar el tope. Por
+    lo mismo, fuera de ``READ COMMITTED`` se lanza ``RuntimeError`` sin insertar.
+
+    El bloqueo dura hasta el ``COMMIT`` o el ``ROLLBACK``: llámala en una transacción corta y
+    confirma enseguida (nada de E/S de archivos ni de encolar dentro). Una sola alta con
+    cupo por transacción.
+
+    Lanza ``TypeError`` o ``ValueError`` si ``tope_pendientes`` no es un ``int`` (``bool`` no
+    vale) entre 1 y 2**31 - 1, sin tocar la BD; ``CupoDePendientesAgotado`` si no hay cupo
+    (no se insertó nada); y ``ViolacionDeRestriccion`` o ``DatoRechazado`` igual que
+    ``crear_archivo`` (una aplicación inexistente es ``fk_archivo_aplicacion_id_aplicacion``).
+    """
+    _validar_tope(tope_pendientes)
+
+    aislamiento = (
+        await sesion.execute(_turno_de_altas(aplicacion_id))
+    ).scalar_one_or_none()
+    # Sin fila, la aplicación no existe: no hay nada que bloquear y el INSERT falla por FK.
+    if aislamiento is not None and aislamiento != "read committed":
+        raise RuntimeError("crear_archivo_con_cupo exige READ COMMITTED")
+
+    # Literales con tipo amplio (Text, no String(255) ni CHAR(64)): un CAST explícito a
+    # varchar(n) trunca en silencio, y aquí la longitud la debe rechazar la columna.
+    fuente = select(
+        literal(archivo_id, UUID(as_uuid=True)),
+        literal(aplicacion_id, UUID(as_uuid=True)),
+        literal(nombre_original, Text),
+        literal(tamano_bytes, BigInteger),
+        literal(sha256, Text),
+    ).where(_cuenta_pendientes(aplicacion_id).scalar_subquery() < tope_pendientes)
+    sentencia = (
+        insert(Archivo)
+        .from_select(
+            ["id", "aplicacion_id", "nombre_original", "tamano_bytes", "sha256"],
+            fuente,
+        )
+        .returning(*_COLUMNAS_ARCHIVO)
+    )
+    fila = (await _escribir(sesion, sentencia)).one_or_none()
+    if fila is None:
+        raise CupoDePendientesAgotado
+    return _a_datos_archivo(fila)
+
+
+def _validar_tope(tope_pendientes: object) -> None:
+    if type(tope_pendientes) is not int:
+        raise TypeError("tope_pendientes debe ser int")
+    if not 1 <= tope_pendientes <= _MAX_TOPE:
+        raise ValueError("tope_pendientes fuera de rango")
 
 
 async def obtener_archivo(
@@ -391,3 +516,39 @@ async def registrar_resultado(
     if resultado_id is None:
         raise ArchivoNoEncontrado
     return resultado_id
+
+
+async def cerrar_pendientes_huerfanos(
+    sesion: AsyncSession, *, tipo_error: str
+) -> list[uuid.UUID]:
+    """Pasa a ``error`` todo archivo en ``pendiente`` y devuelve sus ids (K51).
+
+    **Es la única función sobre archivos que no filtra por aplicación (excepción a
+    INV-10).** Es mantenimiento del sistema, no una lectura para un cliente: la API la
+    llama al arrancar, antes de aceptar peticiones, para cerrar lo que quedó a medias
+    cuando se detuvo. Por eso devuelve solo los ids, sin dueño ni datos del archivo, y
+    nunca debe llamarse con un dato que venga de una petición.
+
+    - Toca solo ``pendiente``: ``limpio``, ``rechazado``, ``en_cuarentena`` y ``error``
+      quedan como estaban. ``reintentos`` no cambia.
+    - ``tipo_error`` (por nombre, sin valor por defecto) se valida con el dominio antes de
+      tocar la BD: ``transitorio`` o ``final``; si no, ``TransicionInvalida``.
+    - ``analizado_en`` lo pone la BD con ``clock_timestamp()``, como ``cambiar_estado``.
+    - Los ids salen sin un orden definido. No confirma: la transacción es de quien llama.
+
+    Recorre ``archivo`` completo (``ix_archivo_aplicacion_id_estado`` empieza por la
+    aplicación); corre una vez por arranque y fuera del camino del 202.
+    """
+    _validar_cambio(Estado.PENDIENTE, Estado.ERROR, tipo_error)
+    sentencia = (
+        update(Archivo)
+        .where(Archivo.estado == Estado.PENDIENTE.value)
+        .values(
+            estado=Estado.ERROR.value,
+            tipo_error=tipo_error,
+            analizado_en=func.clock_timestamp(),
+        )
+        .returning(Archivo.id)
+        .execution_options(synchronize_session=False)
+    )
+    return list((await _escribir(sesion, sentencia)).scalars())

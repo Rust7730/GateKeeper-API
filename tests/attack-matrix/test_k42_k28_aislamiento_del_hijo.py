@@ -15,10 +15,14 @@ import signal
 
 import pytest
 from generadores import guardar, pdf_base, png
+from hijos import leer_registro_marcado
 from proceso_api import (
+    ancestros_que_exponen,
     api_en_proceso,
+    hijo_lee_ancestros,
     hijo_lee_el_padre,
     hijo_que_espera,
+    huellas_de,
     matar,
     proceso_vivo,
     sonda_limites,
@@ -43,7 +47,7 @@ def test_k42_rlimit_cpu_finito_antes_de_importar_los_parsers(
     with banco.api(comando_cdr=comando) as cliente:
         _, final = cliente.analizar(generar(), nombre, tipo)
     assert final["estado"] == "limpio"
-    sonda = json.loads(registro.read_text())
+    sonda = leer_registro_marcado(registro)
 
     blando, duro = sonda["cpu_final"]
     assert blando != SIN_LIMITE and duro != SIN_LIMITE, "el hijo corre sin RLIMIT_CPU"
@@ -60,7 +64,7 @@ def test_k42_el_hijo_tiene_senal_de_muerte_del_padre(banco, tmp_path):
     with banco.api(comando_cdr=comando) as cliente:
         _, final = cliente.analizar(png(), b"foto.png", b"image/png")
     assert final["estado"] == "limpio"
-    assert json.loads(registro.read_text())["pdeathsig"] != 0, (
+    assert leer_registro_marcado(registro)["pdeathsig"] != 0, (
         "el hijo no tiene PR_SET_PDEATHSIG: sobrevive a la API"
     )
 
@@ -106,3 +110,26 @@ def test_k28_el_hijo_no_puede_leer_el_entorno_de_la_api(banco, tmp_path):
         esperar_que(
             lambda: api.estado(archivo_id) != "pendiente", "el análisis no terminó"
         )
+
+
+def test_k28_k52_el_hijo_no_lee_los_secretos_en_ningun_ancestro(banco, tmp_path):
+    """Toda la cadena, no solo el padre: en la revisión, `uv` (el abuelo) los tenía a la vista.
+
+    Busca el pepper y la contraseña de la BD por huella (largo y SHA-256), dentro de cualquier
+    variable, y los nombres `GATEKEEPER_*`. Las variantes con intermediario están en
+    `test_k52_secretos_en_ancestros.py`.
+    """
+    comando, registro = hijo_lee_ancestros(
+        tmp_path, huellas_de(banco.pepper, banco.url.password.encode())
+    )
+    with api_en_proceso(banco, tmp_path, comando) as api:
+        archivo_id = api.subir(png())
+        esperar_que(registro.exists, "el hijo no dejó registro", tope=15)
+        lectura = json.loads(registro.read_text())
+        esperar_que(
+            lambda: api.estado(archivo_id) != "pendiente", "el análisis no terminó"
+        )
+    assert lectura["ppid"] == api.pid, "la sonda no es hija del proceso de la API"
+    assert len(lectura["cadena"]) >= 2, "la sonda no recorrió la cadena de ancestros"
+    expuestos = ancestros_que_exponen(lectura)
+    assert not expuestos, f"el hijo leyó secretos de la API en: {expuestos}"

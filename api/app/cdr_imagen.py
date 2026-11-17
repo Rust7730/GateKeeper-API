@@ -5,16 +5,25 @@ una copia de los píxeles: lo único que se conserva de la original es la transp
 describe los píxeles. EXIF, ICC, texto, fragmentos privados y lo anexado se quedan atrás.
 
 La orientación EXIF se aplica a los píxeles antes de perder el EXIF (K39): sin ella, una foto
-de móvil saldría girada. No se usa ``ImageOps.exif_transpose``, que después de girar reescribe
-el EXIF recibido y pasa expresiones regulares por su XMP: hostil y de sobra, porque aquí todo
+de móvil saldría girada. La lee ``getexif()``, que, si el EXIF no la trae, también la busca en
+el XMP con una expresión regular sencilla (``tiff:Orientation``, sin retroceso): el XMP
+hostil sí se lee aquí, aunque solo para esa etiqueta. No se usa ``ImageOps.exif_transpose``,
+que además reescribe el EXIF y el XMP recibidos después de girar: de sobra, porque aquí todo
 eso se tira. Girar cambia el ancho por el alto, no el número de píxeles, así que el tope ya
 validado sigue valiendo y ``transpose`` ocupa lo mismo que la copia a la que sustituye.
+
+Antes de abrir un JPEG se cuentan sus escaneos sobre los bytes (K47): uno progresivo con miles
+de escaneos vacíos ocuparía el CDR hasta el timeout. La salida no pasa de 32 MiB (K46): se
+corta al escribirla.
 """
 
 import warnings
 from pathlib import Path
 
 from PIL import Image
+
+from api.app.cdr_jpeg import MAX_ESCANEOS, contar_escaneos
+from api.app.cdr_salida import TOPE_SALIDA, SalidaDemasiadoGrande, escribir_acotado
 
 MAX_PIXELES = 40_000_000  # param:max_pixeles_imagen
 _FORMATOS = {"image/jpeg": "JPEG", "image/png": "PNG"}
@@ -80,6 +89,11 @@ def reconstruir_imagen(entrada: Path, salida: Path, tipo: str) -> str | None:
     archivo y sigue su camino hasta ``error`` (INV-09), igual que un fallo al escribir.
     """
     formato = _FORMATOS[tipo]
+    # La entrada ya pasó por el tope de 10 MB de la recepción.
+    if formato == "JPEG" and (
+        contar_escaneos(entrada.read_bytes(), hasta=MAX_ESCANEOS) > MAX_ESCANEOS
+    ):
+        return "escaneos"
     Image.MAX_IMAGE_PIXELS = MAX_PIXELES
     try:
         with warnings.catch_warnings():
@@ -96,7 +110,9 @@ def reconstruir_imagen(entrada: Path, salida: Path, tipo: str) -> str | None:
     except Exception:  # noqa: BLE001
         return "imagen_invalida"
 
-    # "xb": crea el archivo y falla si ya existe, también si es un enlace simbólico.
-    with open(salida, "xb") as destino:
-        limpia.save(destino, format=formato, **_OPCIONES_DE_SALIDA[formato])
+    try:
+        with escribir_acotado(salida, TOPE_SALIDA) as destino:
+            limpia.save(destino, format=formato, **_OPCIONES_DE_SALIDA[formato])
+    except SalidaDemasiadoGrande:
+        return "salida_grande"
     return None

@@ -10,6 +10,7 @@ from starlette.middleware import Middleware
 
 from api.app.ajustes import Ajustes, abrir_motor, leer_ajustes, preparar_directorios
 from api.app.analisis import cancelar_analisis
+from api.app.arranque import barrer_restos, comprobar_ancestros, proteger_proceso
 from api.app.seguridad import HeadersSeguridad
 from api.app.v1 import crear_router_v1
 from api.db.sesion import fabrica_sesiones
@@ -31,12 +32,22 @@ def crear_app(ajustes: Ajustes | None = None) -> FastAPI:
     @asynccontextmanager
     async def ciclo_de_vida(app: FastAPI) -> AsyncIterator[None]:
         # Todo aquí y no en crear_app: importar o crear la app no toca el entorno ni el disco.
+        # Lo primero: desde aquí, ni el hijo del CDR lee el entorno de este proceso (K28).
+        proteger_proceso()
+        # K52: de nada sirve si quien la lanzó tiene los secretos a la vista.
+        comprobar_ancestros()
         vigentes = leer_ajustes() if ajustes is None else ajustes
         preparar_directorios(vigentes.datos)
         motor = abrir_motor(vigentes.url_bd)
         app.state.ajustes = vigentes
         app.state.motor = motor
         app.state.sesiones = fabrica_sesiones(motor)
+        try:
+            # Antes de aceptar peticiones: después cerraría análisis que sí están en curso.
+            await barrer_restos(vigentes, app.state.sesiones)
+        except BaseException:
+            await motor.dispose()
+            raise
         # K09: un proceso hijo por archivo, y como mucho uno por núcleo a la vez.
         app.state.cupos = asyncio.Semaphore(os.cpu_count() or 1)
         app.state.tareas = set()

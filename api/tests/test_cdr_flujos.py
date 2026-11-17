@@ -7,10 +7,12 @@ import zlib
 import pytest
 
 from api.app.cdr_flujos import (
+    BLOQUE,
     FiltroNoAdmitido,
     FlujoInvalido,
     Presupuesto,
     TopeDescompresion,
+    medir_en_linea,
     medir_flujo,
 )
 
@@ -196,3 +198,145 @@ def test_codec_de_imagen_tras_flate_cuenta_solo_flate() -> None:
 def test_filtro_desconocido_no_se_da_por_bueno(filtro: str) -> None:
     with pytest.raises(FiltroNoAdmitido):
         _gastado(b"x", [filtro])
+
+
+# ------------------------------------------------- K49: filtro detrás de un códec de imagen
+
+
+@pytest.mark.parametrize(
+    "cadena",
+    [
+        ["/DCTDecode", FLATE],
+        ["/DCT", "/Fl"],
+        ["/JPXDecode", "/ASCIIHexDecode"],
+        [FLATE, "/CCITTFaxDecode", FLATE],
+    ],
+    ids=["dct_flate", "abreviados", "jpx_hex", "en_medio"],
+)
+def test_k49_un_filtro_tras_un_codec_de_imagen_no_se_admite(cadena: list[str]) -> None:
+    """No se puede medir sin decodificar el códec: no se da por bueno."""
+    with pytest.raises(FiltroNoAdmitido):
+        _gastado(zlib.compress(bytes(1000)), cadena)
+
+
+# ------------------------------------------------------------ K49: búsqueda en la salida
+
+
+def test_buscar_encuentra_el_texto_en_la_salida_decodificada() -> None:
+    presupuesto = Presupuesto()
+    datos = zlib.compress(b"q 1 0 0 1 0 0 cm BI /W 1 /H 1 ID x EI Q")
+    assert medir_flujo(datos, [FLATE], presupuesto, buscar=b"BI") is True
+
+
+def test_buscar_sin_coincidencia_es_falso() -> None:
+    presupuesto = Presupuesto()
+    datos = zlib.compress(b"BT /F1 12 Tf (Hola) Tj ET" * 1000)
+    assert medir_flujo(datos, [FLATE], presupuesto, buscar=b"BI") is False
+
+
+def test_buscar_ve_el_texto_partido_entre_dos_bloques() -> None:
+    """La salida llega en bloques de 64 KiB: `B` al final de uno, `I` al principio del otro."""
+    claro = b"x" * (BLOQUE - 1) + b"BI" + b"x" * 10
+    presupuesto = Presupuesto()
+    assert medir_flujo(zlib.compress(claro), [FLATE], presupuesto, buscar=b"BI")
+
+
+def test_buscar_en_un_flujo_sin_filtros() -> None:
+    assert medir_flujo(b"q BI ID EI Q", [], Presupuesto(), buscar=b"BI") is True
+
+
+def test_buscar_con_codec_de_imagen_al_final_responde_que_no_se_sabe() -> None:
+    """La salida real es la del códec, que aquí no se decodifica: se trata como presente."""
+    datos = zlib.compress(b"nada")
+    assert medir_flujo(datos, [FLATE, "/DCTDecode"], Presupuesto(), buscar=b"BI")
+
+
+def test_sin_buscar_devuelve_falso() -> None:
+    assert medir_flujo(b"BI", [], Presupuesto()) is False
+
+
+# ------------------------------------- K49: dónde acaban los datos de una imagen en línea
+
+
+def _en_linea(crudo: bytes, filtros: list[str], **extra) -> int | None:
+    return medir_en_linea(crudo, filtros, Presupuesto(), **extra)
+
+
+@pytest.mark.parametrize(
+    ("crudo", "filtros", "producidos"),
+    [
+        (zlib.compress(b"abcd") + b" \n", [FLATE], 4),
+        (b"61 62 63>\n", ["/ASCIIHexDecode"], 3),
+        (base64.a85encode(b"abcd") + b"~> ", ["/ASCII85Decode"], 4),
+        (b"\x02abc\x80\r", ["/RunLengthDecode"], 3),
+        (_lzw(b"abcd") + b"\n", ["/LZWDecode"], 4),
+        (binascii.hexlify(zlib.compress(b"ab")) + b">", ["/AHx", "/Fl"], 2),
+    ],
+    ids=["flate", "hex", "a85", "run_length", "lzw", "hex_y_flate"],
+)
+def test_en_linea_bien_cerrada_devuelve_lo_producido(
+    crudo: bytes, filtros: list[str], producidos: int
+) -> None:
+    assert _en_linea(crudo, filtros) == producidos
+
+
+@pytest.mark.parametrize(
+    ("crudo", "filtros"),
+    [
+        (zlib.compress(b"X") + b"\nEI\n\x01\nBI", [FLATE]),
+        (b"58>\nEI\nx1\nBI", ["/AHx"]),
+        (base64.a85encode(b"X") + b"~>\nEI BI", ["/A85"]),
+        (b"\x00X\x80\nEI BI", ["/RL"]),
+        (_lzw(b"X") + b"\nEI BI", ["/LZW"]),
+    ],
+    ids=["flate", "hex", "a85", "run_length", "lzw"],
+)
+def test_en_linea_con_algo_tras_el_fin_es_invalida(
+    crudo: bytes, filtros: list[str]
+) -> None:
+    """Lo que sigue al fin de los datos lo lee el lector como contenido: otra imagen, quizá."""
+    with pytest.raises(FlujoInvalido):
+        _en_linea(crudo, filtros)
+
+
+@pytest.mark.parametrize(
+    ("crudo", "filtros"),
+    [
+        (zlib.compress(bytes(100))[:-8], [FLATE]),
+        (b"616263", ["/AHx"]),
+        (base64.a85encode(b"abcd"), ["/A85"]),
+        (b"\x02abc", ["/RL"]),
+        (_lzw(b"abcd")[:-1], ["/LZW"]),
+    ],
+    ids=["flate", "hex", "a85", "run_length", "lzw"],
+)
+def test_en_linea_sin_fin_es_invalida(crudo: bytes, filtros: list[str]) -> None:
+    """Sin fin, el lector seguiría leyendo más allá del `EI` que vio qpdf."""
+    with pytest.raises(FlujoInvalido):
+        _en_linea(crudo, filtros)
+
+
+def test_en_linea_sobre_el_tope_sigue_siendo_tope() -> None:
+    with pytest.raises(TopeDescompresion):
+        medir_en_linea(zlib.compress(bytes(2 * MIB)), [FLATE], Presupuesto(MIB))
+
+
+def test_en_linea_dct_acaba_en_su_eoi() -> None:
+    jpeg = b"\xff\xd8\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00\x12\xff\xd9"
+    assert _en_linea(jpeg + b" \n", ["/DCTDecode"]) is None
+    with pytest.raises(FlujoInvalido):
+        _en_linea(jpeg + b"\nEI BI", ["/DCT"])
+    with pytest.raises(FlujoInvalido):
+        _en_linea(jpeg[:-2], ["/DCT"])
+
+
+def test_en_linea_flate_y_luego_dct_no_cuenta_lo_producido() -> None:
+    assert _en_linea(zlib.compress(b"\xff\xd8") + b"\n", [FLATE, "/DCTDecode"]) is None
+
+
+@pytest.mark.parametrize(
+    "codec", ["/CCITTFaxDecode", "/CCF", "/JPXDecode", "/JBIG2Decode"]
+)
+def test_en_linea_con_un_codec_sin_fin_conocido_no_se_admite(codec: str) -> None:
+    with pytest.raises(FiltroNoAdmitido):
+        _en_linea(b"datos", [codec])

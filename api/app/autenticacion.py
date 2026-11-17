@@ -38,10 +38,13 @@ def generar_key() -> tuple[str, str]:
 
 
 def _no_autorizado() -> HTTPException:
+    """El mismo 401 en todos los casos. ``Connection: close`` porque se responde sin leer el
+    cuerpo: sin ella, el servidor seguiría recibiéndolo para reutilizar la conexión, y sin
+    autenticar no hay tope de tiempo (K40 empieza después)."""
     return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Unauthorized",
-        headers={"WWW-Authenticate": "Bearer"},
+        headers={"WWW-Authenticate": "Bearer", "Connection": "close"},
     )
 
 

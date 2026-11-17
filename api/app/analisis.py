@@ -11,13 +11,19 @@ La API lanza un proceso hijo por archivo y decide con lo que este dice, sin fiar
   al cliente y no se puede llenar.
 - **Veredicto estricto:** una sola línea, con las claves exactas. Cualquier otra cosa, un
   código distinto de 0 o el timeout terminan en ``error``, nunca en ``limpio`` (INV-09).
-- **Publicación por el padre:** el hijo escribe en ``<uuid>.parcial``. ``clean_store/<uuid>``
-  solo aparece si el padre validó todo, y antes de confirmar el ``limpio``.
+- **Publicación por el padre:** el padre crea ``clean_store/<uuid>.parcial/`` (0700) y el hijo
+  escribe dentro, en ``<uuid>.parcial/<uuid>``: con Landlock (K53) no puede escribir en
+  ningún otro sitio. Es un directorio y no un archivo creado de antemano porque el hijo crea
+  su salida con ``"xb"``. ``clean_store/<uuid>``
+  solo aparece si el padre validó todo, y antes de confirmar el ``limpio``. El padre aplica
+  también el tope de K46: una salida de más de 32 MiB es ``rechazado`` y no se publica. Si el
+  ``limpio`` no llega a confirmarse, por un error o por una cancelación, la salida se borra.
 
 Si la decisión falla, la excepción sale del bloque ``begin()``, que revierte, y ``error`` se
 escribe en otra transacción: tras un rechazo de la BD no se sigue usando esa sesión.
 
-Limitación del diseño: un apagado a mitad deja el archivo en ``pendiente``. Falla cerrado.
+Un apagado a mitad deja el archivo en ``pendiente``, sin descargarse (falla cerrado); el
+barrido del siguiente arranque lo pasa a ``error`` (``arranque.py``).
 """
 
 import asyncio
@@ -25,6 +31,7 @@ import contextlib
 import json
 import logging
 import os
+import shutil
 import signal
 import stat
 import subprocess
@@ -36,9 +43,17 @@ from typing import Any, NoReturn
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from api.app.estados import Estado
+from api.app.cdr_salida import TOPE_SALIDA, SalidaDemasiadoGrande
+from api.app.estados import Estado, TransicionInvalida
 from api.app.tipos import TIPOS_PERMITIDOS
-from api.db.repositorios import cambiar_estado, registrar_resultado
+from api.db.repositorios import (
+    ArchivoNoEncontrado,
+    ConflictoDeEstado,
+    DatoRechazado,
+    ViolacionDeRestriccion,
+    cambiar_estado,
+    registrar_resultado,
+)
 
 logger = logging.getLogger("gatekeeper.api")
 
@@ -49,6 +64,7 @@ TOPE_SALIDA_HIJO = 4096
 ENTORNO_HIJO = {"PATH": os.defpath}
 _RAIZ_DEL_PROYECTO = Path(__file__).resolve().parents[2]
 _SUFIJO_PARCIAL = ".parcial"
+_MODO_TRABAJO = 0o700
 _CLAVES_VEREDICTO = {"veredicto", "tipo", "motivo"}
 LIMPIO = "limpio"
 RECHAZADO = "rechazado"
@@ -59,6 +75,20 @@ _ERROR = "error"
 _NO_EVALUADA = "no_evaluada"
 _ERROR_FINAL = "final"  # No hay reintentos en la rebanada (K26, K11).
 _MOTIVO_INTERNO = "interno"
+_MOTIVO_SALIDA_GRANDE = "salida_grande"
+# Si la BD no responde al registrar un `error`, el archivo se quedaría en `pendiente` ocupando
+# cupo de K48 hasta el siguiente arranque. Se reintenta poco y con espera acotada: cada intento
+# puede tardar además el connect_timeout de K32. Si aun así falla, queda para el barrido.
+INTENTOS_REGISTRO_ERROR = 3
+ESPERAS_REGISTRO_ERROR_S: tuple[float, ...] = (0.5, 1.0)
+# Rechazos de la BD por el dato o por el estado: repetir no los arregla.
+_NO_REINTENTABLES = (
+    ArchivoNoEncontrado,
+    ConflictoDeEstado,
+    DatoRechazado,
+    TransicionInvalida,
+    ViolacionDeRestriccion,
+)
 
 
 class FalloDelHijo(Exception):
@@ -191,16 +221,20 @@ async def correr_hijo(comando: tuple[str, ...], timeout_s: float) -> Veredicto:
 
 
 def publicar_salida(parcial: Path, final: Path) -> None:
-    """Deja la salida en su nombre definitivo, si es un archivo de verdad.
+    """Deja la salida en su nombre definitivo, si es un archivo de verdad y cabe en K46.
 
     ``lstat`` y no ``stat``: un hijo comprometido no puede dejar un enlace a otro archivo del
-    disco para que la API lo sirva.
+    disco para que la API lo sirva. Al llegar aquí el hijo y su grupo ya están muertos: nadie
+    puede hacer crecer el archivo entre la comprobación y el ``replace``. Lanza
+    ``FalloDelHijo`` si no hay salida válida y ``SalidaDemasiadoGrande`` si pasa del tope.
     """
     info = None
     with contextlib.suppress(FileNotFoundError):
         info = os.lstat(parcial)
     if info is None or not stat.S_ISREG(info.st_mode) or info.st_size == 0:
         raise FalloDelHijo("sin_salida")
+    if info.st_size > TOPE_SALIDA:
+        raise SalidaDemasiadoGrande
     os.replace(parcial, final)
 
 
@@ -255,32 +289,49 @@ async def _registrar_error(
     motivo: str,
     duracion_ms: int,
 ) -> None:
-    """Último recurso. Si esto falla, la BD no responde: el archivo sigue sin descargarse."""
-    try:
-        async with sesiones.begin() as sesion:
-            await registrar_resultado(
-                sesion,
-                aplicacion_id,
+    """Último recurso. Si la BD no responde, reintenta unas pocas veces y luego se rinde.
+
+    El archivo sigue sin descargarse en cualquier caso; si no se pudo registrar, lo cierra el
+    barrido del siguiente arranque.
+    """
+    for intento in range(INTENTOS_REGISTRO_ERROR):
+        try:
+            async with sesiones.begin() as sesion:
+                await registrar_resultado(
+                    sesion,
+                    aplicacion_id,
+                    archivo_id,
+                    _CDR,
+                    _ERROR,
+                    {"motivo": motivo},
+                    duracion_ms,
+                )
+                await cambiar_estado(
+                    sesion,
+                    aplicacion_id,
+                    archivo_id,
+                    Estado.PENDIENTE,
+                    Estado.ERROR,
+                    tipo_error=_ERROR_FINAL,
+                )
+        except _NO_REINTENTABLES as error:
+            logger.error(
+                "No se pudo registrar el error de %s (%s)",
                 archivo_id,
-                _CDR,
-                _ERROR,
-                {"motivo": motivo},
-                duracion_ms,
+                type(error).__name__,
             )
-            await cambiar_estado(
-                sesion,
-                aplicacion_id,
+            return
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "No se pudo registrar el error de %s, intento %d (%s)",
                 archivo_id,
-                Estado.PENDIENTE,
-                Estado.ERROR,
-                tipo_error=_ERROR_FINAL,
+                intento + 1,
+                type(error).__name__,
             )
-    except Exception as error:  # noqa: BLE001
-        logger.error(
-            "No se pudo registrar el error de %s (%s)",
-            archivo_id,
-            type(error).__name__,
-        )
+            if intento < len(ESPERAS_REGISTRO_ERROR_S):
+                await asyncio.sleep(ESPERAS_REGISTRO_ERROR_S[intento])
+        else:
+            return
 
 
 def _borrar(ruta: Path) -> None:
@@ -288,6 +339,23 @@ def _borrar(ruta: Path) -> None:
         ruta.unlink(missing_ok=True)
     except OSError as error:
         logger.error("No se pudo borrar un temporal (%s)", type(error).__name__)
+
+
+def _borrar_trabajo(trabajo: Path) -> None:
+    """Borra el directorio de trabajo del hijo con lo que haya dejado dentro.
+
+    ``rmtree`` trabaja con descriptores y no sigue enlaces: un hijo sin Landlock (un
+    sustituto, o un kernel que no lo tenga y no llegara a analizar) no consigue que se borre
+    nada de fuera.
+    """
+    try:
+        shutil.rmtree(trabajo)
+    except FileNotFoundError:
+        pass
+    except OSError as error:
+        logger.error(
+            "No se pudo borrar un directorio de trabajo (%s)", type(error).__name__
+        )
 
 
 async def analizar_archivo(
@@ -301,26 +369,34 @@ async def analizar_archivo(
     """
     ajustes = estado.ajustes
     entrada = ajustes.uploads_tmp / str(archivo_id)
-    parcial = ajustes.clean_store / f"{archivo_id}{_SUFIJO_PARCIAL}"
+    trabajo = ajustes.clean_store / f"{archivo_id}{_SUFIJO_PARCIAL}"
+    parcial = trabajo / str(archivo_id)
     final = ajustes.clean_store / str(archivo_id)
     inicio = time.perf_counter()
 
     def _duracion_ms() -> int:
         return round((time.perf_counter() - inicio) * 1000)
 
+    confirmado = False
     try:
         async with estado.cupos:
             inicio = time.perf_counter()
+            # Exclusivo: si ya existiera, no es de este análisis.
+            trabajo.mkdir(mode=_MODO_TRABAJO)
             resultado = await correr_hijo(
                 (*ajustes.comando_cdr, str(entrada), str(parcial)),
                 ajustes.timeout_cdr_s,
             )
         duracion_ms = _duracion_ms()
         if resultado.veredicto == LIMPIO:
-            publicar_salida(parcial, final)
+            try:
+                publicar_salida(parcial, final)
+            except SalidaDemasiadoGrande:
+                resultado = Veredicto(RECHAZADO, resultado.tipo, _MOTIVO_SALIDA_GRANDE)
         await _registrar_veredicto(
             estado.sesiones, aplicacion_id, archivo_id, resultado, duracion_ms
         )
+        confirmado = True
     except Exception as error:  # noqa: BLE001
         motivo = error.motivo if isinstance(error, FalloDelHijo) else _MOTIVO_INTERNO
         logger.warning(
@@ -334,8 +410,11 @@ async def analizar_archivo(
             estado.sesiones, aplicacion_id, archivo_id, motivo, _duracion_ms()
         )
     finally:
+        # También al cancelar entre publicar y confirmar: sin `limpio` no hay salida.
+        if not confirmado:
+            _borrar(final)
         _borrar(entrada)
-        _borrar(parcial)
+        _borrar_trabajo(trabajo)
 
 
 def agendar_analisis(

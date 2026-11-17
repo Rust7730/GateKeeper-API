@@ -10,6 +10,7 @@ import os
 import socket
 import sys
 import time
+import uuid
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ from typing import Any
 import pytest
 import uvloop
 
+from api.app import analisis
 from api.app.analisis import (
     ENTORNO_HIJO,
     TOPE_SALIDA_HIJO,
@@ -26,6 +28,8 @@ from api.app.analisis import (
     interpretar_salida,
     publicar_salida,
 )
+from api.app.cdr_salida import TOPE_SALIDA, SalidaDemasiadoGrande
+from api.db.repositorios import ArchivoNoEncontrado, ConflictoDeEstado, DatoRechazado
 
 LIMPIO = {"veredicto": "limpio", "tipo": "image/png", "motivo": "ok"}
 RECHAZADO = {"veredicto": "rechazado", "tipo": "text/x-php", "motivo": "tipo"}
@@ -408,3 +412,102 @@ def test_publicar_rechaza_un_archivo_vacio(tmp_path: Path) -> None:
     with pytest.raises(FalloDelHijo):
         publicar_salida(parcial, final)
     assert not final.exists()
+
+
+def test_k46_publicar_rechaza_una_salida_sobre_el_tope(tmp_path: Path) -> None:
+    """El hijo no es de fiar (K28): el tope se aplica también al publicar."""
+    parcial, final = tmp_path / "parcial", tmp_path / "final"
+    with parcial.open("wb") as salida:
+        salida.truncate(TOPE_SALIDA + 1)
+    with pytest.raises(SalidaDemasiadoGrande):
+        publicar_salida(parcial, final)
+    assert not final.exists()
+
+
+def test_k46_publicar_admite_el_tope_justo(tmp_path: Path) -> None:
+    parcial, final = tmp_path / "parcial", tmp_path / "final"
+    with parcial.open("wb") as salida:
+        salida.truncate(TOPE_SALIDA)
+    publicar_salida(parcial, final)
+    assert final.stat().st_size == TOPE_SALIDA
+
+
+# ------------------------------------------------- reintento del registro del error
+
+
+class _SesionesQueFallan:
+    """``begin()`` falla las primeras ``fallos`` veces con ``error``; luego abre."""
+
+    def __init__(self, fallos: int, error: Exception) -> None:
+        self.fallos = fallos
+        self.error = error
+        self.intentos = 0
+
+    def begin(self) -> "_SesionesQueFallan":
+        self.intentos += 1
+        return self
+
+    async def __aenter__(self) -> object:
+        if self.intentos <= self.fallos:
+            raise self.error
+        return object()
+
+    async def __aexit__(self, *_: object) -> None:
+        return None
+
+
+@pytest.fixture
+def registros(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    hechos: list[str] = []
+
+    async def _resultado(*_: object, **__: object) -> None:
+        hechos.append("resultado")
+
+    async def _estado(*_: object, **__: object) -> None:
+        hechos.append("estado")
+
+    monkeypatch.setattr(analisis, "registrar_resultado", _resultado)
+    monkeypatch.setattr(analisis, "cambiar_estado", _estado)
+    monkeypatch.setattr(analisis, "ESPERAS_REGISTRO_ERROR_S", (0, 0))
+    return hechos
+
+
+def _registrar(sesiones: object) -> None:
+    asyncio.run(
+        analisis._registrar_error(sesiones, uuid.uuid4(), uuid.uuid4(), "timeout", 1)
+    )
+
+
+def test_el_error_se_reintenta_si_la_bd_no_responde(registros: list[str]) -> None:
+    """Sin reintento el archivo quedaría en `pendiente`, ocupando cupo de K48 hasta reiniciar."""
+    sesiones = _SesionesQueFallan(2, OSError("sin conexión"))
+    _registrar(sesiones)
+    assert sesiones.intentos == 3
+    assert registros == ["resultado", "estado"]
+
+
+def test_el_reintento_es_acotado(
+    registros: list[str], caplog: pytest.LogCaptureFixture
+) -> None:
+    sesiones = _SesionesQueFallan(99, OSError("sin conexión"))
+    _registrar(sesiones)
+    assert sesiones.intentos == analisis.INTENTOS_REGISTRO_ERROR == 3
+    assert registros == []
+    assert "sin conexión" not in caplog.text
+
+
+def test_las_esperas_son_las_propuestas() -> None:
+    assert analisis.ESPERAS_REGISTRO_ERROR_S == (0.5, 1.0)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [ConflictoDeEstado(), ArchivoNoEncontrado(), DatoRechazado()],
+    ids=["conflicto", "no_encontrado", "dato"],
+)
+def test_lo_que_no_es_de_la_conexion_no_se_reintenta(
+    registros: list[str], error: Exception
+) -> None:
+    sesiones = _SesionesQueFallan(99, error)
+    _registrar(sesiones)
+    assert sesiones.intentos == 1

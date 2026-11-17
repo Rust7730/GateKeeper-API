@@ -13,7 +13,9 @@ import pytest
 from PIL import Image, ImageFile
 from PIL.PngImagePlugin import PngInfo
 
+from api.app import cdr_imagen
 from api.app.cdr_imagen import MAX_PIXELES, reconstruir_imagen
+from api.app.cdr_jpeg import contar_escaneos
 
 
 def _guardar(tmp_path: Path, imagen: Image.Image, formato: str, **opciones) -> Path:
@@ -387,3 +389,72 @@ def test_la_salida_no_sigue_un_enlace_ni_pisa_un_archivo(tmp_path: Path) -> None
     with pytest.raises(OSError):
         reconstruir_imagen(entrada, salida, "image/png")
     assert victima.read_bytes() == b"intacto"
+
+
+# ------------------------------------------------------------------- K47: escaneos de JPEG
+
+
+def _progresivo_con_escaneos_vacios(extra: int) -> bytes:
+    """JPEG progresivo con ``extra`` cabeceras SOS vacías delante de su primer escaneo."""
+    salida = io.BytesIO()
+    _ruido_rgb(64).save(salida, "JPEG", quality=90, progressive=True)
+    datos = salida.getvalue()
+    inicio = datos.index(b"\xff\xda")
+    largo = struct.unpack(">H", datos[inicio + 2 : inicio + 4])[0]
+    return datos[:inicio] + datos[inicio : inicio + 2 + largo] * extra + datos[inicio:]
+
+
+def _escaneos_base() -> int:
+    return contar_escaneos(_progresivo_con_escaneos_vacios(0))
+
+
+def test_k47_mas_de_64_escaneos_se_rechaza_sin_abrir_con_pillow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    entrada = tmp_path / "entrada"
+    entrada.write_bytes(_progresivo_con_escaneos_vacios(65 - _escaneos_base()))
+
+    def _no_abrir(*_: object, **__: object) -> None:
+        raise AssertionError("Pillow abrió un JPEG que había que rechazar antes")
+
+    monkeypatch.setattr(Image, "open", _no_abrir)
+    motivo, salida = _reconstruir(tmp_path, entrada, "image/jpeg")
+    assert motivo == "escaneos"
+    assert not salida.exists()
+
+
+def test_k47_64_escaneos_justos_se_reconstruyen(tmp_path: Path) -> None:
+    entrada = tmp_path / "entrada"
+    entrada.write_bytes(_progresivo_con_escaneos_vacios(64 - _escaneos_base()))
+    assert _reconstruir(tmp_path, entrada, "image/jpeg")[0] is None
+
+
+def test_k47_un_png_no_se_cuenta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _no_contar(*_: object, **__: object) -> int:
+        raise AssertionError("se contaron escaneos de un PNG")
+
+    monkeypatch.setattr(cdr_imagen, "contar_escaneos", _no_contar)
+    entrada = _guardar(tmp_path, Image.new("L", (4, 4)), "PNG")
+    assert _reconstruir(tmp_path, entrada, "image/png")[0] is None
+
+
+# ------------------------------------------------------------- K46: tamaño de la salida
+
+
+@pytest.mark.parametrize(
+    ("formato", "tipo"), [("PNG", "image/png"), ("JPEG", "image/jpeg")]
+)
+def test_k46_salida_sobre_el_tope_se_rechaza_sin_dejarla(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, formato: str, tipo: str
+) -> None:
+    monkeypatch.setattr(cdr_imagen, "TOPE_SALIDA", 1000)
+    entrada = _guardar(tmp_path, _ruido_rgb(), formato)
+    motivo, salida = _reconstruir(tmp_path, entrada, tipo)
+    assert motivo == "salida_grande"
+    assert not salida.exists()
+
+
+def test_k46_el_tope_de_salida_es_el_de_la_decision() -> None:
+    assert cdr_imagen.TOPE_SALIDA == 32 * 1024 * 1024

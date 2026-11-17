@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, update
 from sqlalchemy.engine import URL
 
-from api.app import autenticacion
+from api.app import autenticacion, principal
 from api.app.ajustes import Ajustes
 from api.app.autenticacion import (
     AplicacionAutenticada,
@@ -96,6 +96,8 @@ def _assert_401_exacto(respuesta: Any) -> None:
     assert respuesta.json() == {"detail": "Unauthorized"}
     assert respuesta.headers["www-authenticate"] == "Bearer"
     assert respuesta.headers["cache-control"] == "no-store"
+    # Sin esto el servidor seguiría recibiendo el cuerpo de quien no se autenticó.
+    assert respuesta.headers["connection"] == "close"
 
 
 # ------------------------------------------------------------- formato y generación
@@ -440,10 +442,16 @@ def test_la_sesion_no_queda_abierta_al_entrar_a_la_ruta(
     assert respuesta.json() == {"ocupadas": 0}
 
 
+async def _sin_barrido(*_: object) -> None:
+    return None
+
+
 def test_si_la_bd_no_responde_es_500_generico_y_no_autentica(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Un fallo de la BD no es un rechazo de la key (K29): no se dice 401 ni deja pasar.
+    # Sin barrido: con la BD caída la app ni arrancaría, y aquí interesa la petición.
+    monkeypatch.setattr(principal, "barrer_restos", _sin_barrido)
     app = _app_de_prueba(_ajustes(URL_SIN_SERVIDOR, PEPPER_FICTICIO, tmp_path))
     with TestClient(app, raise_server_exceptions=False) as cliente:
         respuesta = cliente.get(RUTA, headers=_bearer(KEY_CON_FORMATO))

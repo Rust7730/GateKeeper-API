@@ -21,6 +21,7 @@ import hashlib
 import http
 import os
 import re
+import threading
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -100,9 +101,16 @@ class Receptor:
 
     Quien lo usa debe llamar a ``descartar()`` si algo falla, también si el error viene de
     fuera (el cliente cortó): el temporal es suyo hasta que lo reciba el análisis.
+
+    Cancelar la petición no detiene el hilo de un ``alimentar`` en curso, que podría crear el
+    temporal después de ``descartar()``. Por eso los dos toman el mismo cerrojo y, una vez
+    descartado, ``alimentar`` no hace nada. ``descartar`` espera como mucho a que termine el
+    trozo en curso.
     """
 
     def __init__(self, limite: bytes, directorio: Path) -> None:
+        self._cerrojo = threading.Lock()
+        self._descartado = False
         self._directorio = directorio
         self._id = uuid.uuid4()
         self._ruta: Path | None = None
@@ -186,10 +194,13 @@ class Receptor:
 
     def alimentar(self, trozo: bytes) -> None:
         """Procesa un trozo del cuerpo. 413 al pasar el tope, 400 si no es multipart."""
-        try:
-            self._parser.write(trozo)
-        except MultipartParseError:
-            raise rechazo(http.HTTPStatus.BAD_REQUEST) from None
+        with self._cerrojo:
+            if self._descartado:
+                return
+            try:
+                self._parser.write(trozo)
+            except MultipartParseError:
+                raise rechazo(http.HTTPStatus.BAD_REQUEST) from None
 
     def terminar(self) -> ArchivoRecibido:
         """Cierra el temporal. 400 si el cuerpo acabó sin cierre, sin archivo o vacío.
@@ -213,10 +224,12 @@ class Receptor:
             self._archivo = None
 
     def descartar(self) -> None:
-        """Borra el temporal, exista o no."""
-        self._cerrar_archivo()
-        if self._ruta is not None:
-            self._ruta.unlink(missing_ok=True)
+        """Borra el temporal, exista o no, y deja sin efecto todo ``alimentar`` posterior."""
+        with self._cerrojo:
+            self._descartado = True
+            self._cerrar_archivo()
+            if self._ruta is not None:
+                self._ruta.unlink(missing_ok=True)
 
 
 async def _siguiente_trozo(

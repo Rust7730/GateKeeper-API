@@ -24,11 +24,19 @@ from fastapi.responses import FileResponse
 from api.app.analisis import agendar_analisis
 from api.app.autenticacion import AplicacionAutenticada, autenticar
 from api.app.estados import Estado, es_descargable
-from api.app.recepcion import recibir_archivo
+from api.app.recepcion import rechazo, recibir_archivo
 from api.app.tipos import EXTENSIONES
-from api.db.repositorios import DatosArchivo, crear_archivo, obtener_archivo
+from api.db.repositorios import (
+    CupoDePendientesAgotado,
+    DatosArchivo,
+    contar_pendientes,
+    crear_archivo_con_cupo,
+    obtener_archivo,
+)
 
 logger = logging.getLogger("gatekeeper.api")
+
+TOPE_PENDIENTES = 20  # K48: archivos en `pendiente` por aplicación
 
 
 def _no_encontrado() -> HTTPException:
@@ -66,25 +74,44 @@ def crear_router_v1() -> APIRouter:
     async def subir_archivo(
         request: Request, aplicacion_id: AplicacionAutenticada
     ) -> dict[str, str]:
-        """Antes del 202 solo hay streaming a disco, SHA-256 e ``INSERT`` (M1)."""
+        """Antes del 202 solo hay streaming a disco, SHA-256 e ``INSERT`` (M1).
+
+        K48: como mucho ``TOPE_PENDIENTES`` archivos en ``pendiente`` por aplicación; el
+        siguiente recibe 429, sin temporal ni fila. Lo garantiza ``crear_archivo_con_cupo``,
+        que cuenta e inserta en el mismo turno. La lectura previa solo evita recibir el
+        cuerpo cuando ya se sabe que no cabe; su 429 cierra la conexión, como todo rechazo
+        que no lee el cuerpo. La transacción del alta es corta y no hace E/S: bloquea la
+        fila de la aplicación hasta el ``COMMIT``.
+        """
         estado = request.app.state
         ajustes = estado.ajustes
+        async with estado.sesiones() as sesion:
+            pendientes = await contar_pendientes(sesion, aplicacion_id)
+        if pendientes >= TOPE_PENDIENTES:
+            raise rechazo(http.HTTPStatus.TOO_MANY_REQUESTS)
         recibido = await recibir_archivo(
             request, ajustes.uploads_tmp, ajustes.timeout_recepcion_s
         )
+        sin_cupo = False
         try:
             async with estado.sesiones.begin() as sesion:
-                await crear_archivo(
+                await crear_archivo_con_cupo(
                     sesion,
                     aplicacion_id,
                     recibido.id,
                     recibido.nombre,
                     recibido.tamano,
                     recibido.sha256,
+                    tope_pendientes=TOPE_PENDIENTES,
                 )
+        except CupoDePendientesAgotado:
+            sin_cupo = True
         except BaseException:
             recibido.ruta.unlink(missing_ok=True)
             raise
+        if sin_cupo:
+            recibido.ruta.unlink(missing_ok=True)
+            raise rechazo(http.HTTPStatus.TOO_MANY_REQUESTS)
         agendar_analisis(estado, aplicacion_id, recibido.id)
         return {"id": str(recibido.id), "estado": Estado.PENDIENTE.value}
 

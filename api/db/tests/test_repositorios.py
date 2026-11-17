@@ -34,9 +34,11 @@ from api.db.repositorios import (
     SinEvidenciaCDR,
     ViolacionDeRestriccion,
     cambiar_estado,
+    contar_pendientes,
     crear_api_key,
     crear_aplicacion,
     crear_archivo,
+    crear_archivo_con_cupo,
     obtener_api_key_activa,
     obtener_archivo,
     registrar_resultado,
@@ -222,7 +224,14 @@ async def test_key_de_aplicacion_inactiva_no_se_devuelve(sesiones: Sesiones) -> 
 
 @pytest.mark.parametrize(
     "funcion",
-    [crear_archivo, obtener_archivo, cambiar_estado, registrar_resultado],
+    [
+        crear_archivo,
+        crear_archivo_con_cupo,
+        contar_pendientes,
+        obtener_archivo,
+        cambiar_estado,
+        registrar_resultado,
+    ],
 )
 def test_aplicacion_id_es_obligatorio_y_sin_valor_por_defecto(
     funcion: Callable[..., Any],
@@ -234,6 +243,9 @@ def test_aplicacion_id_es_obligatorio_y_sin_valor_por_defecto(
 def test_toda_funcion_publica_que_toca_archivos_recibe_aplicacion_id() -> None:
     # Si alguien agrega otra función sobre archivos, esta prueba le recuerda INV-10.
     exentas = {"crear_aplicacion", "crear_api_key", "obtener_api_key_activa"}
+    # Mantenimiento del sistema (K51), no una lectura para un cliente: la única excepción a
+    # INV-10 sobre archivos. Agregar otra aquí es una decisión, no un arreglo de la prueba.
+    mantenimiento = {"cerrar_pendientes_huerfanos"}
     funciones = {
         nombre: funcion
         for nombre, funcion in inspect.getmembers(
@@ -241,9 +253,12 @@ def test_toda_funcion_publica_que_toca_archivos_recibe_aplicacion_id() -> None:
         )
         if funcion.__module__ == repositorios.__name__ and not nombre.startswith("_")
     }
-    assert set(funciones) >= exentas
+    assert set(funciones) >= exentas | mantenimiento
     for nombre, funcion in funciones.items():
-        if nombre not in exentas:
+        if nombre in mantenimiento:
+            assert "aplicacion_id" not in inspect.signature(funcion).parameters
+            assert "INV-10" in (inspect.getdoc(funcion) or ""), nombre
+        elif nombre not in exentas:
             assert "aplicacion_id" in inspect.signature(funcion).parameters, nombre
 
 

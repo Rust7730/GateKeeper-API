@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import anyio
 import pikepdf
 import pytest
 from fastapi.testclient import TestClient
@@ -27,6 +28,7 @@ from sqlalchemy.engine import URL
 from api.app.ajustes import Ajustes
 from api.app.principal import crear_app
 from api.app.recepcion import TOPE_ARCHIVO
+from api.app.v1 import TOPE_PENDIENTES
 from api.tests.soporte_api import sembrar_key
 
 MUESTRAS_M1 = 200
@@ -37,6 +39,7 @@ TOPE_M2_MS = 2000.0
 TROZO = 64 * 1024
 TOPE_ESPERA_S = 40.0
 LIMITE = "limitegk"
+SIMULTANEAS = 8
 
 
 def _p95(muestras: list[float]) -> float:
@@ -117,6 +120,11 @@ def api(bd_limpia: URL, tmp_path: Path) -> Any:
 
 def _medir_m1(cliente: TestClient, app: Any, key: str, cuerpo: bytes) -> float:
     """Milisegundos desde que se entrega el último byte hasta el inicio de la respuesta."""
+    assert cliente.portal is not None
+    return cliente.portal.call(_m1_asgi, app, key, cuerpo)
+
+
+async def _m1_asgi(app: Any, key: str, cuerpo: bytes) -> float:
     trozos = [cuerpo[i : i + TROZO] for i in range(0, len(cuerpo), TROZO)]
     pendientes = iter(trozos)
     fin_recepcion = respuesta = 0.0
@@ -153,8 +161,7 @@ def _medir_m1(cliente: TestClient, app: Any, key: str, cuerpo: bytes) -> float:
             respuesta = time.perf_counter()
             estado = mensaje["status"]
 
-    assert cliente.portal is not None
-    cliente.portal.call(app, alcance, recibir, enviar)
+    await app(alcance, recibir, enviar)
     assert estado == 202
     return (respuesta - fin_recepcion) * 1000
 
@@ -162,14 +169,72 @@ def _medir_m1(cliente: TestClient, app: Any, key: str, cuerpo: bytes) -> float:
 @pytest.mark.parametrize(
     "tamano", [1024, TOPE_ARCHIVO], ids=["1_kib", "10_mib_en_el_tope"]
 )
-def test_m1_202_desde_el_fin_de_la_recepcion(api: Any, tamano: int) -> None:
+def test_m1_202_desde_el_fin_de_la_recepcion(
+    api: Any, tamano: int, bd_limpia: URL
+) -> None:
     cliente, app, key = api
     cuerpo = _multipart(b"\x89PNG\r\n\x1a\n" + bytes(tamano - 8))
-    # Sin esperar al análisis: el 202 no puede depender de lo que haya en cola.
-    muestras = [_medir_m1(cliente, app, key, cuerpo) for _ in range(MUESTRAS_M1)]
+    # Sin esperar al análisis: el 202 no puede depender de lo que haya en cola. Sí a que haya
+    # cupo (K48): en una máquina lenta, 200 subidas seguidas llegarían al 429.
+    muestras = []
+    for _ in range(MUESTRAS_M1):
+        _esperar_cupo(bd_limpia, 1)
+        muestras.append(_medir_m1(cliente, app, key, cuerpo))
     p95 = _p95(muestras)
     print(
         f"\nM1 {tamano} B ({MUESTRAS_M1}): p95 = {p95:.2f} ms, máx = {max(muestras):.2f} ms"
+    )
+    assert p95 < TOPE_M1_MS
+
+
+def _pendientes(url: URL) -> int:
+    motor = create_engine(url)
+    try:
+        with motor.connect() as con:
+            return con.execute(
+                text("SELECT count(*) FROM archivo WHERE estado = 'pendiente'")
+            ).scalar_one()
+    finally:
+        motor.dispose()
+
+
+def _esperar_cupo(url: URL, subidas: int) -> None:
+    """Hasta que quepan ``subidas`` más sin pasar de K48. Aquí se mide el 202, no el 429."""
+    limite = time.monotonic() + TOPE_ESPERA_S
+    while _pendientes(url) > TOPE_PENDIENTES - subidas:
+        assert time.monotonic() < limite, "el análisis no libera cupo"
+        time.sleep(0.02)
+
+
+def test_m1_con_subidas_simultaneas_de_una_aplicacion(api: Any, bd_limpia: URL) -> None:
+    """K48: el alta con cupo pone en fila las altas de una misma aplicación.
+
+    Rondas de ``SIMULTANEAS`` subidas a la vez. Entre ronda y ronda se espera a que haya
+    cupo: aquí se mide la fila del alta, no el 429.
+    """
+    cliente, app, key = api
+    cuerpo = _multipart(b"\x89PNG\r\n\x1a\n" + bytes(1024 - 8))
+
+    async def _ronda() -> list[float]:
+        muestras: list[float] = []
+
+        async def _una() -> None:
+            muestras.append(await _m1_asgi(app, key, cuerpo))
+
+        async with anyio.create_task_group() as grupo:
+            for _ in range(SIMULTANEAS):
+                grupo.start_soon(_una)
+        return muestras
+
+    muestras: list[float] = []
+    assert cliente.portal is not None
+    while len(muestras) < MUESTRAS_M1:
+        _esperar_cupo(bd_limpia, SIMULTANEAS)
+        muestras += cliente.portal.call(_ronda)
+    p95 = _p95(muestras)
+    print(
+        f"\nM1 {SIMULTANEAS} simultáneas ({len(muestras)}): p95 = {p95:.2f} ms, "
+        f"máx = {max(muestras):.2f} ms"
     )
     assert p95 < TOPE_M1_MS
 

@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 435,
-   "aristas": 998,
+   "nodos": 440,
+   "aristas": 1016,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 49,
+    "Observacion": 54,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 191,
+    "afecta": 209,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -2968,6 +2968,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -2985,6 +2991,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -3028,6 +3040,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -3045,6 +3063,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -3129,6 +3153,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -3146,6 +3176,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -3163,6 +3199,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -3180,6 +3222,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -3197,6 +3245,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -3214,6 +3268,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -3231,6 +3291,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -3248,6 +3314,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -3265,6 +3337,12 @@
       "de": "pendiente",
       "a": "en_progreso",
       "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
      }
     ]
    }
@@ -4684,6 +4762,76 @@
     "origen": "gatekeeper-guardian",
     "eleccion": "Imágenes en línea de PDF medidas con el tope de K13 (100 MB descomprimidos); si lo superan, rechazado; un filtro después de un códec de imagen también -> rechazado",
     "fecha_decision": "2026-11-09"
+   }
+  },
+  {
+   "id": "K50",
+   "tipo": "Observacion",
+   "label": "Límite de CPU del proceso hijo del CDR",
+   "props": {
+    "propuesta": "RLIMIT_CPU = 35 s, límite blando y duro",
+    "hallazgo": "El único tope de tiempo vivía en el padre; un hijo huérfano seguía consumiendo CPU sin límite.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-10",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "RLIMIT_CPU = 35 s, límite blando y duro",
+    "fecha_decision": "2026-11-10"
+   }
+  },
+  {
+   "id": "K51",
+   "tipo": "Observacion",
+   "label": "Barrido al arrancar",
+   "props": {
+    "propuesta": "Al arrancar, la API borra los originales y parciales huérfanos y pasa los archivos que quedaron en 'pendiente' a 'error' con tipo_error='final'",
+    "hallazgo": "Tras una caída el original ya no sirve y la rebanada no tiene reintentos.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-10",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Al arrancar, la API borra los originales y parciales huérfanos y pasa los archivos que quedaron en 'pendiente' a 'error' con tipo_error='final'",
+    "fecha_decision": "2026-11-10"
+   }
+  },
+  {
+   "id": "K52",
+   "tipo": "Observacion",
+   "label": "La API se niega a arrancar si un proceso ancestro expone sus secretos",
+   "props": {
+    "propuesta": "Al arrancar, si algún ancestro tiene GATEKEEPER_PEPPER o GATEKEEPER_DATABASE_URL legibles en /proc/<pid>/environ, la API no arranca; el README lanza uvicorn directamente, sin uv run.",
+    "hallazgo": "Con uv run, el proceso uv conserva el entorno y un hijo del CDR comprometido podía leer el pepper y la URL de la BD, pese a PR_SET_DUMPABLE=0.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-10",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Al arrancar, si algún ancestro tiene GATEKEEPER_PEPPER o GATEKEEPER_DATABASE_URL legibles en /proc/<pid>/environ, la API no arranca; el README lanza uvicorn directamente, sin uv run.",
+    "fecha_decision": "2026-11-10"
+   }
+  },
+  {
+   "id": "K53",
+   "tipo": "Observacion",
+   "label": "Landlock en el proceso hijo del CDR",
+   "props": {
+    "propuesta": "El hijo se encierra con Landlock antes de leer el archivo no confiable: solo lee lo que necesita (Python, bibliotecas, libmagic y su entrada) y solo escribe su propia salida, que crea el padre; sin TCP si la ABI lo permite; si Landlock no está disponible, el archivo termina en error.",
+    "hallazgo": "Con el mismo UID, un hijo comprometido podía leer y modificar archivos de otras aplicaciones, incluidos los ya reconstruidos.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-10",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "El hijo se encierra con Landlock antes de leer el archivo no confiable: solo lee lo que necesita (Python, bibliotecas, libmagic y su entrada) y solo escribe su propia salida, que crea el padre; sin TCP si la ABI lo permite; si Landlock no está disponible, el archivo termina en error.",
+    "fecha_decision": "2026-11-10"
+   }
+  },
+  {
+   "id": "K54",
+   "tipo": "Observacion",
+   "label": "El proceso hijo del CDR no puede crear sockets",
+   "props": {
+    "propuesta": "Landlock gestiona LANDLOCK_ACCESS_FS_RESOLVE_UNIX sin concederlo cuando el kernel lo ofrece, y siempre un filtro seccomp niega socket() y socketpair(); si el filtro no se puede instalar, el archivo termina en error.",
+    "hallazgo": "Bajo Landlock el hijo aún conectaba a sockets Unix por ruta (/var/run/docker.sock, que da root en el host, y el D-Bus de sesión); el filtro cubre también UDP y los kernels sin ese permiso de Landlock.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-11",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Landlock gestiona LANDLOCK_ACCESS_FS_RESOLVE_UNIX sin concederlo cuando el kernel lo ofrece, y siempre un filtro seccomp niega socket() y socketpair(); si el filtro no se puede instalar, el archivo termina en error.",
+    "fecha_decision": "2026-11-11"
    }
   }
  ],
@@ -9775,6 +9923,96 @@
    "de": "K49",
    "rel": "afecta",
    "a": "F3.07"
+  },
+  {
+   "de": "K50",
+   "rel": "afecta",
+   "a": "K09"
+  },
+  {
+   "de": "K50",
+   "rel": "afecta",
+   "a": "K42"
+  },
+  {
+   "de": "K50",
+   "rel": "afecta",
+   "a": "param:cdr_proceso_hijo"
+  },
+  {
+   "de": "K51",
+   "rel": "afecta",
+   "a": "F3.09"
+  },
+  {
+   "de": "K51",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K51",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K52",
+   "rel": "afecta",
+   "a": "K28"
+  },
+  {
+   "de": "K52",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K52",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K53",
+   "rel": "afecta",
+   "a": "K28"
+  },
+  {
+   "de": "K53",
+   "rel": "afecta",
+   "a": "K42"
+  },
+  {
+   "de": "K53",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K53",
+   "rel": "afecta",
+   "a": "INV-10"
+  },
+  {
+   "de": "K53",
+   "rel": "afecta",
+   "a": "param:cdr_proceso_hijo"
+  },
+  {
+   "de": "K54",
+   "rel": "afecta",
+   "a": "K53"
+  },
+  {
+   "de": "K54",
+   "rel": "afecta",
+   "a": "K28"
+  },
+  {
+   "de": "K54",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K54",
+   "rel": "afecta",
+   "a": "param:cdr_proceso_hijo"
   }
  ]
 }

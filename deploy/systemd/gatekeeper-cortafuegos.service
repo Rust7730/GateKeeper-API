@@ -1,0 +1,15 @@
+[Unit]
+Description=Gatekeeper: límite de conexiones por IP al puerto 80 (DOCKER-USER)
+Documentation=file:///opt/gatekeeper/cortafuegos.sh
+After=docker.service
+Requires=docker.service
+# Si Docker se reinicia, esto se vuelve a aplicar.
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/gatekeeper/cortafuegos.sh
+
+[Install]
+WantedBy=docker.service

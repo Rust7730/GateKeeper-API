@@ -6,6 +6,10 @@
   publica en todas las interfaces y no deja configurar. Y como el ajuste toca cómo se
   crea el reaper, se comprueba que sigue limpiando: si el proceso de pytest muere con
   SIGKILL (sin ``atexit``), el reaper quita los contenedores de esa sesión.
+- El reaper de la sesión confirmó el registro (respondió ``ACK``). testcontainers 4.15
+  conecta sin esperar a que ryuk escuche; ``docker-proxy`` acepta igual y luego corta, y
+  ryuk, sin cliente, se apaga a los 60 s sin proteger nada. Ver
+  ``confirmar_registro_en_reaper``.
 - CWE-532: la contraseña sale de una sola función, ``generar_contrasena``, con alfabeto
   urlsafe. El saneado de los errores de arranque busca la contraseña literal; si tuviera
   ``'`` testcontainers la escaparía (``'"'"'``) y el saneado ya no la encontraría.
@@ -17,12 +21,16 @@
 import json
 import os
 import signal
+import socket
 import string
+import struct
 
 # subprocess solo corre pytest en un proceso hijo, con argumentos fijos y sin shell.
 import subprocess  # nosec B404
 import sys
+import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -39,6 +47,7 @@ from api.db.tests.soporte_postgres import (
     IP_PUBLICACION,
     PUERTO_POSTGRES,
     arrancar_reaper_en_loopback,
+    confirmar_registro_en_reaper,
     exigir_docker,
     generar_contrasena,
 )
@@ -92,6 +101,150 @@ def test_el_reaper_publica_8080_solo_en_127_0_0_1(
     reaper.reload()
     assert reaper.status == "running", reaper.status
     _exigir_solo_loopback(reaper.attrs, "8080/tcp")
+
+
+def test_el_reaper_registro_esta_sesion(
+    contenedor_postgres: PostgresContainer,
+) -> None:
+    """ryuk recibió el filtro de esta sesión: es lo que le permite limpiar tras un SIGKILL.
+
+    Sin registro, ryuk escribe ``Timeout waiting for connection`` a los 60 s, sale sin
+    quitar nada y ``auto_remove`` lo borra: la sesión queda sin reaper y la prueba de
+    arriba falla con ``No such container``.
+    """
+    cliente = contenedor_postgres.get_docker_client().client
+    reaper = cliente.containers.get(_nombre_reaper(SESSION_ID))
+    bitacora = reaper.logs().decode("utf-8", errors="replace")
+    assert f'"{LABEL_SESSION_ID}={SESSION_ID}":true' in bitacora, bitacora
+    assert "Timeout waiting for connection" not in bitacora, bitacora
+
+
+class _RyukFalso:
+    """Servidor TCP en 127.0.0.1 que imita a ryuk detrás de ``docker-proxy``.
+
+    Las primeras ``cortes`` conexiones las cierra sin leer nada, como ``docker-proxy``
+    cuando acepta en el puerto del host y el contenedor todavía no escucha (``reset``:
+    con RST, como cuando el proxy aborta). Las demás reciben ``ACK`` por cada línea.
+    """
+
+    def __init__(self, cortes: int, *, reset: bool = False) -> None:
+        self._cortes = cortes
+        self._reset = reset
+        self.conexiones = 0
+        self.lineas: list[bytes] = []
+        self._abiertas: list[socket.socket] = []
+        self._servidor = socket.create_server(("127.0.0.1", 0))
+        self._servidor.settimeout(0.2)
+        self.destino: tuple[str, int] = self._servidor.getsockname()[:2]
+        self._parar = threading.Event()
+        self._hilo = threading.Thread(target=self._atender, daemon=True)
+        self._hilo.start()
+
+    def _atender(self) -> None:
+        while not self._parar.is_set():
+            try:
+                conexion, _ = self._servidor.accept()
+            except TimeoutError:
+                continue
+            self.conexiones += 1
+            if self._cortes > 0:
+                self._cortes -= 1
+                if self._reset:
+                    conexion.setsockopt(
+                        socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+                    )
+                conexion.close()
+                continue
+            conexion.settimeout(2)
+            linea = b""
+            while not linea.endswith(b"\n"):
+                trozo = conexion.recv(64)
+                if not trozo:
+                    break
+                linea += trozo
+            self.lineas.append(linea)
+            conexion.sendall(b"ACK\n")
+            self._abiertas.append(conexion)
+
+    def cerrar(self) -> None:
+        self._parar.set()
+        self._hilo.join(timeout=5)
+        for conexion in self._abiertas:
+            conexion.close()
+        self._servidor.close()
+
+
+@pytest.fixture
+def ryuk_falso(request: pytest.FixtureRequest) -> Iterator[_RyukFalso]:
+    cortes, reset = request.param
+    servidor = _RyukFalso(cortes, reset=reset)
+    try:
+        yield servidor
+    finally:
+        servidor.cerrar()
+
+
+_LINEA_REGISTRO = b"label=org.testcontainers.session-id=prueba\r\n"
+
+
+def _conectar_como_testcontainers(destino: tuple[str, int]) -> socket.socket:
+    """Lo que hace ``Reaper._create_instance``: conecta, manda el filtro y no lee nada."""
+    conexion = socket.socket()
+    conexion.settimeout(1)
+    conexion.connect(destino)
+    conexion.send(_LINEA_REGISTRO)
+    return conexion
+
+
+@pytest.mark.parametrize("ryuk_falso", [(0, False)], indirect=True)
+def test_con_ack_a_la_primera_conserva_la_conexion(ryuk_falso: _RyukFalso) -> None:
+    actual = _conectar_como_testcontainers(ryuk_falso.destino)
+    try:
+        confirmada = confirmar_registro_en_reaper(
+            actual, ryuk_falso.destino, _LINEA_REGISTRO, intentos=3, pausa_s=0.01
+        )
+        assert confirmada is actual
+        assert ryuk_falso.conexiones == 1
+        assert ryuk_falso.lineas == [_LINEA_REGISTRO]
+    finally:
+        actual.close()
+
+
+@pytest.mark.parametrize(
+    "ryuk_falso",
+    [pytest.param((1, False), id="cierre"), pytest.param((1, True), id="reset")],
+    indirect=True,
+)
+def test_si_el_proxy_corta_la_primera_conexion_se_reconecta_hasta_el_ack(
+    ryuk_falso: _RyukFalso,
+) -> None:
+    actual = _conectar_como_testcontainers(ryuk_falso.destino)
+    confirmada = confirmar_registro_en_reaper(
+        actual, ryuk_falso.destino, _LINEA_REGISTRO, intentos=3, pausa_s=0.01
+    )
+    try:
+        assert confirmada is not actual
+        assert actual.fileno() == -1, "la conexión cortada se debe cerrar"
+        assert confirmada.fileno() != -1
+        assert ryuk_falso.conexiones == 2
+        assert ryuk_falso.lineas == [_LINEA_REGISTRO]
+    finally:
+        confirmada.close()
+
+
+@pytest.mark.parametrize("ryuk_falso", [(100, False)], indirect=True)
+def test_si_ryuk_nunca_confirma_falla_con_mensaje_claro(
+    ryuk_falso: _RyukFalso,
+) -> None:
+    actual = _conectar_como_testcontainers(ryuk_falso.destino)
+    with pytest.raises(RuntimeError) as falla:
+        confirmar_registro_en_reaper(
+            actual, ryuk_falso.destino, _LINEA_REGISTRO, intentos=3, pausa_s=0.01
+        )
+    assert "ACK" in str(falla.value)
+    assert f"{ryuk_falso.destino[0]}:{ryuk_falso.destino[1]}" in str(falla.value)
+    assert actual.fileno() == -1
+    assert ryuk_falso.conexiones == 1 + 3
 
 
 def test_el_reaper_desactivado_falla_con_mensaje_claro(

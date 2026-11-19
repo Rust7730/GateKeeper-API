@@ -1,0 +1,18 @@
+# Lista blanca: al contexto de construcción solo entra lo que la imagen necesita.
+# Todo lo demás (docs/, context/, .claude/, tests/, deploy/, .git, .venv, .env*, cachés) queda fuera.
+*
+!pyproject.toml
+!uv.lock
+!api/
+
+# Dentro de api/: ni pruebas ni cachés.
+api/tests/
+api/db/tests/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.ruff_cache/
+
+# Por si alguien deja uno dentro de api/: nunca un .env en la imagen.
+**/.env
+**/.env.*

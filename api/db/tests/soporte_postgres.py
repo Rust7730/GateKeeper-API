@@ -9,6 +9,8 @@ fallen si alguien cambia una de las dos cosas.
 
 import contextlib
 import secrets
+import socket
+import time
 from pathlib import Path
 from typing import Protocol, Self
 
@@ -21,6 +23,7 @@ from testcontainers.community.postgres import PostgresContainer
 from testcontainers.core.config import testcontainers_config
 from testcontainers.core.container import DockerContainer, Reaper
 from testcontainers.core.docker_client import DockerClient
+from testcontainers.core.labels import LABEL_SESSION_ID, SESSION_ID
 
 IMAGEN_POSTGRES = "postgres:16"
 PUERTO_POSTGRES = 5432
@@ -33,6 +36,15 @@ NOMBRE_BD = "gatekeeper_pruebas"
 IP_PUBLICACION = "127.0.0.1"
 # 24 bytes aleatorios -> 32 caracteres urlsafe (192 bits).
 _BYTES_CONTRASENA = 24
+# Registro en el reaper (ver confirmar_registro_en_reaper). ryuk responde "ACK\n" a cada
+# filtro en milisegundos; 2 s por intento cubre una máquina cargada. 40 intentos con 0.5 s
+# de pausa son ~20 s si el proxy corta enseguida (el plazo que testcontainers le da a ryuk
+# para arrancar) y ~100 s en el peor caso, si cada intento agota la espera del ACK.
+_PUERTO_REAPER = 8080
+_RESPUESTA_REAPER = b"ACK"
+_PLAZO_ACK_S = 2.0
+_INTENTOS_REAPER = 40
+_PAUSA_REAPER_S = 0.5
 RUTA_ALEMBIC_INI = Path(__file__).resolve().parents[2] / "migrations" / "alembic.ini"
 
 
@@ -187,6 +199,70 @@ class _ContenedorEnLoopback(DockerContainer):
         return super().start()
 
 
+def _ryuk_respondio_ack(conexion: socket.socket) -> bool:
+    """Lee la respuesta de ryuk al filtro: ``True`` solo si es ``ACK``.
+
+    ``False`` si la conexión se cerró (EOF), se reinició (RST) o no respondió a tiempo.
+    """
+    respuesta = b""
+    conexion.settimeout(_PLAZO_ACK_S)
+    try:
+        while not respuesta.endswith(b"\n"):
+            trozo = conexion.recv(16)
+            if not trozo:
+                break
+            respuesta += trozo
+    # OSError cubre TimeoutError, ConnectionResetError y un socket ya cerrado.
+    except OSError:
+        return False
+    return respuesta.startswith(_RESPUESTA_REAPER)
+
+
+def confirmar_registro_en_reaper(
+    actual: socket.socket | None,
+    destino: tuple[str, int],
+    linea: bytes,
+    *,
+    intentos: int = _INTENTOS_REAPER,
+    pausa_s: float = _PAUSA_REAPER_S,
+) -> socket.socket:
+    """Devuelve una conexión con ryuk que confirmó el filtro ``linea`` con ``ACK``.
+
+    testcontainers 4.15 conecta al reaper sin esperar a que escuche:
+    ``Reaper._create_instance`` llama a ``waiting_for`` después de ``start()``, cuando ya
+    no espera nada. El puerto del host lo abre el daemon (``docker-proxy -use-listen-fd``)
+    y acepta la conexión aunque ryuk todavía no escuche; luego el proxy no alcanza al
+    contenedor y la corta. testcontainers no lee la respuesta y no se entera. ryuk, sin
+    ningún cliente, sale a los 60 s (``Timeout waiting for connection``) sin quitar nada,
+    y ``auto_remove`` lo borra: la sesión queda sin reaper y un pytest que muera con
+    SIGKILL deja sus contenedores corriendo.
+
+    Si ``actual`` ya recibió ``ACK``, se devuelve tal cual. Si no, se cierra y se reconecta
+    a ``destino`` hasta recibir ``ACK``. Si no llega en ``intentos``, lanza ``RuntimeError``.
+    """
+    if actual is not None:
+        if _ryuk_respondio_ack(actual):
+            return actual
+        actual.close()
+    for _ in range(intentos):
+        conexion = socket.socket()
+        conexion.settimeout(_PLAZO_ACK_S)
+        try:
+            conexion.connect(destino)
+            conexion.sendall(linea)
+        except OSError:
+            conexion.close()
+        else:
+            if _ryuk_respondio_ack(conexion):
+                return conexion
+            conexion.close()
+        time.sleep(pausa_s)
+    raise RuntimeError(
+        f"ryuk no respondió ACK al registro de la sesión en {destino[0]}:{destino[1]} "
+        f"tras {intentos} intentos"
+    )
+
+
 def arrancar_reaper_en_loopback() -> None:
     """Crea el reaper (ryuk) de la sesión con su 8080 publicado solo en 127.0.0.1 (CWE-668).
 
@@ -198,9 +274,13 @@ def arrancar_reaper_en_loopback() -> None:
     Depende de esos internos de testcontainers 4.15.0; si cambian,
     ``test_el_reaper_publica_8080_solo_en_127_0_0_1`` falla.
 
+    Después exige que ryuk haya confirmado el filtro de la sesión con ``ACK`` y, si la
+    conexión de testcontainers se perdió, reconecta (``confirmar_registro_en_reaper``).
+
     Falla (no omite) si ryuk está desactivado, porque sin él un pytest que muere con
-    SIGKILL dejaría el PostgreSQL corriendo; o si ya existe un reaper creado sin este
-    ajuste, porque estaría escuchando en todas las interfaces.
+    SIGKILL dejaría el PostgreSQL corriendo; si ya existe un reaper creado sin este
+    ajuste, porque estaría escuchando en todas las interfaces; o si ryuk no confirma el
+    registro, porque se apagaría a los 60 s sin proteger la sesión.
     """
     if testcontainers_config.ryuk_disabled:
         pytest.fail(
@@ -229,6 +309,24 @@ def arrancar_reaper_en_loopback() -> None:
         error_reaper = f"{type(exc).__name__}: {exc}"
     finally:
         _modulo_container.DockerContainer = original  # type: ignore[misc]
+    if error_reaper is None:
+        # La conexión que abrió testcontainers puede haberse perdido sin aviso: se exige
+        # el ACK de ryuk (ver confirmar_registro_en_reaper).
+        try:
+            contenedor_reaper = Reaper._container
+            if contenedor_reaper is None:
+                raise RuntimeError("testcontainers no dejó el contenedor de ryuk")
+            Reaper._socket = confirmar_registro_en_reaper(
+                Reaper._socket,
+                (
+                    IP_PUBLICACION,
+                    int(contenedor_reaper.get_exposed_port(_PUERTO_REAPER)),
+                ),
+                f"label={LABEL_SESSION_ID}={SESSION_ID}\r\n".encode(),
+            )
+        # Amplio a propósito, como arriba: todo termina en pytest.fail.
+        except Exception as exc:  # noqa: BLE001
+            error_reaper = f"{type(exc).__name__}: {exc}"
     if error_reaper is not None:
         # Si el contenedor de ryuk llegó a crearse, se quita.
         with contextlib.suppress(Exception):

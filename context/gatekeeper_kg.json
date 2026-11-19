@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 440,
-   "aristas": 1016,
+   "nodos": 441,
+   "aristas": 1023,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 54,
+    "Observacion": 55,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 209,
+    "afecta": 216,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -4832,6 +4832,20 @@
     "origen": "gatekeeper-guardian",
     "eleccion": "Landlock gestiona LANDLOCK_ACCESS_FS_RESOLVE_UNIX sin concederlo cuando el kernel lo ofrece, y siempre un filtro seccomp niega socket() y socketpair(); si el filtro no se puede instalar, el archivo termina en error.",
     "fecha_decision": "2026-11-11"
+   }
+  },
+  {
+   "id": "K55",
+   "tipo": "Observacion",
+   "label": "Despliegue en AWS EC2, restringido y luego público",
+   "props": {
+    "propuesta": "El backend se despliega en una instancia EC2 Ubuntu 24.04 (t3.small) con Docker Compose (nginx con TLS de Let's Encrypt sobre un nombre *.sslip.io, API y PostgreSQL), con acceso restringido a las IP del usuario. Las actualizaciones se publican con GitHub Actions al hacer merge a main (imagen en GHCR) y el servidor las descarga por pull. Se abrirá al público después de implementar TLS, rate limit (K10) y el rol gk_app; ese paso cambiará K26 y se registrará entonces. Mientras tanto K26 (uso no público) y K28 (desviación temporal de INV-04) siguen vigentes.",
+    "hallazgo": "El usuario pidió desplegar el backend en AWS. Exponerlo en internet chocaba con K26 (uso local) y K28 (desviación temporal de INV-04, no apta para producción); se resuelve desplegando primero con acceso restringido a sus IP y abriendo al público solo después de TLS, rate limit (K10) y el rol gk_app, con un cambio de K26 que se registrará entonces.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-18",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "El backend se despliega en una instancia EC2 Ubuntu 24.04 (t3.small) con Docker Compose (nginx con TLS de Let's Encrypt sobre un nombre *.sslip.io, API y PostgreSQL), con acceso restringido a las IP del usuario. Las actualizaciones se publican con GitHub Actions al hacer merge a main (imagen en GHCR) y el servidor las descarga por pull. Se abrirá al público después de implementar TLS, rate limit (K10) y el rol gk_app; ese paso cambiará K26 y se registrará entonces. Mientras tanto K26 (uso no público) y K28 (desviación temporal de INV-04) siguen vigentes.",
+    "fecha_decision": "2026-11-18"
    }
   }
  ],
@@ -10013,6 +10027,41 @@
    "de": "K54",
    "rel": "afecta",
    "a": "param:cdr_proceso_hijo"
+  },
+  {
+   "de": "K55",
+   "rel": "afecta",
+   "a": "K26"
+  },
+  {
+   "de": "K55",
+   "rel": "afecta",
+   "a": "K28"
+  },
+  {
+   "de": "K55",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K55",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K55",
+   "rel": "afecta",
+   "a": "svc:nginx"
+  },
+  {
+   "de": "K55",
+   "rel": "afecta",
+   "a": "F1.01"
+  },
+  {
+   "de": "K55",
+   "rel": "afecta",
+   "a": "F2.08"
   }
  ]
 }

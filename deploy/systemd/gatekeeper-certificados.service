@@ -1,0 +1,21 @@
+[Unit]
+Description=Gatekeeper: renueva el certificado de Let's Encrypt y recarga nginx
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Solo renueva si faltan menos de 30 días; si no, no hace nada. La recarga no corta conexiones.
+ExecStart=/usr/local/sbin/gk-compose --profile certbot run --rm -T certbot renew --quiet
+ExecStart=/usr/local/sbin/gk-compose exec -T nginx nginx -s reload
+TimeoutStartSec=10min
+Environment=DOCKER_CONFIG=%S/gatekeeper/docker
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/gatekeeper
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes

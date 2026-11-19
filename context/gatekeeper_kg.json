@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 416,
-   "aristas": 950,
+   "nodos": 440,
+   "aristas": 1016,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 30,
+    "Observacion": 54,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 143,
+    "afecta": 209,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -2952,7 +2952,7 @@
    "props": {
     "meta": "La API recibe archivos de forma segura y el worker valida el tipo real; quedan bloqueados 10 de los 15 vectores.",
     "criterio_salida": "Los 10 vectores pasan en CI y ningún archivo se puede descargar en estado 'pendiente'.",
-    "estado": "pendiente"
+    "estado": "en_progreso"
    }
   },
   {
@@ -2960,8 +2960,22 @@
    "tipo": "Paso",
    "label": "API keys con prefijo visible; guardar solo su HMAC-SHA-256 con un secreto del servidor; permitir revocarlas y rotarlas.",
    "props": {
-    "estado": "pendiente",
-    "orden": 1
+    "estado": "en_progreso",
+    "orden": 1,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -2969,8 +2983,22 @@
    "tipo": "Paso",
    "label": "POST /v1/files: recibir en streaming hacia uploads_tmp con nombre UUID, calcular el SHA-256 durante la recepción, aplicar el límite de tamaño también en la API, guardar estado 'pendiente', encolar en ARQ y responder 202 con el ID.",
    "props": {
-    "estado": "pendiente",
-    "orden": 2
+    "estado": "en_progreso",
+    "orden": 2,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -2987,8 +3015,16 @@
    "tipo": "Paso",
    "label": "Máquina de estados con pendiente, limpio, en_cuarentena, rechazado y error. Toda transición pasa por una sola función que valida el cambio.",
    "props": {
-    "estado": "pendiente",
-    "orden": 4
+    "estado": "en_progreso",
+    "orden": 4,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     }
+    ]
    }
   },
   {
@@ -2996,8 +3032,22 @@
    "tipo": "Paso",
    "label": "GET /v1/files/{id}/content responde 409 si el estado no es 'limpio'.",
    "props": {
-    "estado": "pendiente",
-    "orden": 5
+    "estado": "en_progreso",
+    "orden": 5,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -3005,8 +3055,22 @@
    "tipo": "Paso",
    "label": "Filtrar toda consulta por la aplicación dueña de la API key y responder 404 a cualquier archivo ajeno.",
    "props": {
-    "estado": "pendiente",
-    "orden": 6
+    "estado": "en_progreso",
+    "orden": 6,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -3073,7 +3137,7 @@
    "props": {
     "meta": "El 100% de los archivos entregados sale reconstruido y sin metadatos, comprobado con una herramienta externa como exiftool.",
     "criterio_salida": "Los vectores 4, 5 y 9 pasan y exiftool no encuentra metadatos en ninguna salida.",
-    "estado": "pendiente"
+    "estado": "en_progreso"
    }
   },
   {
@@ -3081,8 +3145,22 @@
    "tipo": "Paso",
    "label": "Fijar Image.MAX_IMAGE_PIXELS con el valor de D5 y convertir DecompressionBombWarning en error.",
    "props": {
-    "estado": "pendiente",
-    "orden": 1
+    "estado": "en_progreso",
+    "orden": 1,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -3090,8 +3168,22 @@
    "tipo": "Paso",
    "label": "Validar las dimensiones de la imagen antes de llamar a load().",
    "props": {
-    "estado": "pendiente",
-    "orden": 2
+    "estado": "en_progreso",
+    "orden": 2,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -3099,8 +3191,22 @@
    "tipo": "Paso",
    "label": "Decodificar y recodificar imágenes desde los píxeles, sin EXIF, perfil ICC ni chunks de texto. La extensión de salida sale del tipo detectado.",
    "props": {
-    "estado": "pendiente",
-    "orden": 3
+    "estado": "en_progreso",
+    "orden": 3,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -3108,8 +3214,22 @@
    "tipo": "Paso",
    "label": "En PDF, eliminar /JavaScript, /OpenAction, /AA, /Launch, /EmbeddedFiles, /URI y /SubmitForm con pikepdf.",
    "props": {
-    "estado": "pendiente",
-    "orden": 4
+    "estado": "en_progreso",
+    "orden": 4,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -3117,8 +3237,22 @@
    "tipo": "Paso",
    "label": "En PDF, eliminar el diccionario /Info y los metadatos XMP.",
    "props": {
-    "estado": "pendiente",
-    "orden": 5
+    "estado": "en_progreso",
+    "orden": 5,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -3126,8 +3260,22 @@
    "tipo": "Paso",
    "label": "Aplicar el límite de páginas de PDF.",
    "props": {
-    "estado": "pendiente",
-    "orden": 6
+    "estado": "en_progreso",
+    "orden": 6,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -3135,8 +3283,22 @@
    "tipo": "Paso",
    "label": "Decidir si se recodifican las imágenes embebidas en PDF o se declaran como limitación, y registrarlo en docs/decisiones.md.",
    "props": {
-    "estado": "pendiente",
-    "orden": 7
+    "estado": "en_progreso",
+    "orden": 7,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -3144,8 +3306,22 @@
    "tipo": "Paso",
    "label": "Timeout por archivo: al vencer, el estado pasa a 'error', nunca a 'limpio'.",
    "props": {
-    "estado": "pendiente",
-    "orden": 8
+    "estado": "en_progreso",
+    "orden": 8,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -3153,8 +3329,22 @@
    "tipo": "Paso",
    "label": "Borrar el original de un archivo limpio en cuanto termina el CDR.",
    "props": {
-    "estado": "pendiente",
-    "orden": 9
+    "estado": "en_progreso",
+    "orden": 9,
+    "historial": [
+     {
+      "fecha": "2026-11-01",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "implementado en la rebanada vertical local (K26), falta integrar con el worker"
+     },
+     {
+      "fecha": "2026-11-17",
+      "de": "en_progreso",
+      "a": "en_progreso",
+      "nota": "rebanada vertical local (K26) cerrada y aprobada por gk-security el 2026-11-17; falta el worker en contenedor (K28 temporal)"
+     }
+    ]
    }
   },
   {
@@ -4127,9 +4317,11 @@
    "props": {
     "propuesta": "Exigir el resultado del CDR y el veredicto antes de F3",
     "hallazgo": "Hallazgo media de gk-security (piloto)",
-    "decision": "pendiente",
+    "decision": "confirmada",
     "fecha_propuesta": "2026-10-29",
-    "origen": "gatekeeper-guardian"
+    "origen": "gatekeeper-guardian",
+    "eleccion": "La evidencia se exige en la BD: el UPDATE hacia 'limpio' solo se aplica si existe un resultado_analisis de ese archivo con capa='cdr' y veredicto='limpio'.",
+    "fecha_decision": "2026-10-30"
    }
   },
   {
@@ -4245,9 +4437,11 @@
    "props": {
     "propuesta": "definir si un nombre de más de 255 caracteres, vacío o con caracteres de control se trunca o se rechaza en POST /v1/files; nunca entra en rutas ni decisiones (INV-02, INV-03) y se escapa al mostrarse",
     "hallazgo": "hallazgo baja de gk-security sobre K22",
-    "decision": "pendiente",
+    "decision": "confirmada",
     "fecha_propuesta": "2026-10-30",
-    "origen": "gatekeeper-guardian"
+    "origen": "gatekeeper-guardian",
+    "eleccion": "En POST /v1/files el nombre original se sanea y se acepta: se quitan los caracteres de control, se trunca a 255 caracteres y, si queda vacío, se usa 'sin_nombre'. El archivo sigue su análisis. Coherente con vec:03.",
+    "fecha_decision": "2026-10-30"
    }
   },
   {
@@ -4318,6 +4512,326 @@
     "origen": "gatekeeper-guardian",
     "eleccion": "aplicacion.nombre de 1 a 100 caracteres, único sin distinguir mayúsculas, sin espacio en blanco en los bordes ni caracteres de control. Prefijo de API key: gk_ + 12 hex minúsculas. api_key.aplicacion_id con ON DELETE RESTRICT.",
     "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K31",
+   "tipo": "Observacion",
+   "label": "Límite de memoria del proceso hijo del CDR",
+   "props": {
+    "propuesta": "RLIMIT_AS = 1 GiB",
+    "hallazgo": "K09 exige el límite y el KG no definía el valor.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "RLIMIT_AS = 1 GiB",
+    "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K32",
+   "tipo": "Observacion",
+   "label": "Timeouts de conexión a PostgreSQL",
+   "props": {
+    "propuesta": "connect_timeout, statement_timeout y pool_timeout a 5 s",
+    "hallazgo": "Una BD colgada no debe retener una subida antes del 202.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "connect_timeout, statement_timeout y pool_timeout a 5 s",
+    "fecha_decision": "2026-10-30"
+   }
+  },
+  {
+   "id": "K33",
+   "tipo": "Observacion",
+   "label": "Detalles del esquema de archivo y resultado_analisis",
+   "props": {
+    "propuesta": "ON DELETE RESTRICT en archivo.aplicacion_id y resultado_analisis.archivo_id; capa y veredicto NOT NULL; tope de detalle de 65536 bytes por octet_length(CAST(detalle AS text)); resultado_analisis.id como GENERATED ALWAYS AS IDENTITY.",
+    "hallazgo": "Propuesta de gk-db; sin aprobación del usuario.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K34",
+   "tipo": "Observacion",
+   "label": "cambiar_estado rechaza transiciones sin soporte persistido",
+   "props": {
+    "propuesta": "cambiar_estado rechaza error -> pendiente y en_cuarentena -> * mientras no existan el reintento persistido y la bitácora.",
+    "hallazgo": "Propuesta de gk-db; sin aprobación del usuario.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K35",
+   "tipo": "Observacion",
+   "label": "tipo_error obligatorio al entrar a error",
+   "props": {
+    "propuesta": "tipo_error es obligatorio en toda entrada a error, para alinear el dominio con ck_archivo_tipo_error_solo_en_error.",
+    "hallazgo": "Propuesta de gk-db; sin aprobación del usuario.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K36",
+   "tipo": "Observacion",
+   "label": "Serializador de ARQ distinto de pickle",
+   "props": {
+    "propuesta": "Serializador de ARQ distinto de pickle (JSON o msgpack) entre worker y coordinator: un worker comprometido no debe poder ejecutar código en el coordinator.",
+    "hallazgo": "Propuesta de gk-security; sin aprobación del usuario.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-10-30",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K37",
+   "tipo": "Observacion",
+   "label": "Compresión PNG del CDR",
+   "props": {
+    "propuesta": "compress_level=3",
+    "hallazgo": "Con el nivel 6 el PNG de 40 MP tardaba de 1.9 a 2.05 s y una muestra superó M2.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-01",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "compress_level=3",
+    "fecha_decision": "2026-11-01"
+   }
+  },
+  {
+   "id": "K38",
+   "tipo": "Observacion",
+   "label": "Calidad JPEG de salida del CDR",
+   "props": {
+    "propuesta": "quality=90",
+    "hallazgo": "No había valor definido y recodificar degrada lo legítimo.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-01",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "quality=90",
+    "fecha_decision": "2026-11-01"
+   }
+  },
+  {
+   "id": "K39",
+   "tipo": "Observacion",
+   "label": "Rotación EXIF en el CDR",
+   "props": {
+    "propuesta": "Se aplica la rotación EXIF antes de reconstruir la imagen y el EXIF se elimina igual.",
+    "hallazgo": "Sin ella, las fotos de celular saldrían giradas.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-01",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Se aplica la rotación EXIF antes de reconstruir la imagen y el EXIF se elimina igual.",
+    "fecha_decision": "2026-11-01"
+   }
+  },
+  {
+   "id": "K40",
+   "tipo": "Observacion",
+   "label": "Tope de tiempo de recepción",
+   "props": {
+    "propuesta": "60 s sobre toda la recepción del cuerpo de POST /v1/files.",
+    "hallazgo": "Sin Nginx, una subida lenta autenticada retendría una conexión sin límite.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-01",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "60 s sobre toda la recepción del cuerpo de POST /v1/files.",
+    "fecha_decision": "2026-11-01"
+   }
+  },
+  {
+   "id": "K41",
+   "tipo": "Observacion",
+   "label": "Contrato de la API de la rebanada",
+   "props": {
+    "propuesta": "Cabecera Authorization: Bearer gk_<12hex>.<secreto> exacta; variables GATEKEEPER_PEPPER (al menos 32 bytes) y GATEKEEPER_DATOS (ruta absoluta); cuerpo total acotado a 10 485 760 + 64 KiB; multipart con dos partes file o cabecera duplicada -> 400.",
+    "hallazgo": "Reglas que la implementación de la rebanada necesitó y que no estaban definidas.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-01",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Cabecera Authorization: Bearer gk_<12hex>.<secreto> exacta; variables GATEKEEPER_PEPPER (al menos 32 bytes) y GATEKEEPER_DATOS (ruta absoluta); cuerpo total acotado a 10 485 760 + 64 KiB; multipart con dos partes file o cabecera duplicada -> 400.",
+    "fecha_decision": "2026-11-09"
+   }
+  },
+  {
+   "id": "K42",
+   "tipo": "Observacion",
+   "label": "Endurecimiento del proceso hijo del CDR",
+   "props": {
+    "propuesta": "K31 aplicado también al límite duro y a RLIMIT_CORE; entorno por lista blanca; cierre de descriptores al arrancar; Ajustes.comando_cdr y timeout_cdr_s nunca leídos del entorno; evaluar RLIMIT_NPROC y RLIMIT_FSIZE.",
+    "hallazgo": "Reducir lo que un archivo hostil puede hacer desde el proceso hijo sin worker aislado.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-11-01",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K43",
+   "tipo": "Observacion",
+   "label": "Detalle del CDR de PDF",
+   "props": {
+    "propuesta": "K13 cuenta la salida de todas las etapas de la cadena con tope de 104 857 600 bytes; filtro desconocido o Flate corrupto -> rechazado; se eliminan todas las acciones, también /GoTo, más /AcroForm, /Annots y /Names. Limitación F3.07: las imágenes embebidas no se recodifican.",
+    "hallazgo": "Casos del CDR de PDF que K13 y el plan no precisaban.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-11-01",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K44",
+   "tipo": "Observacion",
+   "label": "crear_motor y env.py de Alembic",
+   "props": {
+    "propuesta": "Aplicar en api/migrations/env.py el mismo control contra fugas de la contraseña que crear_motor, y rechazar una URL cuyo host contenga @.",
+    "hallazgo": "Evitar fugas de la contraseña de la BD en errores y URLs ambiguas.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-11-01",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K45",
+   "tipo": "Observacion",
+   "label": "K16 con varias filas de CDR",
+   "props": {
+    "propuesta": "Decidir si vale cualquier fila limpio o la más reciente. Hoy no ocurre porque no hay reintentos; se revisa con K17.",
+    "hallazgo": "Con reintentos podría haber varias filas de CDR por archivo.",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-11-01",
+    "origen": "gatekeeper-guardian"
+   }
+  },
+  {
+   "id": "K46",
+   "tipo": "Observacion",
+   "label": "Tope de salida del CDR",
+   "props": {
+    "propuesta": "Salida del CDR de como máximo 32 MiB; si la salida lo supera, rechazado",
+    "hallazgo": "Un PDF de 92 KB salía como 95 MB por reescribir /ObjStm sin comprimir.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-09",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Salida del CDR de como máximo 32 MiB; si la salida lo supera, rechazado",
+    "fecha_decision": "2026-11-09"
+   }
+  },
+  {
+   "id": "K47",
+   "tipo": "Observacion",
+   "label": "Tope de escaneos JPEG",
+   "props": {
+    "propuesta": "JPEG con más de 64 escaneos (marcadores SOS) -> rechazado, contado sobre los bytes antes de abrirlo con Pillow",
+    "hallazgo": "Un JPEG progresivo con escaneos vacíos ocupa 30 s de CPU por turno del CDR.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-09",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "JPEG con más de 64 escaneos (marcadores SOS) -> rechazado, contado sobre los bytes antes de abrirlo con Pillow",
+    "fecha_decision": "2026-11-09"
+   }
+  },
+  {
+   "id": "K48",
+   "tipo": "Observacion",
+   "label": "Tope de archivos pendientes por aplicación",
+   "props": {
+    "propuesta": "Como máximo 20 archivos en pendiente por aplicación; la subida número 21 recibe 429",
+    "hallazgo": "Sin tope, una aplicación llena la cola y retrasa a las demás.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-09",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Como máximo 20 archivos en pendiente por aplicación; la subida número 21 recibe 429",
+    "fecha_decision": "2026-11-09"
+   }
+  },
+  {
+   "id": "K49",
+   "tipo": "Observacion",
+   "label": "Imágenes en línea de PDF",
+   "props": {
+    "propuesta": "Imágenes en línea de PDF medidas con el tope de K13 (100 MB descomprimidos); si lo superan, rechazado; un filtro después de un códec de imagen también -> rechazado",
+    "hallazgo": "Las imágenes en línea escapaban a la medición de descompresión de K13.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-09",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Imágenes en línea de PDF medidas con el tope de K13 (100 MB descomprimidos); si lo superan, rechazado; un filtro después de un códec de imagen también -> rechazado",
+    "fecha_decision": "2026-11-09"
+   }
+  },
+  {
+   "id": "K50",
+   "tipo": "Observacion",
+   "label": "Límite de CPU del proceso hijo del CDR",
+   "props": {
+    "propuesta": "RLIMIT_CPU = 35 s, límite blando y duro",
+    "hallazgo": "El único tope de tiempo vivía en el padre; un hijo huérfano seguía consumiendo CPU sin límite.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-10",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "RLIMIT_CPU = 35 s, límite blando y duro",
+    "fecha_decision": "2026-11-10"
+   }
+  },
+  {
+   "id": "K51",
+   "tipo": "Observacion",
+   "label": "Barrido al arrancar",
+   "props": {
+    "propuesta": "Al arrancar, la API borra los originales y parciales huérfanos y pasa los archivos que quedaron en 'pendiente' a 'error' con tipo_error='final'",
+    "hallazgo": "Tras una caída el original ya no sirve y la rebanada no tiene reintentos.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-10",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Al arrancar, la API borra los originales y parciales huérfanos y pasa los archivos que quedaron en 'pendiente' a 'error' con tipo_error='final'",
+    "fecha_decision": "2026-11-10"
+   }
+  },
+  {
+   "id": "K52",
+   "tipo": "Observacion",
+   "label": "La API se niega a arrancar si un proceso ancestro expone sus secretos",
+   "props": {
+    "propuesta": "Al arrancar, si algún ancestro tiene GATEKEEPER_PEPPER o GATEKEEPER_DATABASE_URL legibles en /proc/<pid>/environ, la API no arranca; el README lanza uvicorn directamente, sin uv run.",
+    "hallazgo": "Con uv run, el proceso uv conserva el entorno y un hijo del CDR comprometido podía leer el pepper y la URL de la BD, pese a PR_SET_DUMPABLE=0.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-10",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Al arrancar, si algún ancestro tiene GATEKEEPER_PEPPER o GATEKEEPER_DATABASE_URL legibles en /proc/<pid>/environ, la API no arranca; el README lanza uvicorn directamente, sin uv run.",
+    "fecha_decision": "2026-11-10"
+   }
+  },
+  {
+   "id": "K53",
+   "tipo": "Observacion",
+   "label": "Landlock en el proceso hijo del CDR",
+   "props": {
+    "propuesta": "El hijo se encierra con Landlock antes de leer el archivo no confiable: solo lee lo que necesita (Python, bibliotecas, libmagic y su entrada) y solo escribe su propia salida, que crea el padre; sin TCP si la ABI lo permite; si Landlock no está disponible, el archivo termina en error.",
+    "hallazgo": "Con el mismo UID, un hijo comprometido podía leer y modificar archivos de otras aplicaciones, incluidos los ya reconstruidos.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-10",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "El hijo se encierra con Landlock antes de leer el archivo no confiable: solo lee lo que necesita (Python, bibliotecas, libmagic y su entrada) y solo escribe su propia salida, que crea el padre; sin TCP si la ABI lo permite; si Landlock no está disponible, el archivo termina en error.",
+    "fecha_decision": "2026-11-10"
+   }
+  },
+  {
+   "id": "K54",
+   "tipo": "Observacion",
+   "label": "El proceso hijo del CDR no puede crear sockets",
+   "props": {
+    "propuesta": "Landlock gestiona LANDLOCK_ACCESS_FS_RESOLVE_UNIX sin concederlo cuando el kernel lo ofrece, y siempre un filtro seccomp niega socket() y socketpair(); si el filtro no se puede instalar, el archivo termina en error.",
+    "hallazgo": "Bajo Landlock el hijo aún conectaba a sockets Unix por ruta (/var/run/docker.sock, que da root en el host, y el D-Bus de sesión); el filtro cubre también UDP y los kernels sin ese permiso de Landlock.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-11",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Landlock gestiona LANDLOCK_ACCESS_FS_RESOLVE_UNIX sin concederlo cuando el kernel lo ofrece, y siempre un filtro seccomp niega socket() y socketpair(); si el filtro no se puede instalar, el archivo termina en error.",
+    "fecha_decision": "2026-11-11"
    }
   }
  ],
@@ -9169,6 +9683,336 @@
    "de": "K30",
    "rel": "afecta",
    "a": "F1.07"
+  },
+  {
+   "de": "K31",
+   "rel": "afecta",
+   "a": "K09"
+  },
+  {
+   "de": "K31",
+   "rel": "afecta",
+   "a": "param:cdr_proceso_hijo"
+  },
+  {
+   "de": "K32",
+   "rel": "afecta",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "K32",
+   "rel": "afecta",
+   "a": "M1"
+  },
+  {
+   "de": "K33",
+   "rel": "afecta",
+   "a": "ent:archivo"
+  },
+  {
+   "de": "K33",
+   "rel": "afecta",
+   "a": "ent:resultado_analisis"
+  },
+  {
+   "de": "K34",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K34",
+   "rel": "afecta",
+   "a": "K17"
+  },
+  {
+   "de": "K34",
+   "rel": "afecta",
+   "a": "INV-08"
+  },
+  {
+   "de": "K35",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K35",
+   "rel": "afecta",
+   "a": "K14"
+  },
+  {
+   "de": "K36",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K36",
+   "rel": "afecta",
+   "a": "K08"
+  },
+  {
+   "de": "K37",
+   "rel": "afecta",
+   "a": "F3.03"
+  },
+  {
+   "de": "K37",
+   "rel": "afecta",
+   "a": "M2"
+  },
+  {
+   "de": "K38",
+   "rel": "afecta",
+   "a": "F3.03"
+  },
+  {
+   "de": "K39",
+   "rel": "afecta",
+   "a": "F3.03"
+  },
+  {
+   "de": "K40",
+   "rel": "afecta",
+   "a": "F2.02"
+  },
+  {
+   "de": "K40",
+   "rel": "afecta",
+   "a": "CWE-770"
+  },
+  {
+   "de": "K40",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K41",
+   "rel": "afecta",
+   "a": "F2.01"
+  },
+  {
+   "de": "K41",
+   "rel": "afecta",
+   "a": "F2.02"
+  },
+  {
+   "de": "K41",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K42",
+   "rel": "afecta",
+   "a": "K28"
+  },
+  {
+   "de": "K42",
+   "rel": "afecta",
+   "a": "K31"
+  },
+  {
+   "de": "K42",
+   "rel": "afecta",
+   "a": "param:cdr_proceso_hijo"
+  },
+  {
+   "de": "K43",
+   "rel": "afecta",
+   "a": "K13"
+  },
+  {
+   "de": "K43",
+   "rel": "afecta",
+   "a": "F3.04"
+  },
+  {
+   "de": "K43",
+   "rel": "afecta",
+   "a": "F3.07"
+  },
+  {
+   "de": "K44",
+   "rel": "afecta",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "K44",
+   "rel": "afecta",
+   "a": "F1.07"
+  },
+  {
+   "de": "K45",
+   "rel": "afecta",
+   "a": "K16"
+  },
+  {
+   "de": "K45",
+   "rel": "afecta",
+   "a": "K17"
+  },
+  {
+   "de": "K46",
+   "rel": "afecta",
+   "a": "K13"
+  },
+  {
+   "de": "K46",
+   "rel": "afecta",
+   "a": "F3.03"
+  },
+  {
+   "de": "K46",
+   "rel": "afecta",
+   "a": "F3.04"
+  },
+  {
+   "de": "K46",
+   "rel": "afecta",
+   "a": "CWE-770"
+  },
+  {
+   "de": "K47",
+   "rel": "afecta",
+   "a": "F3.01"
+  },
+  {
+   "de": "K47",
+   "rel": "afecta",
+   "a": "F3.02"
+  },
+  {
+   "de": "K47",
+   "rel": "afecta",
+   "a": "CWE-770"
+  },
+  {
+   "de": "K47",
+   "rel": "afecta",
+   "a": "M2"
+  },
+  {
+   "de": "K48",
+   "rel": "afecta",
+   "a": "F2.02"
+  },
+  {
+   "de": "K48",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K48",
+   "rel": "afecta",
+   "a": "CWE-770"
+  },
+  {
+   "de": "K48",
+   "rel": "afecta",
+   "a": "M2"
+  },
+  {
+   "de": "K49",
+   "rel": "afecta",
+   "a": "K13"
+  },
+  {
+   "de": "K49",
+   "rel": "afecta",
+   "a": "F3.04"
+  },
+  {
+   "de": "K49",
+   "rel": "afecta",
+   "a": "F3.07"
+  },
+  {
+   "de": "K50",
+   "rel": "afecta",
+   "a": "K09"
+  },
+  {
+   "de": "K50",
+   "rel": "afecta",
+   "a": "K42"
+  },
+  {
+   "de": "K50",
+   "rel": "afecta",
+   "a": "param:cdr_proceso_hijo"
+  },
+  {
+   "de": "K51",
+   "rel": "afecta",
+   "a": "F3.09"
+  },
+  {
+   "de": "K51",
+   "rel": "afecta",
+   "a": "F2.04"
+  },
+  {
+   "de": "K51",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K52",
+   "rel": "afecta",
+   "a": "K28"
+  },
+  {
+   "de": "K52",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K52",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K53",
+   "rel": "afecta",
+   "a": "K28"
+  },
+  {
+   "de": "K53",
+   "rel": "afecta",
+   "a": "K42"
+  },
+  {
+   "de": "K53",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K53",
+   "rel": "afecta",
+   "a": "INV-10"
+  },
+  {
+   "de": "K53",
+   "rel": "afecta",
+   "a": "param:cdr_proceso_hijo"
+  },
+  {
+   "de": "K54",
+   "rel": "afecta",
+   "a": "K53"
+  },
+  {
+   "de": "K54",
+   "rel": "afecta",
+   "a": "K28"
+  },
+  {
+   "de": "K54",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K54",
+   "rel": "afecta",
+   "a": "param:cdr_proceso_hijo"
   }
  ]
 }

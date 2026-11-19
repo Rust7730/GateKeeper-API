@@ -1,22 +1,31 @@
-"""vec:15 — Descarga de un archivo en estado `pendiente` (F2.04, dominio).
+"""vec:15 — Descarga de un archivo que no terminó bien su análisis (F2.04, F2.05).
 
-Resultado esperado en el KG: HTTP 409. El 409 lo da el endpoint de descarga de F2.05, que todavía no existe;
-aquí se fija la regla de dominio de la que sale ese 409: solo `limpio` es descargable (INV-06) y la única forma
-de llegar a `limpio` es una transición permitida por la tabla de `docs/decisiones.md` §4, que pasa por una sola
-función (`transicionar`).
+Resultado esperado en el KG: HTTP 409. Dos niveles, y hacen falta los dos:
+
+- **Dominio:** solo `limpio` es descargable (INV-06) y la única forma de llegar a `limpio` es una
+  transición permitida por la tabla de `docs/decisiones.md` §4, que pasa por una sola función
+  (`transicionar`).
+- **HTTP** (al final del archivo): `GET /v1/files/{id}/content` responde 409 en `pendiente`, `rechazado`,
+  `error` y `en_cuarentena`. Los estados se siembran con los repositorios reales para evitar carreras, con
+  bytes reales en disco: el 409 tiene que salir del estado, no de que el archivo falte.
 
 Reglas firmes que se prueban:
 - INV-06 / §4: solo `limpio` es descargable; cualquier otro estado (incluido el inicial) no.
 - D4: existe el estado `error` y nunca es descargable.
-- INV-09: nada llega a `limpio` desde `error`, con ningún contexto.
+- INV-09: nada llega a `limpio` desde `error`, con ningún contexto, y una excepción al validar el
+  contexto rechaza la transición: nunca la deja pasar.
 - K03 + K11 + K14 (parte confirmada) + K17: `error -> pendiente` solo con `tipo_error` transitorio y
   `reintentos` entero en [0, 2).
 - INV-08 / D4: salir de `en_cuarentena` exige una liberación con `usuario`, `liberado_en` (datetime con zona
   horaria) y `motivo` no vacío.
+- K16 (confirmada): `limpio` exige un resultado `limpio` de la capa `cdr` de ese archivo. No lo comprueba
+  `transicionar`, sino el `UPDATE` de `cambiar_estado`, con los datos de la BD: por eso aquí se prueba
+  contra PostgreSQL. El dominio sigue aceptando `pendiente -> limpio` sin contexto.
 
 No se exigen aquí (pendientes de confirmar): K24 (`resultado_cdr` coincidente y rechazo de claves extra en la
-liberación), K15 (tipos estrictos) ni K16 (evidencia del análisis en `pendiente -> *`). Las pruebas aceptan una
-implementación que los aplique y una que no.
+liberación) ni K35 (`tipo_error` obligatorio al entrar a `error`). Las pruebas aceptan una implementación que
+los aplique y una que no. De K15 (tipos estrictos) solo se fija lo que tiene efecto de seguridad: un objeto que
+imita un estado no abre paso. El texto `"pendiente"` en lugar del miembro queda sin fijar.
 
 Contrato: `from api.app.estados import Estado, ESTADO_INICIAL, es_descargable, transicionar, TransicionInvalida`.
 """
@@ -24,12 +33,15 @@ Contrato: `from api.app.estados import Estado, ESTADO_INICIAL, es_descargable, t
 from __future__ import annotations
 
 import importlib
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from enum import StrEnum
 from itertools import product
 from types import ModuleType
 
 import pytest
+from generadores import png
+from hijos import hijo_con_puerta
+from soporte_matriz import esperar_que, exigir_conflicto, nombres
 
 VALORES = ("pendiente", "limpio", "en_cuarentena", "rechazado", "error")
 
@@ -78,8 +90,8 @@ def est() -> _ModuloPerezoso:
 def _aceptado(est: ModuleType, actual: str, nuevo: str, *candidatos: dict) -> dict:
     """Devuelve el primer contexto con el que `transicionar` acepta el cambio.
 
-    Sirve de control positivo y deja neutrales las propuestas pendientes (K16, K24): si la implementación
-    las aplica, se prueba con el contexto que las cumple; si no, con el mínimo.
+    Sirve de control positivo y deja neutral la propuesta pendiente K24: si la implementación la aplica, se
+    prueba con el contexto que la cumple; si no, con el mínimo.
     """
     rechazos = []
     for contexto in candidatos:
@@ -110,6 +122,16 @@ def _liberacion_aceptada(est: ModuleType, destino: str) -> dict:
 def _rechaza(est: ModuleType, actual: str, nuevo: str, **contexto) -> None:
     with pytest.raises(est.TransicionInvalida):
         est.transicionar(est.Estado(actual), est.Estado(nuevo), **contexto)
+
+
+class _IgualATodo:
+    """Se compara igual a cualquier cosa: una comprobación con `==` lo daría por `Estado.LIMPIO`."""
+
+    def __eq__(self, otro: object) -> bool:
+        return True
+
+    def __hash__(self) -> int:
+        return hash("limpio")
 
 
 # --------------------------------------------------------------------------------------------- vec:15 núcleo
@@ -148,6 +170,7 @@ def test_vec15_solo_limpio_es_descargable(est, valor):
         "descargable",
         None,
         1,
+        _IgualATodo(),
     ],
 )
 def test_vec15_valor_desconocido_no_es_descargable(est, valor):
@@ -348,3 +371,245 @@ def test_inv08_fecha_con_otra_zona_se_acepta(est):
         "liberado_en": AHORA_UTC.astimezone(timezone(timedelta(hours=-6))),
     }
     _aceptado(est, "en_cuarentena", "limpio", contexto)
+
+
+# ------------------------------------------------- INV-09: una excepción al validar nunca abre paso
+
+
+class _ZonaQueFalla(tzinfo):
+    """Un tzinfo hostil lanza lo que quiera dentro de `utcoffset()`."""
+
+    def utcoffset(self, dt):
+        raise RuntimeError("tzinfo roto")
+
+
+class _ZonaFueraDeRango(tzinfo):
+    def utcoffset(self, dt):
+        return timedelta(hours=30)  # datetime.utcoffset() lanza ValueError
+
+
+class _ZonaSinOffset(tzinfo):
+    """`utcoffset()` da None: para Python equivale a un datetime sin zona."""
+
+    def utcoffset(self, dt):
+        return None
+
+
+@pytest.mark.parametrize("destino", SALIDAS_DE_CUARENTENA)
+@pytest.mark.parametrize(
+    "zona",
+    [_ZonaQueFalla(), _ZonaFueraDeRango()],
+    ids=["lanza", "fuera_de_rango"],
+)
+def test_inv09_excepcion_al_validar_rechaza_la_transicion(est, destino, zona):
+    """Fail-closed: si validar lanza, la salida es `TransicionInvalida`; nunca la transición aceptada."""
+    contexto = {
+        **_liberacion_aceptada(est, destino),
+        "liberado_en": datetime(2026, 10, 30, 12, 0, tzinfo=zona),
+    }
+    _rechaza(est, "en_cuarentena", destino, **contexto)
+
+
+@pytest.mark.parametrize("destino", SALIDAS_DE_CUARENTENA)
+def test_inv08_fecha_con_tzinfo_sin_offset_se_rechaza(est, destino):
+    """INV-08: mirar `tzinfo is None` no basta; la fecha debe tener un desfase real."""
+    contexto = {
+        **_liberacion_aceptada(est, destino),
+        "liberado_en": datetime(2026, 10, 30, 12, 0, tzinfo=_ZonaSinOffset()),
+    }
+    _rechaza(est, "en_cuarentena", destino, **contexto)
+
+
+# ------------------------------------------------------------- tipos que imitan a los de verdad
+
+
+class _ImitaEstado:
+    """Se hace pasar por `miembro`: `isinstance()` lo acepta y en un dict cae en la misma clave."""
+
+    def __init__(self, miembro):
+        self.miembro = miembro
+
+    @property
+    def __class__(self):
+        return type(self.miembro)
+
+    def __hash__(self):
+        return hash(self.miembro)
+
+    def __eq__(self, otro):
+        return otro is self.miembro
+
+
+class _TextoHostil(str):
+    """Subclase de str cuyo `strip()` dice que hay texto aunque no lo haya."""
+
+    def strip(self, chars=None):
+        return "hay texto"
+
+
+def test_inv09_un_imitador_de_estado_no_llega_a_limpio(est):
+    """Objeto que pasa `isinstance()`: con ese control, `transicionar` devolvería el `Estado.LIMPIO` real."""
+    with pytest.raises(est.TransicionInvalida):
+        est.transicionar(_ImitaEstado(est.Estado.PENDIENTE), est.Estado.LIMPIO)
+
+
+def test_inv09_un_imitador_no_se_usa_como_destino(est):
+    with pytest.raises(est.TransicionInvalida):
+        est.transicionar(est.Estado.PENDIENTE, _ImitaEstado(est.Estado.LIMPIO))
+
+
+@pytest.mark.parametrize("actual", [None, 0, object(), [], {}], ids=repr)
+def test_inv09_lo_que_no_es_un_estado_lanza_transicion_invalida(est, actual):
+    """Nunca `TypeError` ni `AttributeError`: quien llama solo captura `TransicionInvalida`."""
+    with pytest.raises(est.TransicionInvalida):
+        est.transicionar(actual, est.Estado.LIMPIO)
+    with pytest.raises(est.TransicionInvalida):
+        est.transicionar(est.Estado.PENDIENTE, actual)
+
+
+@pytest.mark.parametrize("destino", SALIDAS_DE_CUARENTENA)
+@pytest.mark.parametrize("campo", ["usuario", "motivo"])
+def test_inv08_subclase_de_str_no_rellena_un_campo_vacio(est, destino, campo):
+    contexto = {**_liberacion_aceptada(est, destino), campo: _TextoHostil("")}
+    _rechaza(est, "en_cuarentena", destino, **contexto)
+
+
+@pytest.mark.parametrize(
+    "motivo", ["\u3000", " \t\r\n "], ids=["espacio_ideografico", "espacios_mezclados"]
+)
+def test_inv08_motivo_de_espacios_unicode_se_rechaza(est, motivo):
+    contexto = {**_liberacion_aceptada(est, "limpio"), "motivo": motivo}
+    _rechaza(est, "en_cuarentena", "limpio", **contexto)
+
+
+@pytest.mark.parametrize("campo", ["usuario", "motivo"])
+@pytest.mark.parametrize(
+    "valor", [42, b"admin", ["admin"]], ids=["int", "bytes", "lista"]
+)
+def test_inv08_usuario_y_motivo_deben_ser_texto(est, campo, valor):
+    contexto = {**_liberacion_aceptada(est, "limpio"), campo: valor}
+    _rechaza(est, "en_cuarentena", "limpio", **contexto)
+
+
+@pytest.mark.parametrize(
+    "reintentos",
+    [True, False, 0.0, "0", None, [0]],
+    ids=["true", "false", "float", "texto", "none", "lista"],
+)
+def test_k14_reintentos_debe_ser_un_entero_de_verdad(est, reintentos):
+    """K14: bool es subclase de int y `True` pasaría por 1 sin ser un contador."""
+    _rechaza(est, "error", "pendiente", tipo_error="transitorio", reintentos=reintentos)
+
+
+@pytest.mark.parametrize(
+    "tipo_error",
+    [
+        "otro",
+        "",
+        "TRANSITORIO",
+        "transitorio ",
+        1,
+        ["final"],
+        str.__new__(_TextoHostil, "final"),
+    ],
+    ids=["otro", "vacio", "mayusculas", "con_espacio", "entero", "lista", "subclase"],
+)
+def test_k14_tipo_error_desconocido_al_entrar_a_error_se_rechaza(est, tipo_error):
+    """CHECK de `archivo.tipo_error`: si se informa, solo vale `transitorio` o `final`."""
+    _rechaza(est, "pendiente", "error", tipo_error=tipo_error)
+    contexto = {**_liberacion_aceptada(est, "error"), "tipo_error": tipo_error}
+    _rechaza(est, "en_cuarentena", "error", **contexto)
+
+
+@pytest.mark.parametrize(
+    "tipo_error",
+    [["transitorio"], str.__new__(_TextoHostil, "transitorio")],
+    ids=["lista", "subclase"],
+)
+def test_k14_reintento_exige_tipo_error_exacto(est, tipo_error):
+    _rechaza(est, "error", "pendiente", tipo_error=tipo_error, reintentos=0)
+
+
+def test_tipo_error_valido_no_suple_la_liberacion(est):
+    """INV-08: `en_cuarentena -> error` también exige la liberación; `tipo_error` no la reemplaza."""
+    _rechaza(est, "en_cuarentena", "error", tipo_error="final")
+
+
+def test_el_mensaje_de_rechazo_no_lleva_datos_de_la_liberacion(est):
+    """CWE-532: el mensaje puede acabar en un log. Lleva los estados, no el usuario ni el motivo."""
+    usuario = "admin.secreto@gatekeeper.test"
+    with pytest.raises(est.TransicionInvalida) as error:
+        est.transicionar(
+            est.Estado.EN_CUARENTENA, est.Estado.LIMPIO, usuario=usuario, motivo="  "
+        )
+    assert usuario not in str(error.value)
+    assert "en_cuarentena" in str(error.value)
+
+
+# ---------------------------------------------------------------------------- K16: evidencia en la BD
+
+
+@pytest.mark.parametrize(
+    "evidencia",
+    [None, ("firma", "limpio"), ("cdr", "rechazado"), ("cdr", "error")],
+    ids=["sin_evidencia", "solo_firma", "cdr_rechazado", "cdr_con_error"],
+)
+def test_k16_sin_resultado_limpio_del_cdr_no_hay_limpio(banco, cliente, evidencia):
+    """K16: ni la capa `firma` ni un CDR que no terminó limpio autorizan `limpio`; `/content` sigue en 409."""
+    archivo_id = banco.sembrar_archivo("pendiente", banco.app_a)
+    banco.intentar_limpio(archivo_id, banco.app_a, evidencia)
+
+    assert banco.fila(archivo_id)["estado"] == "pendiente"
+    exigir_conflicto(cliente.descargar(archivo_id))
+
+
+# -------------------------------------------------------------------------------------- vec:15 por HTTP
+
+
+@pytest.mark.parametrize("estado", ["pendiente", "rechazado", "error", "en_cuarentena"])
+def test_vec15_http_estado_no_limpio_responde_409(cliente, banco, estado):
+    """Hay bytes en `clean_store` y en `uploads_tmp`: el 409 sale del estado, no de que falten."""
+    archivo_id = banco.sembrar_archivo(estado, banco.app_a)
+    reconstruido = b"reconstruido-" + archivo_id.encode()
+    original = b"original-" + archivo_id.encode()
+    (banco.clean_store / archivo_id).write_bytes(reconstruido)
+    (banco.uploads_tmp / archivo_id).write_bytes(original)
+
+    respuesta = cliente.descargar(archivo_id)
+
+    exigir_conflicto(respuesta)
+    assert reconstruido not in respuesta.content
+    assert original not in respuesta.content
+
+
+def test_vec15_http_control_limpio_responde_200(cliente, banco):
+    """Control positivo: una API que respondiera 409 a todo pasaría la prueba de arriba."""
+    archivo_id = banco.sembrar_archivo("limpio", banco.app_a)
+    reconstruido = b"reconstruido-" + archivo_id.encode()
+    (banco.clean_store / archivo_id).write_bytes(reconstruido)
+
+    respuesta = cliente.descargar(archivo_id)
+
+    assert respuesta.status_code == 200
+    assert respuesta.content == reconstruido
+    assert respuesta.headers["content-type"] == "image/png"
+    assert respuesta.headers["x-content-type-options"] == "nosniff"
+    assert (
+        respuesta.headers["content-disposition"]
+        == f'attachment; filename="{archivo_id}.png"'
+    )
+
+
+def test_vec15_http_pendiente_real_durante_el_analisis(banco, tmp_path):
+    """El caso del KG, sin sembrar: subida real, análisis en curso, 409; al terminar, 200."""
+    comando, puerta, registro = hijo_con_puerta(tmp_path)
+    contenido = png()
+    with banco.api(comando_cdr=comando, timeout_cdr_s=25) as cliente:
+        try:
+            archivo_id = cliente.subir(contenido)
+            esperar_que(lambda: bool(nombres(registro)), "el análisis no arrancó")
+            exigir_conflicto(cliente.descargar(archivo_id))
+        finally:
+            puerta.touch()
+        assert cliente.esperar(archivo_id, tope=25)["estado"] == "limpio"
+        assert cliente.descargar(archivo_id).status_code == 200

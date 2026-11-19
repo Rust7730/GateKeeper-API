@@ -14,6 +14,13 @@
   terminar la prueba, así que nada de lo que escribe (ni el DDL) llega a la siguiente.
   La prueba no debe hacer ``commit()``; para esperar un error de la BD sin perder la
   transacción, usa ``conexion.begin_nested()`` (savepoint).
+- ``url_repositorios`` (sesión): URL de una base aparte en el mismo contenedor, creada
+  **con la migración** y no con ``create_all``, para que los repositorios se prueben
+  contra el esquema real. Va aparte porque aquí sí se hace ``COMMIT``: la concurrencia
+  solo se ve entre transacciones confirmadas.
+- ``sesiones`` (por prueba, asíncrono): fábrica de sesiones sobre esa base. Antes de cada
+  prueba se vacían las tablas (``TRUNCATE``). Las pruebas asíncronas corren con el plugin
+  de ``anyio`` (``pytest.mark.anyio``), que ya viene instalado.
 
 Sin Docker, o si el contenedor no arranca, las pruebas que piden estos fixtures
 **fallan** con un mensaje claro (sin la contraseña, aunque testcontainers la incluya en
@@ -33,13 +40,17 @@ El reaper de testcontainers (ryuk) se crea antes que PostgreSQL con
 """
 
 import time
-from collections.abc import Generator, Iterator
+from collections.abc import AsyncIterator, Generator, Iterator
 
 import pytest
-from sqlalchemy import Connection, Engine, create_engine
+from alembic import command
+from sqlalchemy import Connection, Engine, create_engine, text
 from sqlalchemy.engine import URL
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from testcontainers.community.postgres import PostgresContainer
 
+from api.db.config import VARIABLE_URL_MIGRACION
+from api.db.sesion import crear_motor, fabrica_sesiones
 from api.db.tests.soporte_postgres import (
     IMAGEN_POSTGRES,
     IP_PUBLICACION,
@@ -48,9 +59,14 @@ from api.db.tests.soporte_postgres import (
     USUARIO_SUPERUSUARIO,
     arrancar_contenedor,
     arrancar_reaper_en_loopback,
+    borrar_bd,
+    config_alembic,
+    crear_bd,
     crear_contenedor,
     exigir_docker,
 )
+
+BD_REPOSITORIOS = "gk_repositorios"
 
 _CLAVE_ARRANQUE = pytest.StashKey[float]()
 # El contenedor (no la contraseña) para que el saneado de reportes la lea de ahí.
@@ -110,6 +126,56 @@ def conexion(motor_postgres: Engine) -> Iterator[Connection]:
         finally:
             if transaccion.is_active:
                 transaccion.rollback()
+
+
+@pytest.fixture(scope="session")
+def url_repositorios(motor_postgres: Engine, url_postgres: URL) -> Iterator[URL]:
+    """Base con el esquema de la migración, para las pruebas que confirman transacciones."""
+    crear_bd(motor_postgres, BD_REPOSITORIOS)
+    url = url_postgres.set(database=BD_REPOSITORIOS)
+    try:
+        with pytest.MonkeyPatch.context() as parche:
+            parche.setenv(
+                VARIABLE_URL_MIGRACION, url.render_as_string(hide_password=False)
+            )
+            command.upgrade(config_alembic(), "head")
+        yield url
+    finally:
+        borrar_bd(motor_postgres, BD_REPOSITORIOS)
+
+
+@pytest.fixture
+def bd_limpia(url_repositorios: URL) -> URL:
+    """Vacía las tablas antes de la prueba; devuelve la URL de la base."""
+    motor = create_engine(url_repositorios)
+    try:
+        with motor.begin() as con:
+            con.execute(
+                text("TRUNCATE resultado_analisis, archivo, api_key, aplicacion")
+            )
+    finally:
+        motor.dispose()
+    return url_repositorios
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    """Las pruebas asíncronas corren sobre asyncio, igual que la API."""
+    return "asyncio"
+
+
+@pytest.fixture
+async def motor(bd_limpia: URL) -> AsyncIterator[AsyncEngine]:
+    motor_asincrono = crear_motor(bd_limpia)
+    try:
+        yield motor_asincrono
+    finally:
+        await motor_asincrono.dispose()
+
+
+@pytest.fixture
+def sesiones(motor: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    return fabrica_sesiones(motor)
 
 
 @pytest.hookimpl(wrapper=True)

@@ -9,9 +9,14 @@ Tabla de transiciones (docs/decisiones.md §4)::
 Toda transición pasa por `transicionar`, que la valida. Solo `limpio` es descargable (INV-06); de aquí sale el
 409 del endpoint de descarga. Un `error` nunca llega a `limpio` (INV-09).
 
-Pendientes de confirmar y NO aplicadas aquí: K15 (tipos estrictos), K16 (evidencia del análisis en
-`pendiente -> *`) y K24 (`resultado_cdr` coincidente y rechazo de claves extra en la liberación). Las claves de
-contexto que esta versión no usa se ignoran.
+K15 (tipos estrictos) sigue pendiente de confirmar, pero su comportamiento estricto ya se aplica de forma
+provisional: `transicionar` solo acepta el tipo exacto `Estado` y `es_descargable`, el miembro `Estado.LIMPIO`.
+
+K16 (evidencia del CDR para `pendiente -> limpio`) está confirmada, pero no se comprueba aquí: la exige el
+`UPDATE` de `cambiar_estado`, en api/db/repositorios.py, con los datos de la BD.
+
+Pendiente de confirmar y NO aplicada aquí: K24 (`resultado_cdr` coincidente y rechazo de claves extra en la
+liberación). Las claves de contexto que esta versión no usa se ignoran.
 """
 
 from collections.abc import Callable, Mapping
@@ -65,7 +70,12 @@ def _entrada_a_error(contexto: Mapping[str, object]) -> str | None:
 
 
 def _reintento(contexto: Mapping[str, object]) -> str | None:
-    """K11 + K14 + K17: solo un error transitorio con reintentos (int) en [0, MAX_REINTENTOS)."""
+    """K11 + K14 + K17: solo un error transitorio con reintentos (int) en [0, MAX_REINTENTOS).
+
+    Es un filtro previo, no la garantía: el contexto lo escribe quien llama, así que `tipo_error` y `reintentos`
+    de aquí no son la fuente de verdad. K17 y K11 las debe cumplir un `UPDATE` atómico con los datos de la fila.
+    Ese `UPDATE` todavía no existe: `cambiar_estado` (api/db/repositorios.py) rechaza el reintento hasta tenerlo.
+    """
     tipo_error = contexto.get("tipo_error")
     if not _es_tipo_error(tipo_error) or tipo_error != "transitorio":
         return "solo se reintenta un error transitorio"
@@ -88,12 +98,18 @@ def _liberacion(contexto: Mapping[str, object]) -> str | None:
     return None
 
 
+def _liberacion_a_error(contexto: Mapping[str, object]) -> str | None:
+    """Liberación (INV-08) que termina en error: si llega `tipo_error`, vale la regla de `_entrada_a_error`."""
+    return _liberacion(contexto) or _entrada_a_error(contexto)
+
+
 def _es_tipo_error(valor: object) -> bool:
     return type(valor) is str and valor in TIPOS_ERROR
 
 
 def _texto_no_vacio(valor: object) -> bool:
-    return isinstance(valor, str) and bool(valor.strip())
+    # type() y no isinstance(): una subclase de str podría sobrescribir strip().
+    return type(valor) is str and bool(valor.strip())
 
 
 _TRANSICIONES: Mapping[tuple[Estado, Estado], _Validador] = MappingProxyType(
@@ -105,18 +121,27 @@ _TRANSICIONES: Mapping[tuple[Estado, Estado], _Validador] = MappingProxyType(
         (Estado.ERROR, Estado.PENDIENTE): _reintento,
         (Estado.EN_CUARENTENA, Estado.LIMPIO): _liberacion,
         (Estado.EN_CUARENTENA, Estado.RECHAZADO): _liberacion,
-        (Estado.EN_CUARENTENA, Estado.ERROR): _liberacion,
+        (Estado.EN_CUARENTENA, Estado.ERROR): _liberacion_a_error,
     }
 )
 
 
-def transicionar(actual: Estado, nuevo: Estado, **contexto: object) -> Estado:
-    """Valida el cambio `actual -> nuevo` y devuelve el miembro `nuevo`.
+def transicionar(actual: Estado, nuevo: Estado, /, **contexto: object) -> Estado:
+    """Valida el cambio `actual -> nuevo` y devuelve `nuevo`.
 
-    Lanza `TransicionInvalida` (y ninguna otra excepción) si el cambio no está en la tabla, si `actual` o
-    `nuevo` no son miembros de `Estado`, o si el contexto no lo autoriza.
+    `actual` y `nuevo` son posicionales: en el contexto, esas claves son ordinarias.
+
+    Lanza `TransicionInvalida` si el cambio no está en la tabla, si `actual` o `nuevo` no son de tipo exacto
+    `Estado`, si el contexto no lo autoriza o si validarlo lanza una `Exception`. No cubre:
+
+    - `BaseException` fuera de `Exception` (`KeyboardInterrupt`, `SystemExit`): se propaga.
+    - Errores de la llamada, que Python lanza antes de entrar: `TypeError` por argumentos de menos, por pasar
+      `actual` o `nuevo` por nombre o por claves de contexto que no sean `str`.
+    - Instancias forjadas con `str.__new__(Estado, ...)`: tienen el tipo exacto sin ser miembros, así que esta
+      comprobación no las detiene. Solo se obtienen ejecutando código en el proceso; `Estado(valor)` no las crea.
     """
-    if not isinstance(actual, Estado) or not isinstance(nuevo, Estado):
+    # type() y no isinstance(): isinstance() le cree a `__class__`, que un objeto puede falsear o hacer lanzar.
+    if type(actual) is not Estado or type(nuevo) is not Estado:
         raise TransicionInvalida("estado desconocido")
     validador = _TRANSICIONES.get((actual, nuevo))
     if validador is None:

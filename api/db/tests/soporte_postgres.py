@@ -9,10 +9,14 @@ fallen si alguien cambia una de las dos cosas.
 
 import contextlib
 import secrets
+from pathlib import Path
 from typing import Protocol, Self
 
 import pytest
 import testcontainers.core.container as _modulo_container
+from alembic.config import Config
+from psycopg import sql
+from sqlalchemy import Engine
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.core.config import testcontainers_config
 from testcontainers.core.container import DockerContainer, Reaper
@@ -29,6 +33,38 @@ NOMBRE_BD = "gatekeeper_pruebas"
 IP_PUBLICACION = "127.0.0.1"
 # 24 bytes aleatorios -> 32 caracteres urlsafe (192 bits).
 _BYTES_CONTRASENA = 24
+RUTA_ALEMBIC_INI = Path(__file__).resolve().parents[2] / "migrations" / "alembic.ini"
+
+
+def config_alembic() -> Config:
+    """Configuración de Alembic del proyecto; la URL la lee ``env.py`` del entorno."""
+    return Config(str(RUTA_ALEMBIC_INI))
+
+
+def _ejecutar_en_autocommit(motor: Engine, sentencia: sql.Composed) -> None:
+    with motor.connect().execution_options(isolation_level="AUTOCOMMIT") as con:
+        cursor = con.connection.cursor()
+        try:
+            cursor.execute(sentencia)
+        finally:
+            cursor.close()
+
+
+def crear_bd(motor: Engine, nombre: str) -> None:
+    """Crea una base vacía en el contenedor de la sesión (identificador con ``sql.Identifier``)."""
+    _ejecutar_en_autocommit(
+        motor, sql.SQL("CREATE DATABASE {}").format(sql.Identifier(nombre))
+    )
+
+
+def borrar_bd(motor: Engine, nombre: str) -> None:
+    """Borra la base aunque le queden conexiones abiertas."""
+    _ejecutar_en_autocommit(
+        motor,
+        sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
+            sql.Identifier(nombre)
+        ),
+    )
 
 
 def generar_contrasena() -> str:

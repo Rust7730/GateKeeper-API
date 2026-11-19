@@ -1,0 +1,110 @@
+# Integración y publicación de la imagen de la API (K55).
+#
+# En cada push a main: pruebas, lint y Bandit; si todo pasa, construye la imagen, la publica en GHCR
+# con las etiquetas `main` y el SHA del commit y firma su digest con cosign sin llaves (Sigstore, con el
+# OIDC de GitHub Actions). El servidor la descarga por su cuenta (deploy/actualizar.sh) y no despliega
+# nada cuya firma no sea de este workflow en main. GitHub nunca entra al servidor.
+#
+# Acciones fijadas por SHA de commit (la etiqueta va en el comentario). Para actualizarlas, resuelve
+# la etiqueta nueva a su commit y cambia los dos.
+name: despliegue
+
+on:
+  push:
+    branches: [main]
+
+# Nada por defecto; cada job pide lo suyo.
+permissions: {}
+
+concurrency:
+  group: despliegue-main
+  cancel-in-progress: false
+
+env:
+  IMAGEN: ghcr.io/rust7730/gatekeeper-api
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: false
+
+      - name: Dependencias
+        run: uv sync --frozen
+
+      # Las pruebas del CDR exigen Landlock (K53) y el filtro seccomp (K54), y no se saltan si falta:
+      # un CDR sin aislamiento es justo lo que deben detectar. Este paso solo explica el fallo antes.
+      - name: Landlock en el runner
+        run: |
+          echo "LSM activos: $(cat /sys/kernel/security/lsm)"
+          if ! uv run python -c "import sys; from api.app.aislamiento import abi; v = abi(); print(f'ABI de Landlock: {v}'); sys.exit(v < 1)"; then
+            echo "::error::El kernel del runner no ofrece Landlock: las pruebas del CDR fallarían. Usa un runner con Landlock (por ejemplo, uno propio en Ubuntu 24.04); no se saltan."
+            exit 1
+          fi
+
+      - name: Ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      # Sin variables GATEKEEPER_* en el entorno del job: la API se negaría a arrancar en las pruebas (K52).
+      - name: Pruebas
+        run: uv run pytest -q
+
+      - name: Bandit
+        run: uv run bandit -r api/ -q -ll
+
+  imagen:
+    needs: pruebas
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      # El token OIDC con el que Sigstore emite el certificado de la firma (identidad del workflow).
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        with:
+          cosign-release: "v3.1.4"
+
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGEN }}:main
+            ${{ env.IMAGEN }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/Rust7730/GateKeeper-API
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      # Se firma el digest, no la etiqueta: lo que se verifica en el servidor es exactamente esto.
+      - name: Firma sin llaves
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGEN}@${DIGEST}"

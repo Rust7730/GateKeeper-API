@@ -1,0 +1,18 @@
+#!/bin/bash
+# docker compose del despliegue de Gatekeeper con su proyecto, su archivo y sus variables.
+# Lo instala deploy/instalar.sh en /usr/local/sbin/gk-compose. Ejemplos:
+#   sudo gk-compose ps
+#   sudo gk-compose logs -f api
+#   sudo gk-compose run --rm api /app/.venv/bin/python -m api.app.alta "Mi aplicación"
+#
+# compose.env: dominio (sin secretos). imagen.env: la imagen desplegada, fijada por digest; la
+# reescribe actualizar.sh. Los secretos no pasan por aquí: los lee el propio compose (env_file).
+set -euo pipefail
+
+exec docker compose \
+    --project-name gatekeeper \
+    --project-directory /opt/gatekeeper \
+    --file /opt/gatekeeper/docker-compose.yml \
+    --env-file /etc/gatekeeper/compose.env \
+    --env-file /var/lib/gatekeeper/imagen.env \
+    "$@"

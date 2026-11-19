@@ -11,3 +11,6 @@ docs/
 .claude/skills/gatekeeper-guardian/
 .superpowers/
 .claude/worktrees/
+
+# Lo genera deploy/instalar.sh en el servidor.
+deploy/nginx/generado/

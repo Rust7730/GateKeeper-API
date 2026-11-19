@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 441,
-   "aristas": 1023,
+   "nodos": 442,
+   "aristas": 1027,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 55,
+    "Observacion": 56,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 216,
+    "afecta": 220,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -4845,6 +4845,20 @@
     "fecha_propuesta": "2026-11-18",
     "origen": "gatekeeper-guardian",
     "eleccion": "El backend se despliega en una instancia EC2 Ubuntu 24.04 (t3.small) con Docker Compose (nginx con TLS de Let's Encrypt sobre un nombre *.sslip.io, API y PostgreSQL), con acceso restringido a las IP del usuario. Las actualizaciones se publican con GitHub Actions al hacer merge a main (imagen en GHCR) y el servidor las descarga por pull. Se abrirá al público después de implementar TLS, rate limit (K10) y el rol gk_app; ese paso cambiará K26 y se registrará entonces. Mientras tanto K26 (uso no público) y K28 (desviación temporal de INV-04) siguen vigentes.",
+    "fecha_decision": "2026-11-18"
+   }
+  },
+  {
+   "id": "K56",
+   "tipo": "Observacion",
+   "label": "Holgura de latencia en CI",
+   "props": {
+    "propuesta": "En GitHub Actions las pruebas de rendimiento (p95 y p50 de latencia) multiplican sus topes por 10 con la variable GATEKEEPER_FACTOR_LATENCIA=10. En local y en el control de gk-commit los topes quedan como están (factor 1). Los límites de tiempo de pruebas de seguridad o comportamiento no se relajan.",
+    "hallazgo": "En el runner ubuntu-24.04 de GitHub Actions (máquina compartida y más lenta) test_latencia_con_escritores_simultaneos_de_la_misma_aplicacion dio p95 de 88.46 ms frente al tope de 20 ms y bloqueó el despliegue; en local da 7.8 ms.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-18",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "En GitHub Actions las pruebas de rendimiento (p95 y p50 de latencia) multiplican sus topes por 10 con la variable GATEKEEPER_FACTOR_LATENCIA=10. En local y en el control de gk-commit los topes quedan como están (factor 1). Los límites de tiempo de pruebas de seguridad o comportamiento no se relajan.",
     "fecha_decision": "2026-11-18"
    }
   }
@@ -10062,6 +10076,26 @@
    "de": "K55",
    "rel": "afecta",
    "a": "F2.08"
+  },
+  {
+   "de": "K56",
+   "rel": "afecta",
+   "a": "M1"
+  },
+  {
+   "de": "K56",
+   "rel": "afecta",
+   "a": "M2"
+  },
+  {
+   "de": "K56",
+   "rel": "afecta",
+   "a": "F1.07"
+  },
+  {
+   "de": "K56",
+   "rel": "afecta",
+   "a": "F2.02"
   }
  ]
 }

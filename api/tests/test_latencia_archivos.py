@@ -4,6 +4,10 @@ M1 va por ASGI directo para poder fijar el instante en que termina la recepción
 no deja ver ese momento. M2 sale de ``creado_en`` y ``analizado_en``, como lo define
 ``docs/decisiones.md`` §7. Los archivos son los peores de cada tipo: lo que cuesta en una imagen
 son sus píxeles, no sus bytes, y por eso van de 40 MP. Con ``pytest -s`` se imprimen los números.
+
+Los topes de M1 y M2 se multiplican por el factor de ``api/db/tests/latencia.py`` (K56: 10 en
+GitHub Actions, 1 en local); la medición no. ``TOPE_ESPERA_S`` es una espera de sondeo, no un
+tope de rendimiento, y no cambia.
 """
 
 import io
@@ -29,6 +33,11 @@ from api.app.ajustes import Ajustes
 from api.app.principal import crear_app
 from api.app.recepcion import TOPE_ARCHIVO
 from api.app.v1 import TOPE_PENDIENTES
+from api.db.tests.latencia import (
+    VARIABLE_FACTOR_LATENCIA,
+    exigir_tope_ms,
+    factor_latencia,
+)
 from api.tests.soporte_api import sembrar_key
 
 MUESTRAS_M1 = 200
@@ -184,7 +193,7 @@ def test_m1_202_desde_el_fin_de_la_recepcion(
     print(
         f"\nM1 {tamano} B ({MUESTRAS_M1}): p95 = {p95:.2f} ms, máx = {max(muestras):.2f} ms"
     )
-    assert p95 < TOPE_M1_MS
+    exigir_tope_ms("p95 de M1", p95, TOPE_M1_MS)
 
 
 def _pendientes(url: URL) -> int:
@@ -236,7 +245,7 @@ def test_m1_con_subidas_simultaneas_de_una_aplicacion(api: Any, bd_limpia: URL) 
         f"\nM1 {SIMULTANEAS} simultáneas ({len(muestras)}): p95 = {p95:.2f} ms, "
         f"máx = {max(muestras):.2f} ms"
     )
-    assert p95 < TOPE_M1_MS
+    exigir_tope_ms("p95 de M1", p95, TOPE_M1_MS)
 
 
 def _esperar_m2(cliente: TestClient, archivo_id: str) -> dict[str, Any]:
@@ -284,14 +293,20 @@ def _duracion_hijo(url: URL, archivo_id: str) -> int:
         motor.dispose()
 
 
-def _informar(nombre: str, contenido: bytes, tiempos: list[float], hijo: int) -> float:
+def _exigir_m2(nombre: str, contenido: bytes, tiempos: list[float], hijo: int) -> None:
     p95 = _p95(tiempos)
     print(
         f"\nM2 {nombre} {len(contenido)} B ({len(tiempos)}): "
         f"p50 = {statistics.median(tiempos):.0f} ms, p95 = {p95:.0f} ms, "
         f"máx = {max(tiempos):.0f} ms; proceso hijo = {hijo} ms"
     )
-    return p95
+    # M2 es "p95 <= 2 s" (§7), con el tope incluido; exigir_tope_ms es estricto.
+    factor = factor_latencia()
+    tope = TOPE_M2_MS * factor
+    assert p95 <= tope, (
+        f"p95 de M2 {nombre} = {p95:.2f} ms; tope efectivo {tope:.2f} ms "
+        f"= {TOPE_M2_MS:.2f} ms x factor {factor:g} ({VARIABLE_FACTOR_LATENCIA})"
+    )
 
 
 @pytest.mark.parametrize(
@@ -310,7 +325,7 @@ def test_m2_veredicto_de_un_archivo_de_10_mb(
     contenido = generar()
     tiempos, archivo_id = _medir_m2(cliente, contenido, tipo, MUESTRAS_M2)
     hijo = _duracion_hijo(bd_limpia, archivo_id)
-    assert _informar(tipo, contenido, tiempos, hijo) <= TOPE_M2_MS
+    _exigir_m2(tipo, contenido, tiempos, hijo)
 
 
 def test_m2_peor_caso_png_de_40_mp(api: Any, bd_limpia: URL) -> None:
@@ -319,4 +334,4 @@ def test_m2_peor_caso_png_de_40_mp(api: Any, bd_limpia: URL) -> None:
     contenido = _png_de_40_mp()
     tiempos, archivo_id = _medir_m2(cliente, contenido, "image/png", MUESTRAS_PEOR_CASO)
     hijo = _duracion_hijo(bd_limpia, archivo_id)
-    assert _informar("PNG 40 MP", contenido, tiempos, hijo) <= TOPE_M2_MS
+    _exigir_m2("PNG 40 MP", contenido, tiempos, hijo)

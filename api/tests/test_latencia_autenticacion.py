@@ -4,7 +4,8 @@ Corre en cada petición de ``/v1``, antes de M1 y de cualquier lectura de estado
 es una llamada completa: sesión del pool, consulta, HMAC y comparación. Se mide cada camino
 por separado, para ver también que un prefijo inexistente no se distingue del resto. El tope
 es holgado a propósito (como en ``test_latencia_repositorios.py``); el número útil es el
-p95 que se imprime con ``pytest -s``.
+p95 que se imprime con ``pytest -s``. Los topes se multiplican por el factor de
+``api/db/tests/latencia.py`` (K56: 10 en GitHub Actions, 1 en local); la medición no.
 """
 
 import secrets
@@ -24,6 +25,7 @@ from api.app.ajustes import Ajustes
 from api.app.autenticacion import autenticar, calcular_hash, generar_key
 from api.app.principal import crear_app
 from api.db.repositorios import crear_api_key, crear_aplicacion
+from api.db.tests.latencia import exigir_tope_ms
 
 pytestmark = pytest.mark.anyio
 
@@ -31,6 +33,7 @@ Sesiones = async_sessionmaker[AsyncSession]
 
 MUESTRAS = 1000
 TOPE_P95_MS = 20.0
+TOPE_P95_HMAC_MS = 1.0
 SECRETO_INCORRECTO = secrets.token_urlsafe(32)
 
 
@@ -84,7 +87,7 @@ async def _medir(
     mediana = statistics.median(tiempos_ms)
     record_property(f"{nombre}_p95_ms", round(p95, 3))
     print(f"\n{nombre} ({MUESTRAS}): p50 = {mediana:.3f} ms, p95 = {p95:.3f} ms")
-    assert p95 < TOPE_P95_MS, f"p95 de {nombre} = {p95:.2f} ms"
+    exigir_tope_ms(f"p95 de {nombre}", p95, TOPE_P95_MS)
     return p95
 
 
@@ -134,4 +137,4 @@ def test_latencia_hmac_solo() -> None:
         tiempos_us.append((time.perf_counter() - inicio) * 1_000_000)
     p95 = statistics.quantiles(tiempos_us, n=100)[94]
     print(f"\ncalcular_hash (10000): p95 = {p95:.2f} us")
-    assert p95 < 1000
+    exigir_tope_ms("p95 de calcular_hash", p95 / 1000, TOPE_P95_HMAC_MS)

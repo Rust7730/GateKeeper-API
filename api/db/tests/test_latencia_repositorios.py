@@ -3,7 +3,8 @@
 Cada muestra es una operación completa como la hace la API: sesión nueva del pool,
 consulta y, en las escrituras, ``COMMIT``. Antes se cargan filas para no medir tablas
 vacías. El tope es holgado a propósito: detecta regresiones sin volverse inestable. El
-número útil es el p95 que se imprime; se ve con ``pytest -s``.
+número útil es el p95 que se imprime; se ve con ``pytest -s``. En GitHub Actions el tope
+se multiplica por ``GATEKEEPER_FACTOR_LATENCIA`` (K56; ver ``latencia.py``).
 """
 
 import asyncio
@@ -32,6 +33,7 @@ from api.db.repositorios import (
     obtener_api_key_activa,
     obtener_archivo,
 )
+from api.db.tests.latencia import exigir_tope_ms
 
 pytestmark = pytest.mark.anyio
 
@@ -327,7 +329,7 @@ def _reportar(
     record_property(f"{nombre}_p95_ms", round(p95, 3))
     print(f"\n{nombre} ({len(tiempos_ms)}): p50 = {mediana:.3f} ms, p95 = {p95:.3f} ms")
     assert len(tiempos_ms) == MUESTRAS
-    assert p95 < tope_ms, f"p95 de {nombre} = {p95:.2f} ms"
+    exigir_tope_ms(f"p95 de {nombre}", p95, tope_ms)
 
 
 async def test_latencia_obtener_api_key_activa(

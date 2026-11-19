@@ -57,8 +57,13 @@ jobs:
           uv run ruff check .
           uv run ruff format --check .
 
-      # Sin variables GATEKEEPER_* en el entorno del job: la API se negaría a arrancar en las pruebas (K52).
+      # Sin secretos GATEKEEPER_* (pepper ni URLs de la BD) en el entorno del job: la API se negaría a
+      # arrancar en las pruebas (K52). GATEKEEPER_FACTOR_LATENCIA no es secreto y K52 no la mira.
       - name: Pruebas
+        # K56: el runner es compartido y más lento; los topes de rendimiento (p95/p50) se
+        # multiplican por 10. Los límites de tiempo de seguridad no cambian.
+        env:
+          GATEKEEPER_FACTOR_LATENCIA: "10"
         run: uv run pytest -q
 
       - name: Bandit

@@ -16,7 +16,8 @@ perder la transacción, y se comprueba **qué** restricción los rechazó con
 - Borrar una aplicación que todavía tiene keys se rechaza (``ON DELETE RESTRICT``).
 - La latencia del ``INSERT`` de ``aplicacion`` y del de ``api_key`` se mide con 1000
   inserciones (p95) dentro de la transacción de la prueba (sin el ``COMMIT``); el tope
-  es holgado para detectar regresiones sin volverse inestable.
+  es holgado para detectar regresiones sin volverse inestable. En GitHub Actions se
+  multiplica por ``GATEKEEPER_FACTOR_LATENCIA`` (K56; ver ``latencia.py``).
 """
 
 import secrets
@@ -31,6 +32,7 @@ from sqlalchemy import Connection, Executable, delete, insert, select, text
 from sqlalchemy.exc import IntegrityError
 
 from api.db.modelos import ApiKey, Aplicacion, Base
+from api.db.tests.latencia import exigir_tope_ms
 
 INSERCIONES_LATENCIA = 1000
 TOPE_P95_MS = 20.0
@@ -506,7 +508,7 @@ def test_latencia_insert_api_key_p95(esquema: Connection, record_property: Any) 
         f"\nINSERT api_key ({INSERCIONES_LATENCIA}, sin COMMIT): "
         f"p50 = {mediana:.3f} ms, p95 = {p95:.3f} ms"
     )
-    assert p95 < TOPE_P95_MS, f"p95 del INSERT de api_key = {p95:.2f} ms"
+    exigir_tope_ms("p95 del INSERT de api_key", p95, TOPE_P95_MS)
 
 
 def test_latencia_insert_aplicacion_p95(
@@ -532,4 +534,4 @@ def test_latencia_insert_aplicacion_p95(
         f"\nINSERT aplicacion ({INSERCIONES_LATENCIA}, sin COMMIT): "
         f"p50 = {mediana:.3f} ms, p95 = {p95:.3f} ms"
     )
-    assert p95 < TOPE_P95_MS, f"p95 del INSERT de aplicacion = {p95:.2f} ms"
+    exigir_tope_ms("p95 del INSERT de aplicacion", p95, TOPE_P95_MS)

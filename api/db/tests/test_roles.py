@@ -50,6 +50,7 @@ Sesiones = async_sessionmaker[AsyncSession]
 
 REVISION_0001 = "0001_esquema_inicial"
 REVISION_0002 = "0002_permisos_gk_app"
+REVISION_0003 = "0003_usuarios_y_auditoria"
 BD_ROLES = "gk_roles"
 SHA256 = "a" * 64
 PERMISO_DENEGADO = "42501"  # insufficient_privilege
@@ -68,10 +69,20 @@ ESPERADOS_POR_TABLA = {
     "api_key": {"SELECT", "INSERT", "UPDATE"},
     "archivo": {"SELECT", "INSERT", "UPDATE"},
     "resultado_analisis": {"SELECT", "INSERT"},
+    "usuario": {"SELECT", "INSERT", "UPDATE"},
+    "refresh_token": {"SELECT", "INSERT", "UPDATE"},
+    "evento_auditoria": {"SELECT", "INSERT"},
     "alembic_version": set(),
 }
 SECUENCIA = "resultado_analisis_id_seq"
-TABLAS = ("aplicacion", "api_key", "archivo", "resultado_analisis", "alembic_version")
+TABLAS_0001 = (
+    "aplicacion",
+    "api_key",
+    "archivo",
+    "resultado_analisis",
+    "alembic_version",
+)
+TABLAS = tuple(ESPERADOS_POR_TABLA)
 
 
 # --------------------------------------------------------------------------- soporte
@@ -617,9 +628,9 @@ def test_upgrade_downgrade_upgrade_restaura_los_permisos(
     en_0001 = _acl(motor_bd_vacia)
 
     command.upgrade(config, "head")
-    assert _version(motor_bd_vacia) == REVISION_0002
-    en_0002 = _acl(motor_bd_vacia)
-    assert en_0002 != en_0001
+    assert _version(motor_bd_vacia) == REVISION_0003
+    en_head = _acl(motor_bd_vacia)
+    assert en_head != en_0001
     with motor_bd_vacia.connect() as con:
         assert (
             _privilegios_de_tabla(con, ROL_APP, "archivo")
@@ -630,15 +641,15 @@ def test_upgrade_downgrade_upgrade_restaura_los_permisos(
     assert _version(motor_bd_vacia) == REVISION_0001
     assert _acl(motor_bd_vacia) == en_0001
     with motor_bd_vacia.connect() as con:
-        for tabla in ESPERADOS_POR_TABLA:
+        for tabla in TABLAS_0001:
             assert _privilegios_de_tabla(con, ROL_APP, tabla) == set(), tabla
 
     command.upgrade(config, "head")
-    assert _acl(motor_bd_vacia) == en_0002
+    assert _acl(motor_bd_vacia) == en_head
 
     command.downgrade(config, "base")
     command.upgrade(config, "head")
-    assert _acl(motor_bd_vacia) == en_0002
+    assert _acl(motor_bd_vacia) == en_head
 
 
 def test_el_downgrade_sin_el_rol_no_falla(
@@ -675,7 +686,7 @@ def test_alembic_version_es_del_dueno_y_gk_app_no_la_toca(
             ).scalars()
         )
     assert duenos == {USUARIO_SUPERUSUARIO}
-    assert _version(motor_bd_vacia) == REVISION_0002
+    assert _version(motor_bd_vacia) == REVISION_0003
 
 
 @pytest.mark.parametrize("desde", [None, REVISION_0001], ids=["bd-vacia", "en-0001"])

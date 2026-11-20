@@ -21,6 +21,7 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    LargeBinary,
     MetaData,
     SmallInteger,
     String,
@@ -28,7 +29,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 CONVENCION_NOMBRES = {
@@ -234,3 +235,58 @@ class ResultadoAnalisis(Base):
     )
     duracion_ms: Mapped[int | None] = mapped_column(Integer)
     creado_en: Mapped[datetime] = _ahora()
+
+
+class Usuario(Base):
+    """Usuario del dashboard SecOps: ``admin`` o ``analista`` (F5.01, K06)."""
+
+    __tablename__ = "usuario"
+    __table_args__ = (
+        CheckConstraint("rol IN ('admin', 'analista')", name="rol_valido"),
+        CheckConstraint(
+            r"char_length(email) BETWEEN 3 AND 254"
+            r" AND email !~ '[\u0000-\u001f\u007f-\u009f]'",
+            name="email_valido",
+        ),
+        Index("uq_usuario_email_lower", func.lower(text("email")), unique=True),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    email: Mapped[str] = mapped_column(Text)
+    hash_password: Mapped[str] = mapped_column(Text)
+    rol: Mapped[str] = mapped_column(Text)
+    totp_secreto_cifrado: Mapped[bytes | None] = mapped_column(LargeBinary)
+    activo: Mapped[bool] = mapped_column(server_default=text("true"))
+    creado_en: Mapped[datetime] = _ahora()
+
+
+class RefreshToken(Base):
+    """Refresh token rotativo por familia en PostgreSQL (F5.03, K21, V19)."""
+
+    __tablename__ = "refresh_token"
+
+    jti: Mapped[uuid.UUID] = _uuid_pk()
+    usuario_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("usuario.id", ondelete="RESTRICT"), index=True
+    )
+    familia: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
+    expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revocado: Mapped[bool] = mapped_column(server_default=text("false"))
+    creado_en: Mapped[datetime] = _ahora()
+
+
+class EventoAuditoria(Base):
+    """Bitácora inmutable de solo inserción (INV-08, F5.06)."""
+
+    __tablename__ = "evento_auditoria"
+    __table_args__ = (Index("ix_evento_auditoria_fecha", "fecha"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    usuario_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("usuario.id", ondelete="RESTRICT"), index=True
+    )
+    accion: Mapped[str] = mapped_column(Text)
+    objetivo_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    motivo: Mapped[str | None] = mapped_column(Text)
+    ip: Mapped[str | None] = mapped_column(INET)
+    fecha: Mapped[datetime] = _ahora()

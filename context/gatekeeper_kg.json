@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 451,
-   "aristas": 1071,
+   "nodos": 452,
+   "aristas": 1076,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 65,
+    "Observacion": 66,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 264,
+    "afecta": 269,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -3597,7 +3597,7 @@
    "props": {
     "meta": "Toda liberación de cuarentena queda en la bitácora con usuario, fecha y motivo, y un nombre de archivo con HTML se muestra como texto.",
     "criterio_salida": "Las tres pruebas pasan y cada liberación aparece en /v1/admin/audit.",
-    "estado": "pendiente"
+    "estado": "en_progreso"
    }
   },
   {
@@ -3605,8 +3605,16 @@
    "tipo": "Paso",
    "label": "Login con contraseñas en Argon2 y TOTP obligatorio para administradores, con endpoint de alta del segundo factor.",
    "props": {
-    "estado": "pendiente",
-    "orden": 1
+    "estado": "en_progreso",
+    "orden": 1,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Migración 0003 (usuario, refresh_token, evento_auditoria inmutable), login Argon2+TOTP cifrado, JWT 15 min, refresh rotativo por familia (K21), CSRF (gk_csrf/X-CSRF-Token) y RBAC (K06) implementados y probados"
+     }
+    ]
    }
   },
   {
@@ -3614,8 +3622,16 @@
    "tipo": "Paso",
    "label": "Access token JWT de 15 min guardado en memoria, nunca en localStorage.",
    "props": {
-    "estado": "pendiente",
-    "orden": 2
+    "estado": "en_progreso",
+    "orden": 2,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Migración 0003 (usuario, refresh_token, evento_auditoria inmutable), login Argon2+TOTP cifrado, JWT 15 min, refresh rotativo por familia (K21), CSRF (gk_csrf/X-CSRF-Token) y RBAC (K06) implementados y probados"
+     }
+    ]
    }
   },
   {
@@ -3623,8 +3639,16 @@
    "tipo": "Paso",
    "label": "Refresh token en cookie HttpOnly, SameSite=Strict y Path=/v1/auth, con rotación; si se reutiliza un token ya rotado se revoca toda su familia.",
    "props": {
-    "estado": "pendiente",
-    "orden": 3
+    "estado": "en_progreso",
+    "orden": 3,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Migración 0003 (usuario, refresh_token, evento_auditoria inmutable), login Argon2+TOTP cifrado, JWT 15 min, refresh rotativo por familia (K21), CSRF (gk_csrf/X-CSRF-Token) y RBAC (K06) implementados y probados"
+     }
+    ]
    }
   },
   {
@@ -3632,8 +3656,16 @@
    "tipo": "Paso",
    "label": "En /v1/auth/refresh, validar el header Origin y un token double-submit contra CSRF.",
    "props": {
-    "estado": "pendiente",
-    "orden": 4
+    "estado": "en_progreso",
+    "orden": 4,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Migración 0003 (usuario, refresh_token, evento_auditoria inmutable), login Argon2+TOTP cifrado, JWT 15 min, refresh rotativo por familia (K21), CSRF (gk_csrf/X-CSRF-Token) y RBAC (K06) implementados y probados"
+     }
+    ]
    }
   },
   {
@@ -3641,8 +3673,16 @@
    "tipo": "Paso",
    "label": "RBAC con dependencias de FastAPI por rol: un analista recibe 403 en endpoints de admin.",
    "props": {
-    "estado": "pendiente",
-    "orden": 5
+    "estado": "en_progreso",
+    "orden": 5,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Migración 0003 (usuario, refresh_token, evento_auditoria inmutable), login Argon2+TOTP cifrado, JWT 15 min, refresh rotativo por familia (K21), CSRF (gk_csrf/X-CSRF-Token) y RBAC (K06) implementados y probados"
+     }
+    ]
    }
   },
   {
@@ -4473,9 +4513,11 @@
    "props": {
     "propuesta": "Tope de longitud y filtro de caracteres de control para usuario y motivo; el valor del tope NO está definido",
     "hallazgo": "Propuesta de gk-security (piloto); requiere que el usuario fije el tope",
-    "decision": "pendiente",
+    "decision": "confirmada",
     "fecha_propuesta": "2026-10-29",
-    "origen": "gatekeeper-guardian"
+    "origen": "gatekeeper-guardian",
+    "eleccion": "motivo de liberación entre 20 y 500 caracteres, sin caracteres de control (C0/DEL/C1), alineado con GateKeeper-Frontend",
+    "fecha_decision": "2026-11-19"
    }
   },
   {
@@ -4485,9 +4527,11 @@
    "props": {
     "propuesta": "liberado_en lo genera el servidor, nunca se toma del cliente",
     "hallazgo": "Propuesta de gk-security (piloto)",
-    "decision": "pendiente",
+    "decision": "confirmada",
     "fecha_propuesta": "2026-10-29",
-    "origen": "gatekeeper-guardian"
+    "origen": "gatekeeper-guardian",
+    "eleccion": "liberado_en lo genera el servidor, nunca se toma del cliente",
+    "fecha_decision": "2026-11-19"
    }
   },
   {
@@ -5115,6 +5159,20 @@
     "fecha_propuesta": "2026-11-19",
     "origen": "gatekeeper-guardian",
     "eleccion": "clamav, freshclam y reputation activos por defecto en deploy/docker-compose.yml (EC2 se sube a t3.medium de 4 GiB); VIRUSTOTAL_API_KEY opcional en reputation.env (si falta o no hay cuota, D3 marca virustotal como no_evaluada)",
+    "fecha_decision": "2026-11-19"
+   }
+  },
+  {
+   "id": "K66",
+   "tipo": "Observacion",
+   "label": "Contrato F5 alineado con GateKeeper-Frontend (logout y applications)",
+   "props": {
+    "propuesta": "Se incluyen POST /v1/auth/logout y GET /v1/admin/applications, cookie CSRF gk_csrf + header X-CSRF-Token y DTO en español compatibles con backend.dto.ts del dashboard",
+    "hallazgo": "El frontend en GateKeeper-Frontend ya implementa el adaptador y flujo CSRF contra esos endpoints y DTO",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-19",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Se incluyen POST /v1/auth/logout y GET /v1/admin/applications, cookie CSRF gk_csrf + header X-CSRF-Token y DTO en español compatibles con backend.dto.ts del dashboard",
     "fecha_decision": "2026-11-19"
    }
   }
@@ -10572,6 +10630,31 @@
    "de": "K65",
    "rel": "afecta",
    "a": "K55"
+  },
+  {
+   "de": "K66",
+   "rel": "afecta",
+   "a": "F5.01"
+  },
+  {
+   "de": "K66",
+   "rel": "afecta",
+   "a": "F5.03"
+  },
+  {
+   "de": "K66",
+   "rel": "afecta",
+   "a": "F5.04"
+  },
+  {
+   "de": "K66",
+   "rel": "afecta",
+   "a": "F5.07"
+  },
+  {
+   "de": "K66",
+   "rel": "afecta",
+   "a": "svc:api"
   }
  ]
 }

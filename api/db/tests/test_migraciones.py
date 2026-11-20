@@ -36,9 +36,18 @@ from api.db.tests.soporte_postgres import (
 
 BD_MIGRACION = "gk_migracion"
 BD_MODELOS = "gk_modelos"
-TABLAS_ESPERADAS = {"aplicacion", "api_key", "archivo", "resultado_analisis"}
+TABLAS_ESPERADAS = {
+    "aplicacion",
+    "api_key",
+    "archivo",
+    "resultado_analisis",
+    "usuario",
+    "refresh_token",
+    "evento_auditoria",
+}
 REVISION_INICIAL = "0001_esquema_inicial"
 REVISION_PERMISOS = "0002_permisos_gk_app"
+REVISION_ACTUAL = "0003_usuarios_y_auditoria"
 
 
 @pytest.fixture
@@ -132,9 +141,12 @@ def test_upgrade_downgrade_upgrade_sobre_bd_vacia(url_migracion: URL) -> None:
     assert _tablas(url_migracion) == TABLAS_ESPERADAS | {"alembic_version"}
 
 
-def test_hay_una_sola_cabeza_y_es_la_de_permisos() -> None:
+def test_hay_una_sola_cabeza_y_es_la_de_usuarios_y_auditoria() -> None:
     guion = ScriptDirectory.from_config(config_alembic())
-    assert guion.get_heads() == [REVISION_PERMISOS]
+    assert guion.get_heads() == [REVISION_ACTUAL]
+    actual = guion.get_revision(REVISION_ACTUAL)
+    assert actual is not None
+    assert actual.down_revision == REVISION_PERMISOS
     permisos = guion.get_revision(REVISION_PERMISOS)
     assert permisos is not None
     assert permisos.down_revision == REVISION_INICIAL

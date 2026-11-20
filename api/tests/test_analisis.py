@@ -303,7 +303,8 @@ def test_timeout_mata_tambien_a_los_descendientes(tmp_path: Path, correr: Any) -
 def _vivo(pid: int) -> bool:
     try:
         return Path(f"/proc/{pid}/stat").read_text().split()[2] != "Z"
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
+        # El proceso ya no existe: /proc/<pid> desaparece o su lectura da ESRCH.
         return False
 
 

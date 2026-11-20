@@ -22,13 +22,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 
-from api.app import analisis, v1
+from api.app import analisis, coordinador, v1
 from api.app.ajustes import Ajustes
 from api.app.principal import crear_app
 from api.db.repositorios import DatoRechazado, ViolacionDeRestriccion, crear_archivo
 from api.db.sesion import crear_motor, fabrica_sesiones
 from api.tests.soporte_api import KeySembrada, sembrar_key
+from api.tests.soporte_cola import correr_pipeline
 from api.tests.soporte_redis import RelojQueCorre
+from worker import ejecutor
 
 PNG_MINIMO = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x00\x00"
@@ -108,7 +110,10 @@ class Banco:
             datos=self.datos,
             **{**base, **costura},
         )
-        with TestClient(crear_app(ajustes), raise_server_exceptions=False) as cliente:
+        with (
+            TestClient(crear_app(ajustes), raise_server_exceptions=False) as cliente,
+            correr_pipeline(ajustes),
+        ):
             cliente.headers["Authorization"] = f"Bearer {self.app_a.key}"
             yield cliente
 
@@ -219,9 +224,9 @@ def test_si_el_insert_falla_no_queda_temporal_ni_analisis(
         respuesta = cliente.post(
             "/v1/files", content=cuerpo, headers={"Content-Type": tipo}
         )
-        assert cliente.app.state.tareas == set()
     assert respuesta.status_code == 500
     assert respuesta.json() == {"detail": "Internal Server Error"}
+    assert banco.contar() == 0
     assert list(banco.uploads.iterdir()) == []
 
 
@@ -547,7 +552,7 @@ def test_el_log_del_fallo_no_trae_la_excepcion(
 
     monkeypatch.setattr(analisis, "registrar_resultado", _falla)
     with (
-        caplog.at_level("WARNING", logger="gatekeeper.api"),
+        caplog.at_level("WARNING", logger="gatekeeper"),
         banco.api(comando_cdr=_hijo_limpio(tmp_path)) as cliente,
     ):
         archivo_id = _subir(cliente)
@@ -581,16 +586,12 @@ def test_apagar_a_mitad_mata_al_hijo_y_borra_los_temporales(
     assert list(banco.clean.iterdir()) == []
 
 
-def test_la_tarea_se_guarda_y_se_retira_al_terminar(
-    banco: Banco, tmp_path: Path
-) -> None:
+def test_la_api_no_corre_tareas_de_cdr_en_proceso(banco: Banco, tmp_path: Path) -> None:
+    """F1.05 / K64: el CDR corre en worker aislado por ARQ, nunca como tarea de la API."""
     with banco.api(comando_cdr=_hijo_limpio(tmp_path)) as cliente:
+        assert not hasattr(cliente.app.state, "tareas")
         archivo_id = _subir(cliente)
-        _esperar(cliente, archivo_id)
-        limite = time.monotonic() + TOPE_S
-        while cliente.app.state.tareas and time.monotonic() < limite:
-            time.sleep(0.01)
-        assert cliente.app.state.tareas == set()
+        assert _esperar(cliente, archivo_id)["estado"] == "limpio"
 
 
 # ------------------------------------------------------------- K46 al publicar
@@ -599,7 +600,8 @@ def test_la_tarea_se_guarda_y_se_retira_al_terminar(
 def test_k46_salida_sobre_el_tope_es_rechazado_sin_rastro(
     banco: Banco, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(analisis, "TOPE_SALIDA", 100)
+    monkeypatch.setattr(ejecutor, "TOPE_SALIDA", 100)
+    monkeypatch.setattr(coordinador, "TOPE_SALIDA", 100)
     comando = _comando(
         tmp_path,
         "import sys\n"

@@ -28,22 +28,25 @@ import shutil
 import stat
 from pathlib import Path
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from api.app.ajustes import VARIABLE_HMAC, VARIABLE_REDIS, Ajustes, ConfiguracionError
 from api.db.config import VARIABLE_URL_BD, VARIABLE_URL_MIGRACION
 from api.db.repositorios import cerrar_pendientes_huerfanos
+from worker.ajustes import VARIABLE_REDIS_QUEUE
 
 logger = logging.getLogger("gatekeeper.api")
 
 TIPO_ERROR_BARRIDO = "final"  # K51
 # K52: lo que no puede quedar a la vista en el entorno de un ancestro.
-# La de migración lleva la misma contraseña en el README. La de Redis, la de su usuario (K59).
+# La de migración lleva la misma contraseña en el README. Las de Redis, las de sus usuarios (K59).
 VARIABLES_SECRETAS = (
     VARIABLE_HMAC,
     VARIABLE_URL_BD,
     VARIABLE_URL_MIGRACION,
     VARIABLE_REDIS,
+    VARIABLE_REDIS_QUEUE,
 )
 SUFIJO_PARCIAL = ".parcial"
 _PR_SET_DUMPABLE = 4  # <linux/prctl.h>
@@ -145,6 +148,24 @@ async def _cerrar_pendientes(
         for archivo_id in ids:
             _borrar(ajustes.clean_store / str(archivo_id))
     return len(ids)
+
+
+async def comprobar_bd(sesiones: async_sessionmaker[AsyncSession]) -> None:
+    """Comprueba que PostgreSQL responde al arrancar, sin mostrar credenciales."""
+    ok = False
+    try:
+        async with sesiones() as sesion:
+            await sesion.execute(text("SELECT 1"))
+        ok = True
+    except Exception as error:  # noqa: BLE001
+        logger.error(
+            "La comprobación de BD al arrancar falló (%s)", type(error).__name__
+        )
+    if not ok:
+        raise ConfiguracionError(
+            "No se pudo conectar a la base de datos al arrancar "
+            "(el valor de la conexión no se muestra)."
+        )
 
 
 async def barrer_restos(

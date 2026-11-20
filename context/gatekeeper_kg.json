@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 449,
-   "aristas": 1057,
+   "nodos": 450,
+   "aristas": 1065,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 63,
+    "Observacion": 64,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 250,
+    "afecta": 258,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -2814,9 +2814,17 @@
    "tipo": "Paso",
    "label": "Escribir docker-compose.yml con nginx, api, redis, postgres, worker, clamav y reputation, más freshclam si D2 = A.",
    "props": {
-    "estado": "pendiente",
+    "estado": "en_progreso",
     "orden": 1,
-    "servicios_finales": "nginx, api, coordinator, redis-main, redis-queue, postgres, worker, clamav, freshclam, reputation (10)"
+    "servicios_finales": "nginx, api, coordinator, redis-main, redis-queue, postgres, worker, clamav, freshclam, reputation (10)",
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Worker aislado (UID 10003, red isolated, uploads_tmp :ro), redis-queue y coordinator en ARQ/JSON (K36, K64) implementados y probados; F0 aún no marcada hecho"
+     }
+    ]
    }
   },
   {
@@ -2824,8 +2832,16 @@
    "tipo": "Paso",
    "label": "Definir las redes: 'frontend' (nginx, api); 'backend' con internal: true (api, redis, postgres, reputation); 'isolated' con internal: true (worker, clamav, redis); 'egress' con salida a internet, solo para reputation y freshclam.",
    "props": {
-    "estado": "pendiente",
-    "orden": 2
+    "estado": "en_progreso",
+    "orden": 2,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Worker aislado (UID 10003, red isolated, uploads_tmp :ro), redis-queue y coordinator en ARQ/JSON (K36, K64) implementados y probados; F0 aún no marcada hecho"
+     }
+    ]
    }
   },
   {
@@ -2833,8 +2849,16 @@
    "tipo": "Paso",
    "label": "Endurecer el worker: read_only: true, tmpfs en /tmp, usuario no root, cap_drop: [ALL], no-new-privileges y límites de memoria, CPU y procesos.",
    "props": {
-    "estado": "pendiente",
-    "orden": 3
+    "estado": "en_progreso",
+    "orden": 3,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Worker aislado (UID 10003, red isolated, uploads_tmp :ro), redis-queue y coordinator en ARQ/JSON (K36, K64) implementados y probados; F0 aún no marcada hecho"
+     }
+    ]
    }
   },
   {
@@ -2842,8 +2866,16 @@
    "tipo": "Paso",
    "label": "Definir volúmenes: uploads_tmp (api escribe, worker lee), clean_store (worker escribe, api lee), quarantine (worker escribe, la API nunca lo sirve) y clamav_db (freshclam escribe, clamd lee).",
    "props": {
-    "estado": "pendiente",
-    "orden": 4
+    "estado": "en_progreso",
+    "orden": 4,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Worker aislado (UID 10003, red isolated, uploads_tmp :ro), redis-queue y coordinator en ARQ/JSON (K36, K64) implementados y probados; F0 aún no marcada hecho"
+     }
+    ]
    }
   },
   {
@@ -2851,9 +2883,17 @@
    "tipo": "Paso",
    "label": "El worker devuelve su resultado por la cola ARQ y la API escribe en PostgreSQL. El worker no tiene acceso a la base de datos.",
    "props": {
-    "estado": "pendiente",
+    "estado": "en_progreso",
     "orden": 5,
-    "ajuste": "El resultado vuelve por ARQ; quien escribe en PostgreSQL es el coordinator (K08). El worker sigue sin acceso a la BD."
+    "ajuste": "El resultado vuelve por ARQ; quien escribe en PostgreSQL es el coordinator (K08). El worker sigue sin acceso a la BD.",
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Worker aislado (UID 10003, red isolated, uploads_tmp :ro), redis-queue y coordinator en ARQ/JSON (K36, K64) implementados y probados; F0 aún no marcada hecho"
+     }
+    ]
    }
   },
   {
@@ -2910,9 +2950,17 @@
    "tipo": "Paso",
    "label": "Escribir la prueba de aislamiento: una petición HTTP desde el contenedor del worker debe fallar.",
    "props": {
-    "estado": "pendiente",
+    "estado": "en_progreso",
     "orden": 9,
-    "ampliacion_K02": "Además: desde el worker, la conexión a redis-main y a la api debe fallar."
+    "ampliacion_K02": "Además: desde el worker, la conexión a redis-main y a la api debe fallar.",
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Worker aislado (UID 10003, red isolated, uploads_tmp :ro), redis-queue y coordinator en ARQ/JSON (K36, K64) implementados y probados; F0 aún no marcada hecho"
+     }
+    ]
    }
   },
   {
@@ -4593,9 +4641,11 @@
    "props": {
     "propuesta": "Serializador de ARQ distinto de pickle (JSON o msgpack) entre worker y coordinator: un worker comprometido no debe poder ejecutar código en el coordinator.",
     "hallazgo": "Propuesta de gk-security; sin aprobación del usuario.",
-    "decision": "pendiente",
+    "decision": "confirmada",
     "fecha_propuesta": "2026-10-30",
-    "origen": "gatekeeper-guardian"
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Serializador de ARQ distinto de pickle (JSON o msgpack) entre worker y coordinator: un worker comprometido no debe poder ejecutar código en el coordinator.",
+    "fecha_decision": "2026-11-19"
    }
   },
   {
@@ -4961,9 +5011,25 @@
    "props": {
     "propuesta": "CONEXIONES_REDIS = 16 en el BlockingConnectionPool del rate limit",
     "hallazgo": "Cada operación Lua en Redis tarda menos de 1 ms; 16 conexiones acotan la concurrencia hacia redis-main sin bloquear ráfagas y respetan el timeout de 1 s de K61",
-    "decision": "pendiente",
+    "decision": "confirmada",
     "fecha_propuesta": "2026-11-19",
-    "origen": "gatekeeper-guardian"
+    "origen": "gatekeeper-guardian",
+    "eleccion": "CONEXIONES_REDIS = 16 en el BlockingConnectionPool del rate limit",
+    "fecha_decision": "2026-11-19"
+   }
+  },
+  {
+   "id": "K64",
+   "tipo": "Observacion",
+   "label": "Aislamiento de volúmenes, UID y timeouts de ARQ en F1",
+   "props": {
+    "propuesta": "Flujo único ARQ (API -> coordinator -> worker) en producción y pruebas; worker con UID 10003 y GID compartido 10010 (uploads_tmp :ro en worker, clean_store :ro en api); job_timeout explícito de 35 s en worker y 45 s en coordinator",
+    "hallazgo": "Cierra la desviación K28 con separación real de contenedor, UID y permisos de montaje, y evita probar un camino distinto al de producción",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-19",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Flujo único ARQ (API -> coordinator -> worker) en producción y pruebas; worker con UID 10003 y GID compartido 10010 (uploads_tmp :ro en worker, clean_store :ro en api); job_timeout explícito de 35 s en worker y 45 s en coordinator",
+    "fecha_decision": "2026-11-19"
    }
   }
  ],
@@ -10350,6 +10416,46 @@
    "de": "K63",
    "rel": "afecta",
    "a": "svc:redis"
+  },
+  {
+   "de": "K64",
+   "rel": "afecta",
+   "a": "F1.01"
+  },
+  {
+   "de": "K64",
+   "rel": "afecta",
+   "a": "F1.03"
+  },
+  {
+   "de": "K64",
+   "rel": "afecta",
+   "a": "F1.04"
+  },
+  {
+   "de": "K64",
+   "rel": "afecta",
+   "a": "F1.05"
+  },
+  {
+   "de": "K64",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K64",
+   "rel": "afecta",
+   "a": "K08"
+  },
+  {
+   "de": "K64",
+   "rel": "afecta",
+   "a": "K09"
+  },
+  {
+   "de": "K64",
+   "rel": "afecta",
+   "a": "K28"
   }
  ]
 }

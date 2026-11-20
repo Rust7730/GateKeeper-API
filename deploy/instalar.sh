@@ -26,8 +26,10 @@ readonly ETC=/etc/gatekeeper
 readonly VAR=/var/lib/gatekeeper
 readonly LOG=/var/log/gatekeeper
 readonly IMAGEN_INICIAL="ghcr.io/rust7730/gatekeeper-api:main"
-readonly UID_SERVICIO=10001 # el mismo usuario que corre la API dentro de la imagen
-readonly UID_REDIS=10002     # el usuario de redis-main en el compose
+readonly UID_SERVICIO=10001 # el mismo usuario que corre la API y coordinator dentro de la imagen
+readonly UID_REDIS=10002    # el usuario de redis-main y redis-queue en el compose
+readonly UID_WORKER=10003   # el usuario del worker aislado de CDR (K64, INV-04)
+readonly GID_DATOS=10010    # grupo compartido entre api/coordinator (10001) y worker (10003) (K64)
 # Huella publicada por Docker para su llave de firma de paquetes (docs.docker.com/engine/install/ubuntu).
 readonly HUELLA_DOCKER="9DC858229FC7DD38854AE2D88D81803C0EBFCD88" # pragma: allowlist secret (huella pública)
 # cosign verifica la firma de cada imagen antes de desplegarla. SHA-256 de cosign-linux-amd64 según
@@ -219,6 +221,16 @@ reservar_usuario() {
 paso "Usuarios de servicio"
 reservar_usuario gatekeeper "$UID_SERVICIO"
 reservar_usuario gatekeeper-redis "$UID_REDIS"
+reservar_usuario gatekeeper-worker "$UID_WORKER"
+if getent group gatekeeper-datos >/dev/null 2>&1; then
+    [[ $(getent group gatekeeper-datos | cut -d: -f3) == "$GID_DATOS" ]] ||
+        fallar "el grupo gatekeeper-datos existe con otro GID."
+else
+    if getent group "$GID_DATOS" >/dev/null; then
+        fallar "el GID $GID_DATOS ya está en uso."
+    fi
+    groupadd --system --gid "$GID_DATOS" gatekeeper-datos
+fi
 
 paso "Directorios y archivos del despliegue"
 install -d -o root -g root -m 0755 "$OPT"
@@ -303,7 +315,7 @@ fi
 # se añaden sin tocar las demás. La de gk_app se vuelve a fijar en la base en cada corrida (ver "Rol
 # gk_app"), y Redis no guarda nada: regenerar una que falte no rompe nada. Hexadecimal de 256 bits:
 # va tal cual dentro de una URL, sin escapar.
-for archivo in gk_app.clave redis.clave; do
+for archivo in gk_app.clave redis.clave redis-queue-coord.clave redis-queue-worker.clave; do
     if [[ ! -s $ETC/$archivo ]]; then
         escribir_secreto "$ETC/$archivo" "$(openssl rand -hex 32)"
         echo "Generada $archivo (no se muestra)."
@@ -357,11 +369,33 @@ chmod 0600 "$temporal"
 printf '%s\n' "# Generado por instalar.sh; no se edita a mano." \
     "user default off" \
     "user salud on nopass -@all +ping" \
-    "user gatekeeper on #${huella_redis} ~* +@all -@dangerous" >"$temporal"
+    "user gatekeeper on #${huella_redis} ~* &gk:eventos:* +@all -@dangerous" >"$temporal"
 chown "$UID_REDIS:$UID_REDIS" "$temporal"
 chmod 0400 "$temporal"
 mv -f "$temporal" "$ETC/redis.conf"
 unset huella_redis
+
+# redis-queue (K02, F1.02): cola aislada entre coordinator y worker, con credenciales distintas.
+clave_q_coord=$(<"$ETC/redis-queue-coord.clave")
+clave_q_worker=$(<"$ETC/redis-queue-worker.clave")
+escribir_secreto "$ETC/cola.env" \
+    "GATEKEEPER_REDIS_QUEUE_URL=redis://coordinator:${clave_q_coord}@redis-queue:6379/0"
+escribir_secreto "$ETC/worker.env" \
+    "GATEKEEPER_REDIS_QUEUE_URL=redis://worker:${clave_q_worker}@redis-queue:6379/0"
+huella_q_coord=$(printf '%s' "$clave_q_coord" | sha256sum | cut -d' ' -f1)
+huella_q_worker=$(printf '%s' "$clave_q_worker" | sha256sum | cut -d' ' -f1)
+unset clave_q_coord clave_q_worker
+temporal=$(mktemp "$ETC/.secreto.XXXXXX")
+chmod 0600 "$temporal"
+printf '%s\n' "# Generado por instalar.sh; no se edita a mano." \
+    "user default off" \
+    "user salud on nopass -@all +ping" \
+    "user coordinator on #${huella_q_coord} ~* +@all -@dangerous" \
+    "user worker on #${huella_q_worker} ~* +@all -@dangerous" >"$temporal"
+chown "$UID_REDIS:$UID_REDIS" "$temporal"
+chmod 0400 "$temporal"
+mv -f "$temporal" "$ETC/redis-queue.conf"
+unset huella_q_coord huella_q_worker
 
 escribir_secreto "$ETC/compose.env" "GATEKEEPER_DOMINIO=${dominio}"
 if [[ ! -f $VAR/imagen.env ]]; then

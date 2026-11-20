@@ -1,6 +1,5 @@
 """Fábrica de la aplicación FastAPI de Gatekeeper."""
 
-import asyncio
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -8,9 +7,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from starlette.middleware import Middleware
 
-from api.app.ajustes import Ajustes, abrir_motor, leer_ajustes, preparar_directorios
-from api.app.analisis import cancelar_analisis
-from api.app.arranque import barrer_restos, comprobar_ancestros, proteger_proceso
+from api.app.ajustes import (
+    VARIABLE_REDIS,
+    Ajustes,
+    abrir_motor,
+    leer_ajustes,
+    preparar_directorios,
+)
+from api.app.arranque import (
+    barrer_restos,
+    comprobar_ancestros,
+    comprobar_bd,
+    proteger_proceso,
+)
+from api.app.cola import COLA_ORQUESTAR, abrir_cola, cerrar_cola
 from api.app.limite import abrir_limitador
 from api.app.seguridad import HeadersSeguridad
 from api.app.v1 import crear_router_v1
@@ -42,29 +52,42 @@ def crear_app(ajustes: Ajustes | None = None) -> FastAPI:
         # Sin conectar: si Redis no responde, la API arranca y /health contesta (K60).
         limitador = abrir_limitador(vigentes.url_redis, vigentes.reloj_limite)
         try:
+            cola_orquestar = abrir_cola(
+                vigentes.url_redis,
+                cola=COLA_ORQUESTAR,
+                nombre_variable=VARIABLE_REDIS,
+            )
+        except BaseException:
+            await limitador.cerrar()
+            raise
+        try:
             motor = abrir_motor(vigentes.url_bd)
         except BaseException:
+            await cerrar_cola(cola_orquestar)
             await limitador.cerrar()
             raise
         app.state.ajustes = vigentes
         app.state.motor = motor
         app.state.sesiones = fabrica_sesiones(motor)
         app.state.limitador = limitador
+        app.state.cola_orquestar = cola_orquestar
         try:
-            # Antes de aceptar peticiones: después cerraría análisis que sí están en curso.
-            await barrer_restos(vigentes, app.state.sesiones)
+            # Con clean_store montado :ro (K64), el barrido de restos lo hace coordinator;
+            # la API solo comprueba que PostgreSQL responde.
+            if os.access(vigentes.clean_store, os.W_OK):
+                await barrer_restos(vigentes, app.state.sesiones)
+            else:
+                await comprobar_bd(app.state.sesiones)
         except BaseException:
             await motor.dispose()
+            await cerrar_cola(cola_orquestar)
             await limitador.cerrar()
             raise
-        # K09: un proceso hijo por archivo, y como mucho uno por núcleo a la vez.
-        app.state.cupos = asyncio.Semaphore(os.cpu_count() or 1)
-        app.state.tareas = set()
         try:
             yield
         finally:
-            await cancelar_analisis(app.state)
             await motor.dispose()
+            await cerrar_cola(cola_orquestar)
             await limitador.cerrar()
 
     app = FastAPI(

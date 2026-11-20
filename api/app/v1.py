@@ -21,8 +21,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse
 
-from api.app.analisis import agendar_analisis
+from api.app.analisis import _registrar_error
 from api.app.autenticacion import AplicacionAutenticada, autenticar
+from api.app.cola import COLA_ORQUESTAR, TIMEOUT_COLA_S
 from api.app.estados import Estado, es_descargable
 from api.app.limite import RedisNoDisponible, demasiadas_peticiones, no_disponible
 from api.app.recepcion import rechazo, recibir_archivo
@@ -133,7 +134,26 @@ def crear_router_v1() -> APIRouter:
         if sin_cupo:
             recibido.ruta.unlink(missing_ok=True)
             raise rechazo(http.HTTPStatus.TOO_MANY_REQUESTS)
-        agendar_analisis(estado, aplicacion_id, recibido.id)
+        try:
+            async with asyncio.timeout(TIMEOUT_COLA_S):
+                await estado.cola_orquestar.enqueue_job(
+                    "orquestar",
+                    str(aplicacion_id),
+                    str(recibido.id),
+                    _job_id=f"orquestar:{recibido.id}",
+                    _queue_name=COLA_ORQUESTAR,
+                )
+        except Exception as error:  # noqa: BLE001
+            logger.error(
+                "No se pudo encolar %s en redis-main (%s)",
+                recibido.id,
+                type(error).__name__,
+            )
+            recibido.ruta.unlink(missing_ok=True)
+            await _registrar_error(
+                estado.sesiones, aplicacion_id, recibido.id, "cola_no_disponible", 0
+            )
+            raise no_disponible() from None
         return {"id": str(recibido.id), "estado": Estado.PENDIENTE.value}
 
     @router.get("/files/{archivo_id}")

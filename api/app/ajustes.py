@@ -13,6 +13,7 @@ contraseña de la URL.
 """
 
 import contextlib
+import errno
 import math
 import os
 import sys
@@ -34,7 +35,9 @@ VARIABLE_REDIS = "GATEKEEPER_REDIS_URL"
 MIN_BYTES_HMAC = 32
 UPLOADS_TMP = "uploads_tmp"
 CLEAN_STORE = "clean_store"
-MODO_PRIVADO = 0o700
+# K64: 0750 permite compartir lectura/escritura por GID 10010 entre api (10001) y worker (10003)
+# sin abrir nada a `others`.
+MODO_PRIVADO = 0o750
 
 
 class ConfiguracionError(RuntimeError):
@@ -183,33 +186,46 @@ def leer_ajustes() -> Ajustes:
     )
 
 
-def _asegurar_directorio_privado(ruta: Path) -> None:
-    """Deja ``ruta`` como directorio real con modo 0700, exista o no.
+def _asegurar_directorio_privado(
+    ruta: Path, *, permitir_solo_lectura: bool = False
+) -> None:
+    """Deja ``ruta`` como directorio real con modo 0750, exista o no.
 
     ``mkdir`` no basta: su modo pasa por la umask y no toca un directorio que ya existe. El
     ``fchmod`` va sobre un descriptor abierto con ``O_NOFOLLOW`` porque ``chmod`` seguiría
     un enlace simbólico y dejaría el almacén apuntando fuera del directorio de datos.
+    Con ``permitir_solo_lectura=True`` (``clean_store`` montado ``:ro`` en ``api``, K64),
+    ``EROFS`` al ajustar permisos se acepta una vez comprobado que es un directorio real.
     """
-    with contextlib.suppress(FileExistsError):
+    try:
         ruta.mkdir(mode=MODO_PRIVADO)
+    except FileExistsError:
+        pass
+    except OSError as error:
+        if not (permitir_solo_lectura and error.errno == errno.EROFS):
+            raise
     descriptor = os.open(ruta, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
-        os.fchmod(descriptor, MODO_PRIVADO)
+        try:
+            os.fchmod(descriptor, MODO_PRIVADO)
+        except OSError as error:
+            if not (permitir_solo_lectura and error.errno == errno.EROFS):
+                raise
     finally:
         os.close(descriptor)
 
 
 def preparar_directorios(datos: Path) -> None:
-    """Crea ``uploads_tmp/`` y ``clean_store/`` con modo 0700 dentro de ``datos`` (INV-03).
+    """Crea ``uploads_tmp/`` y ``clean_store/`` con modo 0750 dentro de ``datos`` (INV-03, K64).
 
     El modo de una base que ya existe no se cambia: puede ser un volumen montado. Si hay
-    que crearla, nace también con 0700.
+    que crearla, nace también con 0750.
     """
     fallo = False
     try:
         datos.mkdir(mode=MODO_PRIVADO, parents=True, exist_ok=True)
         _asegurar_directorio_privado(datos / UPLOADS_TMP)
-        _asegurar_directorio_privado(datos / CLEAN_STORE)
+        _asegurar_directorio_privado(datos / CLEAN_STORE, permitir_solo_lectura=True)
     except (OSError, ValueError):
         fallo = True
     if fallo:

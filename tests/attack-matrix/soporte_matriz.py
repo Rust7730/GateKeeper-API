@@ -64,6 +64,7 @@ from api.db.repositorios import (
 )
 from api.db.sesion import crear_motor, fabrica_sesiones
 from api.tests.soporte_api import KeySembrada, sembrar_key
+from api.tests.soporte_cola import correr_pipeline
 
 TOPE_ARCHIVO = 10_485_760  # param:tamano_maximo_archivo
 MARGEN_CONTENT_LENGTH = 65_536  # diseño §4
@@ -360,10 +361,14 @@ class Banco:
 
     @contextmanager
     def api(self, reloj_real: bool = False, **costura: Any) -> Iterator[ClienteMatriz]:
-        app = crear_app(self.ajustes(reloj_real, **costura))
-        with TestClient(
-            app, raise_server_exceptions=False, client=(IP_CLIENTE, 50000)
-        ) as http:
+        ajustes = self.ajustes(reloj_real, **costura)
+        app = crear_app(ajustes)
+        with (
+            TestClient(
+                app, raise_server_exceptions=False, client=(IP_CLIENTE, 50000)
+            ) as http,
+            correr_pipeline(ajustes),
+        ):
             yield ClienteMatriz(http, app, self)
 
     # ------------------------------------------------------------------------ lecturas de la BD

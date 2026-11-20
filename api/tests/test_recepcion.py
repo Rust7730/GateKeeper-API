@@ -155,7 +155,7 @@ def test_recibe_el_archivo_con_su_hash_y_su_nombre(tmp_path: Path, trozo: int) -
 
 def test_el_temporal_nace_privado(tmp_path: Path) -> None:
     recibido = _recibir(tmp_path, _cuerpo(_parte(b"file", PNG)))
-    assert stat.S_IMODE(recibido.ruta.stat().st_mode) == 0o600
+    assert stat.S_IMODE(recibido.ruta.stat().st_mode) == 0o640
 
 
 def test_ignora_los_campos_que_no_son_file(tmp_path: Path) -> None:

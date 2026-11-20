@@ -45,6 +45,7 @@ from pathlib import Path
 import uvicorn
 from api.app.ajustes import Ajustes
 from api.app.principal import crear_app
+from api.tests.soporte_cola import correr_pipeline
 cfg = json.loads(os.environ.pop("GK_MATRIZ_CFG"))
 redis = {{"url_redis": cfg["url_redis"]}} if "url_redis" in cfg else {{}}
 if cfg.get("reloj_que_corre"):
@@ -56,16 +57,18 @@ if cfg.get("reloj_que_corre"):
             RelojQueCorre.ahora += 1.0
             return RelojQueCorre.ahora
     redis["reloj_limite"] = RelojQueCorre()
-app = crear_app(Ajustes(
+ajustes = Ajustes(
     url_bd=cfg["url"],
     pepper=cfg["pepper"].encode(),
     datos=Path(cfg["datos"]),
     comando_cdr=tuple(cfg["comando"]),
     timeout_cdr_s=cfg["timeout"],
     **redis,
-))
-uvicorn.run(app, host="127.0.0.1", port=cfg["puerto"], log_level="warning",
-            server_header=False, loop="uvloop")
+)
+app = crear_app(ajustes)
+with correr_pipeline(ajustes):
+    uvicorn.run(app, host="127.0.0.1", port=cfg["puerto"], log_level="warning",
+                server_header=False, loop="uvloop")
 """
 
 
@@ -385,9 +388,11 @@ sys.path.insert(0, {raiz!r})
 import uvicorn
 from api.app.ajustes import leer_ajustes
 from api.app.principal import crear_app
+from api.tests.soporte_cola import correr_pipeline
 ajustes = dataclasses.replace(leer_ajustes(), comando_cdr=tuple(json.loads(sys.argv[1])))
-uvicorn.run(crear_app(ajustes), host="127.0.0.1", port=int(sys.argv[2]), log_level="warning",
-            server_header=False, loop="uvloop")
+with correr_pipeline(ajustes):
+    uvicorn.run(crear_app(ajustes), host="127.0.0.1", port=int(sys.argv[2]), log_level="warning",
+                server_header=False, loop="uvloop")
 """
 
 # Intermediarios entre quien lanza y la API. Los "sin exec" se quedan vivos con el entorno entero.

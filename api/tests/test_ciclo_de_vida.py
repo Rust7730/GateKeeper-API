@@ -75,10 +75,10 @@ def test_crear_app_con_ajustes_no_lee_el_entorno(
         assert cliente.app.state.ajustes is ajustes
 
 
-def test_el_arranque_crea_los_directorios_0700(ajustes: Ajustes) -> None:
+def test_el_arranque_crea_los_directorios_0750(ajustes: Ajustes) -> None:
     with TestClient(crear_app(ajustes)):
         for ruta in (ajustes.datos / UPLOADS_TMP, ajustes.datos / CLEAN_STORE):
-            assert stat.S_IMODE(ruta.stat().st_mode) == 0o700
+            assert stat.S_IMODE(ruta.stat().st_mode) == 0o750
 
 
 def test_crear_app_no_toca_el_disco_hasta_arrancar(ajustes: Ajustes) -> None:

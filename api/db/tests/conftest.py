@@ -18,9 +18,18 @@
   **con la migración** y no con ``create_all``, para que los repositorios se prueben
   contra el esquema real. Va aparte porque aquí sí se hace ``COMMIT``: la concurrencia
   solo se ve entre transacciones confirmadas.
-- ``sesiones`` (por prueba, asíncrono): fábrica de sesiones sobre esa base. Antes de cada
-  prueba se vacían las tablas (``TRUNCATE``). Las pruebas asíncronas corren con el plugin
-  de ``anyio`` (``pytest.mark.anyio``), que ya viene instalado.
+- ``rol_app`` (sesión): crea en el contenedor el rol de la API ``gk_app`` con contraseña
+  aleatoria y los atributos del contrato (``ATRIBUTOS_ROL_APP``), como lo hará la
+  infraestructura. Los roles son del clúster: sirve para todas las bases de la sesión.
+  La migración 0002 lo exige, así que todo fixture que migra a ``head`` depende de él.
+- ``sesiones`` (por prueba, asíncrono): fábrica de sesiones sobre esa base **conectada como
+  ``gk_app``**, igual que la API en producción: todas las pruebas de los repositorios
+  demuestran también que los permisos de la 0002 bastan. Antes de cada prueba se vacían las
+  tablas (``TRUNCATE``, como dueño). Las pruebas asíncronas corren con el plugin de
+  ``anyio`` (``pytest.mark.anyio``), que ya viene instalado.
+- ``sesiones_dueno`` (por prueba, asíncrono): lo mismo, pero con el dueño del esquema. Solo
+  para lo que ``gk_app`` no puede hacer a propósito, como ``ANALYZE`` (que con otro rol
+  se salta con una advertencia, sin fallar) o medir la latencia contra el dueño.
 
 Sin Docker, o si el contenedor no arranca, las pruebas que piden estos fixtures
 **fallan** con un mensaje claro (sin la contraseña, aunque testcontainers la incluya en
@@ -30,9 +39,10 @@ comportan distinto y la prueba no demostraría nada.
 Con ``pytest -l`` (showlocals) un fallo en estos fixtures muestra sus variables locales.
 Por eso ninguna guarda la contraseña: vive solo en ``contenedor.password`` (el ``repr``
 del contenedor no la muestra) y en la ``URL`` (que la oculta), y se lee de ahí cuando
-hace falta (CWE-532). Eso no basta cuando falla una conexión: con ``-l`` pytest muestra
+hace falta (CWE-532). La de ``gk_app`` vive en ``CredencialRol.password``, que tampoco
+sale en el ``repr``. Eso no basta cuando falla una conexión: con ``-l`` pytest muestra
 también las locales de SQLAlchemy (``cparams``) y psycopg (``conninfo``, ``params``),
-que sí la llevan. Por eso ``pytest_runtest_makereport`` reemplaza la contraseña por
+que sí la llevan. Por eso ``pytest_runtest_makereport`` reemplaza las dos contraseñas por
 ``***`` en todos los reportes de ``api/db/`` (setup, prueba y teardown) antes de mostrarlos.
 
 El reaper de testcontainers (ryuk) se crea antes que PostgreSQL con
@@ -56,13 +66,16 @@ from api.db.tests.soporte_postgres import (
     IP_PUBLICACION,
     NOMBRE_BD,
     PUERTO_POSTGRES,
+    ROL_APP,
     USUARIO_SUPERUSUARIO,
+    CredencialRol,
     arrancar_contenedor,
     arrancar_reaper_en_loopback,
     borrar_bd,
     config_alembic,
     crear_bd,
     crear_contenedor,
+    crear_rol_con_contrasena,
     exigir_docker,
 )
 
@@ -71,6 +84,8 @@ BD_REPOSITORIOS = "gk_repositorios"
 _CLAVE_ARRANQUE = pytest.StashKey[float]()
 # El contenedor (no la contraseña) para que el saneado de reportes la lea de ahí.
 _CLAVE_CONTENEDOR = pytest.StashKey[PostgresContainer]()
+# La credencial de gk_app, por lo mismo.
+_CLAVE_ROL_APP = pytest.StashKey[CredencialRol]()
 
 
 @pytest.fixture(scope="session")
@@ -129,7 +144,17 @@ def conexion(motor_postgres: Engine) -> Iterator[Connection]:
 
 
 @pytest.fixture(scope="session")
-def url_repositorios(motor_postgres: Engine, url_postgres: URL) -> Iterator[URL]:
+def rol_app(pytestconfig: pytest.Config, motor_postgres: Engine) -> CredencialRol:
+    """Rol ``gk_app`` del clúster de la sesión, con contraseña aleatoria."""
+    credencial = crear_rol_con_contrasena(motor_postgres, ROL_APP)
+    pytestconfig.stash[_CLAVE_ROL_APP] = credencial
+    return credencial
+
+
+@pytest.fixture(scope="session")
+def url_repositorios(
+    motor_postgres: Engine, url_postgres: URL, rol_app: CredencialRol
+) -> Iterator[URL]:
     """Base con el esquema de la migración, para las pruebas que confirman transacciones."""
     crear_bd(motor_postgres, BD_REPOSITORIOS)
     url = url_postgres.set(database=BD_REPOSITORIOS)
@@ -165,8 +190,15 @@ def anyio_backend() -> str:
 
 
 @pytest.fixture
-async def motor(bd_limpia: URL) -> AsyncIterator[AsyncEngine]:
-    motor_asincrono = crear_motor(bd_limpia)
+def url_gk_app(bd_limpia: URL, rol_app: CredencialRol) -> URL:
+    """La base de los repositorios, ya vacía, conectando como ``gk_app``."""
+    return bd_limpia.set(username=rol_app.nombre, password=rol_app.password)
+
+
+@pytest.fixture
+async def motor(url_gk_app: URL) -> AsyncIterator[AsyncEngine]:
+    """Motor de la API: ``crear_motor`` conectado como ``gk_app``."""
+    motor_asincrono = crear_motor(url_gk_app)
     try:
         yield motor_asincrono
     finally:
@@ -178,25 +210,46 @@ def sesiones(motor: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     return fabrica_sesiones(motor)
 
 
+@pytest.fixture
+async def motor_dueno(bd_limpia: URL) -> AsyncIterator[AsyncEngine]:
+    """Motor con el dueño del esquema, para lo que ``gk_app`` no debe poder hacer."""
+    motor_asincrono = crear_motor(bd_limpia)
+    try:
+        yield motor_asincrono
+    finally:
+        await motor_asincrono.dispose()
+
+
+@pytest.fixture
+def sesiones_dueno(motor_dueno: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    return fabrica_sesiones(motor_dueno)
+
+
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_makereport(
     item: pytest.Item, call: pytest.CallInfo[None]
 ) -> Generator[None, pytest.TestReport, pytest.TestReport]:
-    """Quita la contraseña del PostgreSQL de las pruebas de cualquier reporte (CWE-532).
+    """Quita las contraseñas de las pruebas de cualquier reporte (CWE-532).
 
-    Aplica a las pruebas de ``api/db/`` (las de este conftest). El reporte con
-    traceback se convierte en texto solo si la contraseña aparece en él.
+    Las del superusuario del contenedor y de ``gk_app``. Aplica a las pruebas de
+    ``api/db/`` (las de este conftest). El reporte con traceback se convierte en texto
+    solo si alguna contraseña aparece en él.
     """
     reporte = yield
     contenedor = item.config.stash.get(_CLAVE_CONTENEDOR, None)
-    if contenedor is None or not contenedor.password:
-        return reporte
-    if reporte.longrepr is not None and contenedor.password in str(reporte.longrepr):
-        reporte.longrepr = str(reporte.longrepr).replace(contenedor.password, "***")
-    reporte.sections = [
-        (titulo, texto.replace(contenedor.password, "***"))
-        for titulo, texto in reporte.sections
-    ]
+    credencial = item.config.stash.get(_CLAVE_ROL_APP, None)
+    for secreto in (
+        contenedor.password if contenedor is not None else None,
+        credencial.password if credencial is not None else None,
+    ):
+        if not secreto:
+            continue
+        if reporte.longrepr is not None and secreto in str(reporte.longrepr):
+            reporte.longrepr = str(reporte.longrepr).replace(secreto, "***")
+        reporte.sections = [
+            (titulo, texto.replace(secreto, "***"))
+            for titulo, texto in reporte.sections
+        ]
     return reporte
 
 

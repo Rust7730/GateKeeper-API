@@ -5,6 +5,11 @@ consulta y, en las escrituras, ``COMMIT``. Antes se cargan filas para no medir t
 vacías. El tope es holgado a propósito: detecta regresiones sin volverse inestable. El
 número útil es el p95 que se imprime; se ve con ``pytest -s``. En GitHub Actions el tope
 se multiplica por ``GATEKEEPER_FACTOR_LATENCIA`` (K56; ver ``latencia.py``).
+
+Se mide conectado como ``gk_app``, igual que la API. Las consultas del camino del 202
+(autenticar la key y registrar el archivo) se miden además con el dueño del esquema, para
+ver si los permisos de la 0002 cambian la latencia (``medidas``). Los datos previos y el
+``ANALYZE`` los hace siempre el dueño: con ``gk_app`` PostgreSQL 16 salta el ``ANALYZE``.
 """
 
 import asyncio
@@ -14,6 +19,7 @@ import statistics
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 import pytest
@@ -43,6 +49,23 @@ MUESTRAS = 1000
 FILAS_PREVIAS = 5000
 TOPE_P95_MS = 20.0
 SHA256 = hashlib.sha256(b"contenido").hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class Medidas:
+    """Sesiones con las que se mide y el rol con que conectan."""
+
+    rol: str
+    sesiones: Sesiones
+
+
+@pytest.fixture(params=["gk_app", "dueno"])
+def medidas(
+    request: pytest.FixtureRequest, sesiones: Sesiones, sesiones_dueno: Sesiones
+) -> Medidas:
+    return Medidas(
+        request.param, sesiones if request.param == "gk_app" else sesiones_dueno
+    )
 
 
 async def _medir(
@@ -122,25 +145,27 @@ async def _crear_pendientes(
     return ids
 
 
-async def test_latencia_crear_archivo(sesiones: Sesiones, record_property: Any) -> None:
-    app_id = await _preparar(sesiones)
+async def test_latencia_crear_archivo(
+    medidas: Medidas, sesiones_dueno: Sesiones, record_property: Any
+) -> None:
+    app_id = await _preparar(sesiones_dueno)
 
     async def _operacion(_i: int) -> None:
-        async with sesiones.begin() as sesion:
+        async with medidas.sesiones.begin() as sesion:
             await crear_archivo(
                 sesion, app_id, uuid.uuid4(), "medida.pdf", 1024, SHA256
             )
 
-    await _medir("crear_archivo", _operacion, record_property)
+    await _medir(f"crear_archivo [{medidas.rol}]", _operacion, record_property)
 
 
 async def test_latencia_cambiar_estado(
-    sesiones: Sesiones, record_property: Any
+    sesiones: Sesiones, sesiones_dueno: Sesiones, record_property: Any
 ) -> None:
-    app_id = await _preparar(sesiones)
-    ids = await _crear_pendientes(sesiones, app_id, MUESTRAS)
-    await _crear_resultados(sesiones, ids)
-    await _analizar(sesiones)
+    app_id = await _preparar(sesiones_dueno)
+    ids = await _crear_pendientes(sesiones_dueno, app_id, MUESTRAS)
+    await _crear_resultados(sesiones_dueno, ids)
+    await _analizar(sesiones_dueno)
 
     async def _operacion(i: int) -> None:
         async with sesiones.begin() as sesion:
@@ -157,13 +182,13 @@ async def test_latencia_cambiar_estado(
 
 
 async def test_el_exists_de_la_evidencia_lo_sirve_el_indice(
-    sesiones: Sesiones,
+    sesiones: Sesiones, sesiones_dueno: Sesiones
 ) -> None:
     # Misma forma que el UPDATE de cambiar_estado hacia limpio (K16).
-    app_id = await _preparar(sesiones)
-    ids = await _crear_pendientes(sesiones, app_id, MUESTRAS)
-    await _crear_resultados(sesiones, ids)
-    await _analizar(sesiones)
+    app_id = await _preparar(sesiones_dueno)
+    ids = await _crear_pendientes(sesiones_dueno, app_id, MUESTRAS)
+    await _crear_resultados(sesiones_dueno, ids)
+    await _analizar(sesiones_dueno)
 
     async with sesiones() as sesion:
         plan = await sesion.execute(
@@ -183,10 +208,10 @@ async def test_el_exists_de_la_evidencia_lo_sirve_el_indice(
 
 
 async def test_latencia_obtener_archivo(
-    sesiones: Sesiones, record_property: Any
+    sesiones: Sesiones, sesiones_dueno: Sesiones, record_property: Any
 ) -> None:
-    app_id = await _preparar(sesiones)
-    ids = await _crear_pendientes(sesiones, app_id, MUESTRAS)
+    app_id = await _preparar(sesiones_dueno)
+    ids = await _crear_pendientes(sesiones_dueno, app_id, MUESTRAS)
 
     async def _operacion(i: int) -> None:
         async with sesiones() as sesion:
@@ -215,11 +240,11 @@ async def _rechazar(sesiones: Sesiones, archivo_id: uuid.UUID) -> None:
 
 
 async def test_latencia_contar_pendientes(
-    sesiones: Sesiones, record_property: Any
+    sesiones: Sesiones, sesiones_dueno: Sesiones, record_property: Any
 ) -> None:
-    app_id = await _preparar(sesiones)
-    await _crear_pendientes(sesiones, app_id, PENDIENTES_DE_FONDO)
-    await _analizar(sesiones)
+    app_id = await _preparar(sesiones_dueno)
+    await _crear_pendientes(sesiones_dueno, app_id, PENDIENTES_DE_FONDO)
+    await _analizar(sesiones_dueno)
 
     async def _operacion(_i: int) -> None:
         async with sesiones() as sesion:
@@ -229,13 +254,14 @@ async def test_latencia_contar_pendientes(
 
 
 async def test_latencia_crear_archivo_con_cupo(
-    sesiones: Sesiones, record_property: Any
+    medidas: Medidas, sesiones_dueno: Sesiones, record_property: Any
 ) -> None:
     # Cada muestra: bloqueo de la aplicación, cuenta, INSERT y COMMIT, como en el 202.
-    app_id = await _preparar(sesiones)
-    await _crear_pendientes(sesiones, app_id, PENDIENTES_DE_FONDO)
-    await _analizar(sesiones)
+    app_id = await _preparar(sesiones_dueno)
+    await _crear_pendientes(sesiones_dueno, app_id, PENDIENTES_DE_FONDO)
+    await _analizar(sesiones_dueno)
     tiempos_ms: list[float] = []
+    sesiones = medidas.sesiones
 
     async def _operacion(_i: int) -> None:
         inicio = time.perf_counter()
@@ -250,15 +276,16 @@ async def test_latencia_crear_archivo_con_cupo(
                 tope_pendientes=TOPE_K48,
             )
         tiempos_ms.append((time.perf_counter() - inicio) * 1000)
-        await _rechazar(sesiones, creado.id)
+        await _rechazar(sesiones_dueno, creado.id)
 
     for i in range(MUESTRAS):
         await _operacion(i)
-    _reportar("crear_archivo_con_cupo", tiempos_ms, record_property)
+    _reportar(f"crear_archivo_con_cupo [{medidas.rol}]", tiempos_ms, record_property)
 
 
 async def _medir_concurrente(
     sesiones: Sesiones,
+    sesiones_dueno: Sesiones,
     app_id: uuid.UUID,
     crear: Callable[[AsyncSession], Awaitable[DatosArchivo]],
 ) -> list[float]:
@@ -273,7 +300,7 @@ async def _medir_concurrente(
             async with sesiones.begin() as sesion:
                 creado = await crear(sesion)
             tiempos_ms.append((time.perf_counter() - inicio) * 1000)
-            await _rechazar(sesiones, creado.id)
+            await _rechazar(sesiones_dueno, creado.id)
 
     tareas = [asyncio.create_task(_escritor()) for _ in range(ESCRITORES)]
     barrera.set()
@@ -282,13 +309,13 @@ async def _medir_concurrente(
 
 
 async def test_latencia_con_escritores_simultaneos_de_la_misma_aplicacion(
-    sesiones: Sesiones, record_property: Any
+    medidas: Medidas, sesiones_dueno: Sesiones, record_property: Any
 ) -> None:
     # El bloqueo de la aplicación serializa sus altas: se compara con crear_archivo, que
     # no espera a nadie, bajo la misma carga.
-    app_id = await _preparar(sesiones)
-    await _crear_pendientes(sesiones, app_id, PENDIENTES_DE_FONDO)
-    await _analizar(sesiones)
+    app_id = await _preparar(sesiones_dueno)
+    await _crear_pendientes(sesiones_dueno, app_id, PENDIENTES_DE_FONDO)
+    await _analizar(sesiones_dueno)
 
     def _con_cupo(sesion: AsyncSession) -> Awaitable[DatosArchivo]:
         return crear_archivo_con_cupo(
@@ -305,13 +332,13 @@ async def test_latencia_con_escritores_simultaneos_de_la_misma_aplicacion(
         return crear_archivo(sesion, app_id, uuid.uuid4(), "medida.pdf", 1024, SHA256)
 
     _reportar(
-        f"crear_archivo x{ESCRITORES}",
-        await _medir_concurrente(sesiones, app_id, _sin_cupo),
+        f"crear_archivo x{ESCRITORES} [{medidas.rol}]",
+        await _medir_concurrente(medidas.sesiones, sesiones_dueno, app_id, _sin_cupo),
         record_property,
     )
     _reportar(
-        f"crear_archivo_con_cupo x{ESCRITORES}",
-        await _medir_concurrente(sesiones, app_id, _con_cupo),
+        f"crear_archivo_con_cupo x{ESCRITORES} [{medidas.rol}]",
+        await _medir_concurrente(medidas.sesiones, sesiones_dueno, app_id, _con_cupo),
         record_property,
         tope_ms=TOPE_P95_CONTENCION_MS,
     )
@@ -333,16 +360,16 @@ def _reportar(
 
 
 async def test_latencia_obtener_api_key_activa(
-    sesiones: Sesiones, record_property: Any
+    medidas: Medidas, sesiones_dueno: Sesiones, record_property: Any
 ) -> None:
-    app_id = await _preparar(sesiones)
+    app_id = await _preparar(sesiones_dueno)
     prefijos = [f"gk_{secrets.token_hex(6)}" for _ in range(MUESTRAS)]
-    async with sesiones.begin() as sesion:
+    async with sesiones_dueno.begin() as sesion:
         for prefijo in prefijos:
             await crear_api_key(sesion, app_id, prefijo, secrets.token_hex(32))
 
     async def _operacion(i: int) -> None:
-        async with sesiones() as sesion:
+        async with medidas.sesiones() as sesion:
             assert await obtener_api_key_activa(sesion, prefijos[i]) is not None
 
-    await _medir("obtener_api_key_activa", _operacion, record_property)
+    await _medir(f"obtener_api_key_activa [{medidas.rol}]", _operacion, record_property)

@@ -266,6 +266,8 @@ def test_f308_la_costura_no_se_abre_desde_el_entorno(banco, monkeypatch):
     )
     monkeypatch.setenv("GATEKEEPER_PEPPER", banco.pepper.decode())
     monkeypatch.setenv("GATEKEEPER_DATOS", str(banco.datos))
+    if banco.url_redis is not None:
+        monkeypatch.setenv("GATEKEEPER_REDIS_URL", banco.url_redis)  # K59
     monkeypatch.setenv("GATEKEEPER_COMANDO_CDR", "/bin/true")
     monkeypatch.setenv("GATEKEEPER_TIMEOUT_CDR_S", "9999")
 

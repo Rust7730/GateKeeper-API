@@ -11,6 +11,8 @@ import contextlib
 import secrets
 import socket
 import time
+from collections.abc import Iterator
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol, Self
 
@@ -46,6 +48,12 @@ _PLAZO_ACK_S = 2.0
 _INTENTOS_REAPER = 40
 _PAUSA_REAPER_S = 0.5
 RUTA_ALEMBIC_INI = Path(__file__).resolve().parents[2] / "migrations" / "alembic.ini"
+# Rol de la API (diseño de F1.07 §4). Lo crea la infraestructura; en las pruebas, el
+# fixture ``rol_app`` con los mismos atributos que exige el contrato.
+ROL_APP = "gk_app"
+ATRIBUTOS_ROL_APP = (
+    "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
+)
 
 
 def config_alembic() -> Config:
@@ -77,6 +85,60 @@ def borrar_bd(motor: Engine, nombre: str) -> None:
             sql.Identifier(nombre)
         ),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class CredencialRol:
+    """Nombre y contraseña de un rol de las pruebas; el ``repr`` no muestra la contraseña."""
+
+    nombre: str
+    password: str = field(repr=False)
+
+
+def crear_rol(motor: Engine, nombre: str, atributos: str = ATRIBUTOS_ROL_APP) -> None:
+    """Crea un rol del clúster de pruebas. ``atributos`` es una constante de las pruebas."""
+    _ejecutar_en_autocommit(
+        motor,
+        sql.SQL("CREATE ROLE {} " + atributos).format(sql.Identifier(nombre)),  # type: ignore[arg-type]
+    )
+
+
+def crear_rol_con_contrasena(motor: Engine, nombre: str) -> CredencialRol:
+    """Crea el rol de la API con contraseña aleatoria, como lo hará la infraestructura.
+
+    La contraseña viaja como ``sql.Literal`` (psycopg la escapa); fuera de la credencial
+    no se guarda en ninguna variable local, y el reporte de pytest la reemplaza por
+    ``***`` (``conftest.py``).
+    """
+    credencial = CredencialRol(nombre, generar_contrasena())
+    _ejecutar_en_autocommit(
+        motor,
+        sql.SQL("CREATE ROLE {} " + ATRIBUTOS_ROL_APP + " PASSWORD {}").format(  # type: ignore[arg-type]
+            sql.Identifier(nombre), sql.Literal(credencial.password)
+        ),
+    )
+    return credencial
+
+
+@contextlib.contextmanager
+def rol_temporal(
+    motor_bd: Engine, nombre: str, atributos: str = "NOLOGIN"
+) -> Iterator[str]:
+    """Rol que existe solo dentro del bloque. ``motor_bd`` apunta a la base de la prueba.
+
+    Al salir quita lo que el rol tenga en esa base (``DROP OWNED BY``: privilegios y
+    objetos) y después el rol, para que el clúster de la sesión quede como estaba.
+    """
+    crear_rol(motor_bd, nombre, atributos)
+    try:
+        yield nombre
+    finally:
+        _ejecutar_en_autocommit(
+            motor_bd, sql.SQL("DROP OWNED BY {}").format(sql.Identifier(nombre))
+        )
+        _ejecutar_en_autocommit(
+            motor_bd, sql.SQL("DROP ROLE {}").format(sql.Identifier(nombre))
+        )
 
 
 def generar_contrasena() -> str:

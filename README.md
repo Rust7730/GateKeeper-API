@@ -6,9 +6,10 @@ imagen recibe la versión reconstruida desde los píxeles, y de un PDF, la versi
 
 ## Estado
 
-Ya funciona una **rebanada vertical local**: subir un archivo con API key, consultar su estado y descargar la versión
-reconstruida. Es para uso local o en un servidor de acceso restringido (ver [Despliegue en AWS EC2](#despliegue-en-aws-ec2)),
-y no debe abrirse al público (ver [Limitaciones](#limitaciones)).
+Ya funciona una **rebanada vertical**: subir un archivo con API key, consultar su estado y descargar la versión
+reconstruida. Corre en local o en una instancia EC2 abierta al público en el 443 (K57, ver
+[Despliegue en AWS EC2](#despliegue-en-aws-ec2)), con rate limit, el rol `gk_app` y las limitaciones declaradas en
+[Limitaciones](#limitaciones), en particular K28.
 
 | Parte | Estado |
 |---|---|
@@ -16,15 +17,17 @@ y no debe abrirse al público (ver [Limitaciones](#limitaciones)).
 | Archivos | Subida en streaming, consulta de estado y descarga |
 | CDR | Reconstrucción de JPEG y PNG con Pillow y saneamiento de PDF con pikepdf, en un proceso hijo limitado |
 | Base de datos | `aplicacion`, `api_key`, `archivo` y `resultado_analisis`, con la migración `0001` |
-| Despliegue | Imagen Docker, Docker Compose con Nginx y TLS, publicación en GHCR y actualización por pull en EC2 |
-| Pendiente | ClamAV, VirusTotal, Redis, worker en contenedor, rate limit, rol `gk_app` y dashboard |
+| Rate limit | Por API key, 120/min con ráfaga de 20; por IP sin autenticar, 60/min; contadores en Redis (K58, K59) |
+| Despliegue | Imagen Docker, Docker Compose con Nginx, TLS y Redis, publicación en GHCR y actualización por pull en EC2 |
+| Pendiente | ClamAV, VirusTotal, worker en contenedor y dashboard |
 
 ## Cómo funciona
 
 En la rebanada local:
 
-1. La aplicación cliente sube el archivo con su API key. La API lo recibe en streaming, calcula su SHA-256, lo guarda
-   con un UUID generado por el servidor y responde `202` con el id.
+1. La aplicación cliente sube el archivo con su API key. Antes de leer el cuerpo, la API comprueba la key y el rate
+   limit. Lo recibe en streaming, calcula su SHA-256, lo guarda con un UUID generado por el servidor y responde `202`
+   con el id.
 2. Un proceso hijo comprueba el tipo real con python-magic y reconstruye el archivo. No tiene acceso a la base de datos
    y no recibe credenciales, pero corre con el mismo usuario del sistema que la API (ver [Limitaciones](#limitaciones)),
    con memoria y CPU limitadas, aislado con Landlock y un filtro seccomp que no le deja crear sockets, y muere si
@@ -144,19 +147,27 @@ CLAVE_BD=$(openssl rand -hex 16)
 docker run -d --name gatekeeper-pg -p 127.0.0.1:5433:5432 \
   -e POSTGRES_USER=gatekeeper -e POSTGRES_PASSWORD="$CLAVE_BD" -e POSTGRES_DB=gatekeeper postgres:16
 
+CLAVE_REDIS=$(openssl rand -hex 16)
+docker run -d --name gatekeeper-redis -p 127.0.0.1:6380:6379 redis:8.10.3-alpine3.23 \
+  redis-server --requirepass "$CLAVE_REDIS" --save "" --appendonly no
+
 export GATEKEEPER_DATABASE_URL="postgresql+psycopg://gatekeeper:${CLAVE_BD}@127.0.0.1:5433/gatekeeper"
 export GATEKEEPER_DATABASE_URL_MIGRACION="$GATEKEEPER_DATABASE_URL"
+export GATEKEEPER_REDIS_URL="redis://:${CLAVE_REDIS}@127.0.0.1:6380/0"
 export GATEKEEPER_PEPPER=$(openssl rand -hex 32)
 export GATEKEEPER_DATOS="$HOME/.local/share/gatekeeper"
 ```
 
 `GATEKEEPER_DATOS` debe ser una ruta absoluta, y el directorio debe existir o poder crearse. El pepper debe conservarse:
-si cambia, las API keys creadas con el anterior dejan de valer.
+si cambia, las API keys creadas con el anterior dejan de valer. `GATEKEEPER_REDIS_URL` es obligatoria: sin Redis no hay
+rate limit, y la API no arranca sin ella. En local, la API usa el mismo rol que las migraciones; en el servidor usa
+`gk_app` (ver [Despliegue en AWS EC2](#despliegue-en-aws-ec2)). La contraseña de Redis queda en la línea de comandos del
+contenedor (`docker inspect`): sirve para local, no para un servidor.
 
 Defínelas con `export` dentro de la shell, como arriba: así no aparecen en el entorno inicial de la shell, que es el que
 se lee en `/proc/<pid>/environ`. No las pongas en el entorno con el que se abre la shell (`.profile`, `env VAR=... bash`,
-la configuración de la terminal): la API no arranca si algún proceso que la lanza tiene a la vista el pepper o la URL de
-la base de datos (K52).
+la configuración de la terminal): la API no arranca si algún proceso que la lanza tiene a la vista el pepper o las URL de
+la base de datos o de Redis (K52).
 
 ### 2. Crear el esquema y una API key
 
@@ -175,8 +186,8 @@ La key se muestra una sola vez y no se puede recuperar.
 .venv/bin/uvicorn --factory api.app.principal:crear_app --no-server-header
 ```
 
-Directamente y no con `uv run`: `uv` quedaría como proceso padre de la API con el pepper y la URL de la base de datos en
-su entorno, legibles por el proceso hijo del CDR, y la API se niega a arrancar así (K52). `alembic` y `api.app.alta` no
+Directamente y no con `uv run`: `uv` quedaría como proceso padre de la API con el pepper y las URL de la base de datos y
+de Redis en su entorno, legibles por el proceso hijo del CDR, y la API se niega a arrancar así (K52). `alembic` y `api.app.alta` no
 arrancan la API y pueden seguir corriendo con `uv run`.
 
 Con un solo proceso: sin `--workers` ni `--reload` (ver [Limitaciones](#limitaciones)). Al arrancar, la API pasa a `error` los
@@ -207,7 +218,8 @@ curl -s -H "Authorization: Bearer $API_KEY" -o salida.jpg http://127.0.0.1:8000/
 | `409` | El archivo no está `limpio` y no se puede descargar |
 | `413` | El archivo supera 10 MiB |
 | `415` | La petición no es `multipart/form-data` |
-| `429` | La aplicación ya tiene 20 archivos en análisis (`pendiente`); se puede reintentar cuando termine alguno |
+| `429` | Rate limit superado (con `Retry-After` en segundos), o la aplicación ya tiene 20 archivos en análisis (`pendiente`) y se puede reintentar cuando termine alguno |
+| `503` | Redis no responde: el rate limit falla cerrado y la petición no pasa (propuesta pendiente de confirmar) |
 
 ## Desarrollo
 
@@ -223,18 +235,20 @@ Las pruebas que arrancan la API no pasan si `uv run pytest` se lanza desde una s
 
 ## Despliegue en AWS EC2
 
-El backend corre en una instancia EC2 con Docker Compose, con acceso restringido a tus IP (K55). Se abrirá al público
-solo después de implementar el rate limit (K10) y el rol `gk_app`.
+El backend corre en una instancia EC2 con Docker Compose (K55) y está abierto al público en el 443 (K57). El SSH sigue
+restringido a tus IP. La apertura llega con el rate limit en Redis (K10, K58, K59) y la API conectada como `gk_app`, y
+con K28 vigente en producción (ver [Limitaciones de esta etapa](#limitaciones-de-esta-etapa)).
 
 ```
 internet ──443──> nginx (TLS, límites, headers) ──frontend (interna)──> api ──backend (interna)──> postgres
-internet ──80───> nginx-http (solo desafío ACME y redirección)            └─ proceso hijo del CDR (Landlock + seccomp)
+internet ──80───> nginx-http (solo desafío ACME y redirección)            │                    └──> redis-main
+                                                                         └─ proceso hijo del CDR (Landlock + seccomp)
 ```
 
 | Pieza | Archivo |
 |---|---|
 | Imagen de la API (multi-stage, usuario no root, uvicorn como PID 1) | `Dockerfile`, `.dockerignore` |
-| Servicios `nginx`, `nginx-http`, `api`, `postgres`, `migrate`, `sonda` y `certbot` | `deploy/docker-compose.yml` |
+| Servicios `nginx`, `nginx-http`, `api`, `postgres`, `redis-main`, `migrate`, `sonda` y `certbot` | `deploy/docker-compose.yml` |
 | TLS, rutas, límites, timeouts y headers | `deploy/nginx/` |
 | Instalación en la instancia | `deploy/instalar.sh` |
 | Límite de conexiones por IP al puerto 80 | `deploy/cortafuegos.sh` |
@@ -254,14 +268,19 @@ internet ──80───> nginx-http (solo desafío ACME y redirección)      
    | Puerto | Origen | Para qué |
    |---|---|---|
    | 22/tcp | tu IP (`x.x.x.x/32`) | SSH |
-   | 443/tcp | tu IP (`x.x.x.x/32`) | La API |
+   | 443/tcp | `0.0.0.0/0` | La API, abierta al público (K57) |
    | 80/tcp | `0.0.0.0/0` | Solo el desafío de Let's Encrypt y la redirección a HTTPS |
+
+   Nada más: PostgreSQL y Redis no publican puertos. Solo IPv4: no añadas reglas para `::/0`. Docker atiende las
+   conexiones IPv6 con su proxy, y nginx las vería todas con la misma IP, la de Docker: compartirían el límite por IP. Abre el 443 a todos solo con la API ya conectada como `gk_app` y
+   con Redis en servicio (lo deja así `instalar.sh`; para una instancia anterior, ver
+   [Apertura al público de una instancia ya instalada](#7-apertura-al-público-de-una-instancia-ya-instalada)).
 
    El puerto 80 queda abierto porque Let's Encrypt valida desde direcciones que no se conocen de antemano. Lo sirve
    `nginx-http`, un contenedor aparte del nginx del 443, con su propio pool de conexiones, timeouts cortos y un
    límite de 32 conexiones por IP en el cortafuegos del host. No habla con la API y solo redirige al dominio del
    servidor, nunca al `Host` que manda el cliente. La salida queda abierta: la instancia necesita el repositorio de
-   Docker, GHCR, Sigstore y Let's Encrypt. Si tu IP cambia, actualiza las reglas de 22 y 443.
+   Docker, GHCR, Sigstore y Let's Encrypt. Si tu IP cambia, actualiza la regla del 22.
 3. **IP elástica:** asígnala y asóciala a la instancia. El nombre del servidor sale de ella: con la IP `3.14.15.92`,
    el dominio es `3-14-15-92.sslip.io`.
 
@@ -303,24 +322,42 @@ El script se puede correr otra vez sin perder nada. Hace lo siguiente:
   llave, con la huella publicada por Docker, y guarda solo esa.
 - Instala cosign con versión y checksum fijados.
 - Activa `unattended-upgrades`, también para Docker Engine, y añade 1 GiB de swap para el sistema.
-- Crea el usuario de servicio `gatekeeper` (UID 10001, el de la API en el contenedor) y los directorios.
+- Reserva los usuarios de servicio `gatekeeper` (UID 10001, el de la API en el contenedor) y `gatekeeper-redis`
+  (UID 10002, el de `redis-main`), y crea los directorios.
 - Activa el límite de conexiones por IP al puerto 80 (`gatekeeper-cortafuegos.service`, que se reaplica cada vez que
   arranca Docker).
-- Genera los secretos en `/etc/gatekeeper/` con modo 0600, sin mostrarlos.
-- Obtiene el certificado, hace el primer despliegue y activa los timers.
+- Genera los secretos en `/etc/gatekeeper/`, sin mostrarlos: las contraseñas del dueño del esquema, de `gk_app` y de
+  Redis, y el pepper. Los que ya existen no se regeneran.
+- Obtiene el certificado.
+- Crea el rol `gk_app` de PostgreSQL, o lo ajusta si ya existe, antes de migrar: puede conectarse y nada más. No es
+  superusuario, no crea bases ni roles y tiene un límite de 25 conexiones. Sus permisos sobre las tablas los da la
+  migración `0002`. La contraseña viaja como verificador SCRAM, así que no aparece en el log de PostgreSQL.
+- Hace el primer despliegue, vuelve a levantar la imagen desplegada con la configuración nueva y activa los timers.
 
 Mientras corre, para el timer de actualización y espera a que termine cualquier despliegue en curso.
 
 | Ruta | Contenido |
 |---|---|
 | `/opt/gatekeeper/` | Compose, configuración de nginx, scripts y la sonda del aislamiento |
-| `/etc/gatekeeper/` | `postgres.env`, `api.env`, `migrate.env` (secretos) y `compose.env` (dominio) |
-| `/var/lib/gatekeeper/` | Imagen y revisión del esquema desplegadas, la anterior, la retenida y la raíz de confianza de Sigstore |
+| `/etc/gatekeeper/` | Secretos, modo 0600: `postgres.env` y `migrate.env` (dueño del esquema), `api.env` (pepper y `GATEKEEPER_REDIS_URL`), `gk_app.clave` y `redis.clave`. `redis.conf` (usuarios de Redis, con solo el SHA-256 de su contraseña; del UID 10002, modo 0400). `compose.env` (dominio) |
+| `/var/lib/gatekeeper/` | Imagen y revisión del esquema desplegadas, la anterior, la retenida, la raíz de confianza de Sigstore y `api-bd.env` (`GATEKEEPER_DATABASE_URL` de la API, secreto, 0600; lo escribe `actualizar.sh`) |
 | `/var/lib/gatekeeper/respaldos/` | Los últimos 5 respaldos de la base (`pg_dump -Fc`, modo 0600), uno antes de cada migración |
 | `/var/log/gatekeeper/despliegues.log` | Un registro por despliegue |
 
 **Guarda una copia de `/etc/gatekeeper/` fuera de la instancia.** Si se pierde el pepper, ninguna API key vuelve a
 valer.
+
+Quién usa qué rol de PostgreSQL:
+
+| Proceso | Rol | De dónde |
+|---|---|---|
+| API y `alta` | `gk_app`: lee y escribe las 4 tablas, sin `DELETE`, `TRUNCATE` ni DDL | `/var/lib/gatekeeper/api-bd.env` |
+| Migraciones (`upgrade` y `downgrade`) | Dueño del esquema | `migrate.env` |
+| Respaldo (`pg_dump`) y restauración | Dueño del esquema, dentro del contenedor de postgres | `postgres.env` |
+
+`actualizar.sh` escribe `api-bd.env` antes de cada arranque de la API. Usa `gk_app` en cuanto el esquema le da
+permisos, desde la migración `0002`. Con un esquema anterior, al que solo se llega volviendo a una imagen previa a la
+`0002`, usa el dueño, como esa imagen esperaba, y lo registra con un `AVISO`.
 
 Para crear una aplicación y su API key (se muestra una sola vez):
 
@@ -345,7 +382,8 @@ curl -s -H "Authorization: Bearer $API_KEY" -F file=@foto.jpg https://<ip-con-gu
    2. Prueba con la imagen nueva, sin red ni secretos, que Landlock y seccomp se aplican dentro del contenedor.
    3. Respalda la base (`pg_dump -Fc`) y anota la revisión de Alembic.
    4. Corre las migraciones (servicio `migrate`, con la URL de migración).
-   5. Levanta la API con la imagen nueva, fijada por digest, y comprueba `/health` a través de nginx y TLS.
+   5. Elige el rol de la API (`api-bd.env`), la levanta con la imagen nueva, fijada por digest, y comprueba
+      `/health` a través de nginx y TLS.
    6. Si algo falla después de migrar, baja el esquema a la revisión anterior (`alembic downgrade`, con la imagen
       nueva) y vuelve a la imagen anterior. Si el downgrade falla, **deja la API detenida**, lo registra y
       escribe el marcador `/var/lib/gatekeeper/detenido`: mientras exista, ni `actualizar.sh` ni `instalar.sh`
@@ -357,7 +395,9 @@ curl -s -H "Authorization: Bearer $API_KEY" -F file=@foto.jpg https://<ip-con-gu
 3. El cambio deja la API unos segundos sin servicio. Un análisis en curso en ese momento termina en `error` (K51).
 
 Los cambios en `deploy/` (compose, nginx, scripts) **no** llegan con la imagen. Para aplicarlos:
-`git pull && sudo ./deploy/instalar.sh <IP elástica>`.
+`git pull && sudo ./deploy/instalar.sh <IP elástica>`. Al final, `instalar.sh` corre `actualizar.sh --reaplicar`, que
+recrea `redis-main` y vuelve a levantar la imagen desplegada con la configuración nueva. Se pierden los contadores del
+rate limit del minuto en curso.
 
 `gatekeeper-certificados.timer` intenta renovar el certificado dos veces al día y recarga nginx. Certbot solo lo
 renueva cuando le quedan menos de 30 días.
@@ -370,7 +410,7 @@ sudo journalctl -u gatekeeper-actualizar.service      # salida completa de cada 
 sudo journalctl -u gatekeeper-certificados.service
 sudo journalctl -u gatekeeper-cortafuegos.service
 sudo gk-compose ps
-sudo gk-compose logs -f api                           # también: nginx, nginx-http, postgres
+sudo gk-compose logs -f api                           # también: nginx, nginx-http, postgres, redis-main
 systemctl list-timers 'gatekeeper-*'
 ```
 
@@ -406,16 +446,48 @@ sudo systemctl start gatekeeper-actualizar.timer
 Si cambia la IP elástica, cambia el dominio: corre `sudo ./deploy/instalar.sh <IP nueva>` para pedir el certificado
 del nombre nuevo.
 
+El volcado incluye los permisos de `gk_app` sobre las tablas, pero no el rol, que es del servidor y no de la base. En
+la misma instancia el rol ya existe. En una instancia nueva, `instalar.sh` lo crea antes de que restaures nada.
+
+Volver con `--revertir` a una imagen anterior a la `0002` deja la API conectada como dueña y **sin rate limit**. Con el
+443 abierto, vuelve a restringirlo a tus IP en el grupo de seguridad antes de revertir a esa imagen.
+
+### 7. Apertura al público de una instancia ya instalada
+
+Para la instancia instalada antes de K57 (API conectada como dueña, sin Redis). El orden importa: si el timer despliega
+la imagen nueva con la configuración vieja, la API no arranca sin `GATEKEEPER_REDIS_URL`. `actualizar.sh` vuelve a la
+imagen anterior y retiene la nueva, sin perder datos, pero el paso 4 ya no la desplegaría.
+
+1. Antes del merge, en la instancia: `sudo systemctl stop gatekeeper-actualizar.timer`.
+2. Haz merge a `main` y espera a que el workflow publique y firme la imagen.
+3. En la instancia: `cd GateKeeper-API && git pull`.
+4. `sudo ./deploy/instalar.sh <IP elástica>`. Conserva la base, el pepper y la contraseña del dueño. Genera las
+   contraseñas de `gk_app` y de Redis y crea el rol. Despliega la imagen nueva: respaldo, migración `0002` con el dueño
+   y la API como `gk_app`. Al terminar vuelve a activar el timer.
+5. Comprueba el rol de la API (debe responder `gk_app`):
+
+   ```bash
+   sudo gk-compose exec -T api /app/.venv/bin/python -I -c "import os, psycopg; print(psycopg.connect(os.environ['GATEKEEPER_DATABASE_URL'].replace('+psycopg', '')).execute('SELECT current_user').fetchone()[0])"
+   sudo grep -E 'gk_app|AVISO' /var/log/gatekeeper/despliegues.log
+   ```
+
+6. Solo entonces, en el grupo de seguridad, cambia el origen del 443 a `0.0.0.0/0`. El 22 sigue con tu IP.
+
+Si el timer ya había desplegado la imagen nueva antes del paso 4 y la había retenido, `despliegues.log` lo muestra.
+Corre `sudo rm /var/lib/gatekeeper/retenido` antes del paso 4.
+
 ### Probarlo en local, sin TLS
 
 ```bash
 docker build -t gatekeeper-api:prueba .
-# En un directorio propio (chmod 700), crea api.env, postgres.env y migrate.env como los genera instalar.sh.
-export GATEKEEPER_IMAGEN=gatekeeper-api:prueba GATEKEEPER_ETC=<ese directorio>
+# En un directorio propio (chmod 700), crea postgres.env, migrate.env, api.env, api-bd.env y redis.conf como los
+# genera instalar.sh. redis.conf tiene que ser legible por el UID 10002 (sudo chown 10002:10002, chmod 0400).
+export GATEKEEPER_IMAGEN=gatekeeper-api:prueba GATEKEEPER_ETC=<ese directorio> GATEKEEPER_ESTADO=<ese directorio>
 cd deploy
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --wait postgres
+# Aquí, el rol gk_app como en instalar.sh ("Rol gk_app de PostgreSQL"), y en api-bd.env su URL.
 docker compose -f docker-compose.yml -f docker-compose.local.yml --profile migrar run --rm migrate
-docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --wait api nginx nginx-http
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --wait redis-main api nginx nginx-http
 ```
 
 `docker-compose.local.yml` cambia solo los dos nginx: la API por HTTP en `127.0.0.1:8080`, sin certificado ni HSTS, y
@@ -423,22 +495,34 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --wait ap
 
 ### Limitaciones de esta etapa
 
-- **Acceso restringido.** El servidor solo debe aceptar 22 y 443 desde tus IP. Sigue vigente K26 (uso no público):
-  no abras el 443 a todo internet hasta tener rate limit (K10) y el rol `gk_app`.
+- **Abierto al público (K57).** El 443 acepta conexiones de cualquier IP; el 22 solo de las tuyas. Cualquiera puede
+  probar keys o mandar peticiones sin autenticar: los frena el rate limit, no el cortafuegos.
 - **Quién puede desplegar.** Cualquiera que logre publicar en `main` de `Rust7730/GateKeeper-API` (directamente o con
   un workflow modificado en esa rama) produce una imagen firmada que el servidor despliega. La protección de `main`
   y los permisos de escritura del repositorio son parte del control (ver el paso 2).
-- **La API se conecta como dueña del esquema.** API y migraciones usan el mismo rol de PostgreSQL hasta la migración
-  `0002`, que creará `gk_app` con permisos mínimos. Una API comprometida podría cambiar o borrar el esquema.
-- **Sin rate limit (K10).** Solo frenan el tope de 20 archivos pendientes por aplicación (K48), el de 10 MiB y el de
-  60 s por subida.
+- **La API se conecta como `gk_app`.** Lee y escribe las 4 tablas, pero no puede borrar, vaciar, alterar ni crear
+  tablas. Una API comprometida aún puede leer y modificar los datos de todas las aplicaciones (INV-10 lo aplica el
+  código, no la base). Con una imagen anterior a la `0002` (solo tras `--revertir`), vuelve a conectarse como dueña.
+- **Rate limit (K10, K58).** Por API key, 120 por minuto sostenidos con ráfaga de 20 (token bucket por aplicación). Sin
+  autenticar o con una key inválida, 60 por minuto por IP. Al pasarse, `429` con `Retry-After`. Se suma al tope de 20
+  archivos pendientes por aplicación (K48), al de 10 MiB y al de 60 s por subida. La IP es la que ve nginx: reescribe
+  `X-Forwarded-For` con la IP de la conexión, y la API solo acepta esa cabecera de la IP fija de nginx (172.29.80.2,
+  red `frontend`). Quien controle muchas direcciones puede repartir entre ellas sus peticiones sin autenticar.
+- **Redis (`redis-main`, K59).** Guarda solo los contadores del rate limit, en memoria y sin persistencia: al
+  reiniciarse los contadores empiezan de cero. Está en la red interna `backend`, sin puertos publicados. Sin contraseña
+  no ejecuta ningún comando, y la API no puede usar `CONFIG`, `FLUSHALL`, `KEYS`, `DEBUG` ni `MODULE`. Tiene 32 MiB
+  con `noeviction`: si se llenaran, Redis rechaza las escrituras y la API responde `503` en lugar de dejar pasar sin
+  límite. Si Redis no responde, también `503` (propuesta pendiente de confirmar); `/health` no depende de Redis.
 - **Puerto 80 abierto a todos.** `nginx-http` tiene su propio pool (1024 conexiones), un timeout de cabeceras de 5 s y
   el límite de 32 conexiones por IP. Un ataque distribuido desde muchas IP aún podría llenarlo y retrasar la
   renovación del certificado, pero no afecta al 443.
-- **K28 sigue vigente en el servidor.** El CDR corre en un proceso hijo con el mismo UID que la API, dentro del mismo
-  contenedor, y no en un worker aislado (desviación temporal de INV-04). Lo mitigan Landlock, el filtro seccomp,
-  `PR_SET_DUMPABLE=0` y K52, y el contenedor añade `cap_drop: ALL`, `no-new-privileges`, sistema de archivos de solo
-  lectura y límites de memoria (1 GiB) y procesos. El perfil seccomp es el de Docker por defecto, que permite Landlock.
+- **K28 en producción, aceptada y mitigada (K57).** Con la API abierta al público, el CDR sigue corriendo en un
+  proceso hijo con el mismo UID que la API, dentro del mismo contenedor, y no en un worker aislado (desviación temporal
+  de INV-04, hasta que llegue el worker en contenedor). Un archivo malicioso que explotara Pillow o pikepdf correría
+  con ese UID. Lo mitigan Landlock (K53), el filtro seccomp (K54), `PR_SET_DUMPABLE=0` y la negativa a arrancar con
+  secretos en un ancestro (K52). El contenedor añade `cap_drop: ALL`, `no-new-privileges`, sistema de archivos de solo
+  lectura, sin salida a internet, y límites de memoria (1 GiB) y procesos. El perfil seccomp es el de Docker por
+  defecto, que permite Landlock.
 - **La API no tiene salida a internet.** Las redes `frontend` y `backend` son internas; solo los dos nginx (puertos) y
   certbot (Let's Encrypt) tienen salida. Cuando llegue VirusTotal, irá por el servicio `reputation`, no por la API.
 - **Respaldos solo locales y solo antes de migrar.** Se guardan los últimos 5 en el disco de la instancia. No hay
@@ -447,12 +531,13 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --wait ap
   hace falta otro certificado. Si el DNS de sslip.io falla, el nombre deja de resolver. HSTS se envía sin
   `includeSubDomains`.
 - **Una sola instancia**, sin alta disponibilidad.
-- **Los secretos van por variables de entorno.** Los ve cualquiera que hable con Docker: root, cualquier usuario del
-  grupo `docker` (que equivale a root), `docker inspect` y `gk-compose config`, que imprime el compose con sus
-  valores. No añadas usuarios al grupo `docker`. El healthcheck los descarta con `env -i` al arrancar, pero durante
+- **Los secretos de la API van por variables de entorno** (el pepper y las URL de la base y de Redis, con sus
+  contraseñas). Los ve cualquiera que hable con Docker: root, cualquier usuario del grupo `docker` (que equivale a
+  root), `docker inspect` y `gk-compose config`, que imprime el compose con sus valores. La contraseña de Redis no
+  está en el contenedor de Redis: allí solo está su SHA-256, en un archivo montado. No añadas usuarios al grupo `docker`. El healthcheck los descarta con `env -i` al arrancar, pero durante
   ese instante su proceso los tiene en el entorno.
-- **Memoria justa.** `t3.small` tiene 2 GiB: la API tiene 1 GiB, contando los dos hijos del CDR que corren a la vez. Si
-  un archivo se pasa, el sistema mata al hijo y ese archivo termina en `error`.
+- **Memoria justa.** `t3.small` tiene 2 GiB: la API tiene 1 GiB, contando los dos hijos del CDR que corren a la vez, y
+  Redis 64 MiB. Si un archivo se pasa, el sistema mata al hijo y ese archivo termina en `error`.
 - **Las actualizaciones de Docker reinician los contenedores.** `unattended-upgrades` incluye Docker Engine; al
   actualizarse, la API queda unos segundos sin servicio.
 - **nginx envía `Server: nginx`, sin versión** (`server_tokens off`, K29). Quitarlo del todo exige el módulo
@@ -461,11 +546,9 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --wait ap
 ## Limitaciones
 
 - Solo se aceptan JPEG, PNG y PDF. SVG, ZIP, Office y el análisis semántico quedan fuera del alcance.
-- La rebanada vertical es para uso local o en un servidor restringido a tus IP (K55). No incluye ClamAV, VirusTotal,
-  Redis, rate limit ni dashboard, y el CDR corre en un proceso hijo limitado en lugar de un worker en contenedor
-  aislado. **No debe abrirse al público.** El despliegue tiene sus propias limitaciones (ver
-  [Limitaciones de esta etapa](#limitaciones-de-esta-etapa)).
-- La API se conecta como dueña del esquema, porque el rol `gk_app` con permisos mínimos aún no existe.
+- La rebanada vertical está abierta al público en EC2 (K57). No incluye ClamAV, VirusTotal ni dashboard, y el CDR corre
+  en un proceso hijo limitado en lugar de un worker en contenedor aislado (K28, aceptada en producción). El despliegue
+  tiene sus propias limitaciones (ver [Limitaciones de esta etapa](#limitaciones-de-esta-etapa)).
 - Las API keys no se pueden revocar ni rotar todavía.
 - El proceso hijo del CDR corre con el mismo usuario del sistema (UID) que la API (K28). Está mitigado, no cerrado:
   - No recibe credenciales. La API se marca como no volcable (`PR_SET_DUMPABLE=0`) y no arranca si un proceso que la

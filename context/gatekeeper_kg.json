@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 442,
-   "aristas": 1027,
+   "nodos": 448,
+   "aristas": 1053,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 56,
+    "Observacion": 62,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 220,
+    "afecta": 246,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -4860,6 +4860,90 @@
     "origen": "gatekeeper-guardian",
     "eleccion": "En GitHub Actions las pruebas de rendimiento (p95 y p50 de latencia) multiplican sus topes por 10 con la variable GATEKEEPER_FACTOR_LATENCIA=10. En local y en el control de gk-commit los topes quedan como están (factor 1). Los límites de tiempo de pruebas de seguridad o comportamiento no se relajan.",
     "fecha_decision": "2026-11-18"
+   }
+  },
+  {
+   "id": "K57",
+   "tipo": "Observacion",
+   "label": "Apertura al público del backend",
+   "props": {
+    "propuesta": "El despliegue en EC2 (K55) se abre a internet: el puerto 443 a 0.0.0.0/0; el 22 sigue restringido a las IP del usuario. K26 deja de ser solo de uso local. K28 se acepta en producción, mitigada con Landlock (K53), seccomp (K54) y la negativa a arrancar con secretos en ancestros (K52), hasta que llegue el worker en contenedor; el README lo declara. Requisitos previos: TLS (hecho), rate limit (K10, K58, K59) y rol gk_app con permisos mínimos (migración 0002), con la API conectada con él en lugar del dueño del esquema.",
+    "hallazgo": "K55 dejó la apertura al público para después de TLS, rate limit y el rol gk_app, y anunció que ese paso cambiaría K26 y se registraría entonces. El usuario decidió abrir ya, aceptando en producción la desviación de K28 mitigada y declarada. Spec: docs/superpowers/specs/2026-11-20-apertura-publica-design.md §1.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-19",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "El despliegue en EC2 (K55) se abre a internet: el puerto 443 a 0.0.0.0/0; el 22 sigue restringido a las IP del usuario. K26 deja de ser solo de uso local. K28 se acepta en producción, mitigada con Landlock (K53), seccomp (K54) y la negativa a arrancar con secretos en ancestros (K52), hasta que llegue el worker en contenedor; el README lo declara. Requisitos previos: TLS (hecho), rate limit (K10, K58, K59) y rol gk_app con permisos mínimos (migración 0002), con la API conectada con él en lugar del dueño del esquema.",
+    "fecha_decision": "2026-11-19"
+   }
+  },
+  {
+   "id": "K58",
+   "tipo": "Observacion",
+   "label": "Valores del rate limit (completa K10)",
+   "props": {
+    "propuesta": "Por API key: 120/min sostenidos con ráfaga de 20 (token bucket de capacidad 20 que se recarga a 2 por segundo). Por IP, solo para peticiones sin autenticar o con key inválida: 60/min. El exceso responde 429 {\"detail\": \"Too Many Requests\"} con Retry-After en segundos enteros y Connection: close.",
+    "hallazgo": "K10 fijaba 120/min por API key 'con ráfaga' sin definir el tamaño de la ráfaga ni el límite por IP; F2.07 y el vector 14 necesitan números para probarse (V14). Spec: docs/superpowers/specs/2026-11-20-apertura-publica-design.md §1.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-19",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Por API key: 120/min sostenidos con ráfaga de 20 (token bucket de capacidad 20 que se recarga a 2 por segundo). Por IP, solo para peticiones sin autenticar o con key inválida: 60/min. El exceso responde 429 {\"detail\": \"Too Many Requests\"} con Retry-After en segundos enteros y Connection: close.",
+    "fecha_decision": "2026-11-19"
+   }
+  },
+  {
+   "id": "K59",
+   "tipo": "Observacion",
+   "label": "Contadores del rate limit en Redis",
+   "props": {
+    "propuesta": "Los contadores del rate limit viven en el contenedor redis-main (K02) en la misma EC2, en la red interna backend, sin puertos publicados, sin persistencia y con contraseña. Lo instala instalar.sh.",
+    "hallazgo": "La rebanada corre con un solo proceso de uvicorn y sin Redis; el rate limit necesita contadores compartidos. El usuario eligió Redis en Docker en la misma EC2 en lugar de un servicio administrado. svc:redis es el nodo de redis-main en el KG. Spec: docs/superpowers/specs/2026-11-20-apertura-publica-design.md §1.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-19",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Los contadores del rate limit viven en el contenedor redis-main (K02) en la misma EC2, en la red interna backend, sin puertos publicados, sin persistencia y con contraseña. Lo instala instalar.sh.",
+    "fecha_decision": "2026-11-19"
+   }
+  },
+  {
+   "id": "K60",
+   "tipo": "Observacion",
+   "label": "Redis caído: el rate limit falla cerrado",
+   "props": {
+    "propuesta": "Si redis-main no responde, el rate limit falla cerrado: la petición recibe 503 y no pasa sin límite. /health no depende de Redis.",
+    "hallazgo": "Con los contadores en Redis (K59), una caída de Redis no debe convertirse en peticiones sin límite (mismo espíritu que INV-09: un error nunca termina en el camino permisivo). /health queda independiente para no confundir la salud de la API con la de Redis.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-19",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "Si redis-main no responde, el rate limit falla cerrado: la petición recibe 503 y no pasa sin límite. /health no depende de Redis.",
+    "fecha_decision": "2026-11-19"
+   }
+  },
+  {
+   "id": "K61",
+   "tipo": "Observacion",
+   "label": "Detalles del rate limit (completa K58 y K60)",
+   "props": {
+    "propuesta": "(1) Solo POST /v1/files gasta el cupo por API key (120/min, ráfaga 20); GET /v1/files/{id} y GET /v1/files/{id}/content no. El límite por IP sin autenticar (60/min) aplica a cualquier ruta de /v1/. (2) Si Redis no responde en 1 s, la petición recibe 503 (K60). (3) El límite por IP agrupa IPv6 por bloque /64; IPv4 por dirección exacta.",
+    "hallazgo": "K58 y K60 no definían qué rutas gastan el cupo por key, cuánto se espera a Redis antes del 503 ni cómo se agrupan las IP; un cliente IPv6 controla un /64 completo y podría rotar direcciones para evadir el límite por IP.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-19",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "(1) Solo POST /v1/files gasta el cupo por API key (120/min, ráfaga 20); GET /v1/files/{id} y GET /v1/files/{id}/content no. El límite por IP sin autenticar (60/min) aplica a cualquier ruta de /v1/. (2) Si Redis no responde en 1 s, la petición recibe 503 (K60). (3) El límite por IP agrupa IPv6 por bloque /64; IPv4 por dirección exacta.",
+    "fecha_decision": "2026-11-19"
+   }
+  },
+  {
+   "id": "K62",
+   "tipo": "Observacion",
+   "label": "Valores de infraestructura de la apertura",
+   "props": {
+    "propuesta": "redis-main con maxmemory 32mb y política noeviction (al llenarse rechaza escrituras y la API responde 503, falla cerrado); ACL de Redis con usuario gatekeeper sin comandos peligrosos y usuario default desactivado; rol gk_app con CONNECTION LIMIT 25 y NOINHERIT; red frontend con subred 172.29.80.0/28 y nginx en 172.29.80.2 como único proxy de confianza de uvicorn; UID 10002 para Redis; si la imagen desplegada es anterior a la migración 0002 (solo con --revertir), la API vuelve a conectarse como dueña del esquema con un AVISO.",
+    "hallazgo": "La apertura al público (K57) con Redis (K59) y el rol gk_app necesita valores concretos de memoria, ACL, conexiones, red y UID que ninguna decisión fijaba; se proponen para no dejarlos como decisiones implícitas en el código de despliegue.",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-19",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "(1) redis-main con maxmemory 32mb y política noeviction: al llenarse rechaza escrituras y la API responde 503 (falla cerrado). (2) ACL de Redis: usuario default desactivado, usuario salud solo con PING, usuario gatekeeper sin comandos peligrosos. (3) Redis corre con UID 10002. (4) Rol gk_app con CONNECTION LIMIT 25 y NOINHERIT. (5) Red frontend con subred 172.29.80.0/28 y nginx fijo en 172.29.80.2, único proxy en que confía uvicorn. (6) Si se revierte a una imagen anterior a la migración 0002 (solo con --revertir), la API vuelve a conectarse como dueña del esquema, con un AVISO en el registro.",
+    "fecha_decision": "2026-11-19"
    }
   }
  ],
@@ -10096,6 +10180,136 @@
    "de": "K56",
    "rel": "afecta",
    "a": "F2.02"
+  },
+  {
+   "de": "K57",
+   "rel": "afecta",
+   "a": "K26"
+  },
+  {
+   "de": "K57",
+   "rel": "afecta",
+   "a": "K28"
+  },
+  {
+   "de": "K57",
+   "rel": "afecta",
+   "a": "K55"
+  },
+  {
+   "de": "K57",
+   "rel": "afecta",
+   "a": "INV-04"
+  },
+  {
+   "de": "K57",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K57",
+   "rel": "afecta",
+   "a": "svc:nginx"
+  },
+  {
+   "de": "K58",
+   "rel": "afecta",
+   "a": "K10"
+  },
+  {
+   "de": "K58",
+   "rel": "afecta",
+   "a": "param:rate_limit_subidas"
+  },
+  {
+   "de": "K58",
+   "rel": "afecta",
+   "a": "vec:14"
+  },
+  {
+   "de": "K58",
+   "rel": "afecta",
+   "a": "F2.07"
+  },
+  {
+   "de": "K59",
+   "rel": "afecta",
+   "a": "K02"
+  },
+  {
+   "de": "K59",
+   "rel": "afecta",
+   "a": "K10"
+  },
+  {
+   "de": "K59",
+   "rel": "afecta",
+   "a": "svc:redis"
+  },
+  {
+   "de": "K59",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K60",
+   "rel": "afecta",
+   "a": "K58"
+  },
+  {
+   "de": "K60",
+   "rel": "afecta",
+   "a": "K59"
+  },
+  {
+   "de": "K60",
+   "rel": "afecta",
+   "a": "INV-09"
+  },
+  {
+   "de": "K61",
+   "rel": "afecta",
+   "a": "K58"
+  },
+  {
+   "de": "K61",
+   "rel": "afecta",
+   "a": "K60"
+  },
+  {
+   "de": "K61",
+   "rel": "afecta",
+   "a": "F2.07"
+  },
+  {
+   "de": "K61",
+   "rel": "afecta",
+   "a": "vec:14"
+  },
+  {
+   "de": "K62",
+   "rel": "afecta",
+   "a": "K59"
+  },
+  {
+   "de": "K62",
+   "rel": "afecta",
+   "a": "K57"
+  },
+  {
+   "de": "K62",
+   "rel": "afecta",
+   "a": "svc:redis"
+  },
+  {
+   "de": "K62",
+   "rel": "afecta",
+   "a": "svc:postgres"
+  },
+  {
+   "de": "K62",
+   "rel": "afecta",
+   "a": "svc:nginx"
   }
  ]
 }

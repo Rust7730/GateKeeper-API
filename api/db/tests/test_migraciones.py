@@ -28,6 +28,7 @@ from api.db.config import VARIABLE_URL_MIGRACION, ConfiguracionBDError
 from api.db.modelos import Base
 from api.db.tests.soporte_postgres import (
     RUTA_ALEMBIC_INI,
+    CredencialRol,
     borrar_bd,
     config_alembic,
     crear_bd,
@@ -37,13 +38,20 @@ BD_MIGRACION = "gk_migracion"
 BD_MODELOS = "gk_modelos"
 TABLAS_ESPERADAS = {"aplicacion", "api_key", "archivo", "resultado_analisis"}
 REVISION_INICIAL = "0001_esquema_inicial"
+REVISION_PERMISOS = "0002_permisos_gk_app"
 
 
 @pytest.fixture
 def url_migracion(
-    motor_postgres: Engine, url_postgres: URL, monkeypatch: pytest.MonkeyPatch
+    motor_postgres: Engine,
+    url_postgres: URL,
+    rol_app: CredencialRol,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[URL]:
-    """Base vacía, con su URL en la variable de entorno que lee ``env.py``."""
+    """Base vacía, con su URL en la variable de entorno que lee ``env.py``.
+
+    Depende de ``rol_app`` porque la 0002 exige que el rol de la API ya exista.
+    """
     borrar_bd(motor_postgres, BD_MIGRACION)
     crear_bd(motor_postgres, BD_MIGRACION)
     url = url_postgres.set(database=BD_MIGRACION)
@@ -124,10 +132,12 @@ def test_upgrade_downgrade_upgrade_sobre_bd_vacia(url_migracion: URL) -> None:
     assert _tablas(url_migracion) == TABLAS_ESPERADAS | {"alembic_version"}
 
 
-def test_hay_una_sola_cabeza_y_es_la_inicial() -> None:
-    assert ScriptDirectory.from_config(config_alembic()).get_heads() == [
-        REVISION_INICIAL
-    ]
+def test_hay_una_sola_cabeza_y_es_la_de_permisos() -> None:
+    guion = ScriptDirectory.from_config(config_alembic())
+    assert guion.get_heads() == [REVISION_PERMISOS]
+    permisos = guion.get_revision(REVISION_PERMISOS)
+    assert permisos is not None
+    assert permisos.down_revision == REVISION_INICIAL
 
 
 def test_alembic_no_detecta_diferencias_con_los_modelos(

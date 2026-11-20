@@ -16,6 +16,8 @@ import contextlib
 import math
 import os
 import sys
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -27,6 +29,8 @@ from api.db.sesion import crear_motor
 
 VARIABLE_HMAC = "GATEKEEPER_PEPPER"
 VARIABLE_DATOS = "GATEKEEPER_DATOS"
+# K59: contadores del rate limit. Lleva usuario y contraseña: nunca se muestra.
+VARIABLE_REDIS = "GATEKEEPER_REDIS_URL"
 MIN_BYTES_HMAC = 32
 UPLOADS_TMP = "uploads_tmp"
 CLEAN_STORE = "clean_store"
@@ -59,6 +63,19 @@ def _validar_comando(comando: object) -> None:
         raise ConfiguracionError("El comando del CDR debe ser una tupla de textos.")
 
 
+def _validar_url_redis(url: object) -> None:
+    if type(url) is not str or not url.strip():
+        raise ConfiguracionError(
+            f"Falta la URL de Redis ({VARIABLE_REDIS}) o está vacía; no hay valor por "
+            "defecto."
+        )
+    if url != url.strip():
+        raise ConfiguracionError(
+            f"La URL de Redis ({VARIABLE_REDIS}) tiene espacios en blanco al inicio o al "
+            "final (el valor no se muestra)."
+        )
+
+
 def _validar_timeout(nombre: str, timeout: object) -> None:
     # type() y no isinstance(): True pasaría por 1.
     if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
@@ -69,18 +86,24 @@ def _validar_timeout(nombre: str, timeout: object) -> None:
 class Ajustes:
     """Ajustes ya válidos: si el objeto existe, sus valores se pueden usar.
 
-    ``pepper`` y ``url_bd`` van fuera del ``repr`` para que un log o un traceback con
-    variables locales no se los lleve (CWE-532).
+    ``pepper``, ``url_bd`` y ``url_redis`` van fuera del ``repr`` para que un log o un
+    traceback con variables locales no se los lleve (CWE-532).
     """
 
     url_bd: str | URL = field(repr=False)
     pepper: bytes = field(repr=False, compare=False)
     datos: Path
+    url_redis: str = field(repr=False)  # K59
     # Costura de pruebas: ``leer_ajustes()`` nunca los lee del entorno. Una variable que
     # cambiara el comando sería ejecución de código por configuración.
     comando_cdr: tuple[str, ...] = (sys.executable, "-m", "api.app.cdr_hijo")
     timeout_cdr_s: float = 30  # param:timeout_analisis_por_archivo
     timeout_recepcion_s: float = 60  # K40
+    # Instante actual en segundos de época, con el que el rate limit recarga y cuenta. Con uno
+    # leído del entorno, quien tocara la configuración podría desactivar el límite.
+    reloj_limite: Callable[[], float] = field(
+        default=time.time, repr=False, compare=False
+    )
 
     def __post_init__(self) -> None:
         if not self.url_bd:
@@ -93,7 +116,10 @@ class Ajustes:
                 f"El directorio ({VARIABLE_DATOS}) debe ser una ruta absoluta "
                 "(la ruta no se muestra)."
             )
+        _validar_url_redis(self.url_redis)
         _validar_comando(self.comando_cdr)
+        if not callable(self.reloj_limite):
+            raise ConfiguracionError("El reloj del rate limit debe ser invocable.")
         _validar_timeout("timeout del CDR", self.timeout_cdr_s)
         _validar_timeout("timeout de la recepción", self.timeout_recepcion_s)
 
@@ -137,9 +163,24 @@ def _leer_datos() -> Path:
     return Path(valor)
 
 
+def _leer_url_redis() -> str:
+    valor = os.environ.get(VARIABLE_REDIS)
+    if valor is None or not valor.strip():
+        raise ConfiguracionError(
+            f"Falta la variable de entorno {VARIABLE_REDIS} o está vacía; "
+            "no hay valor por defecto."
+        )
+    return valor
+
+
 def leer_ajustes() -> Ajustes:
     """Lee los ajustes del entorno. Lo llama el arranque, no el import."""
-    return Ajustes(url_bd=url_bd(), pepper=leer_pepper(), datos=_leer_datos())
+    return Ajustes(
+        url_bd=url_bd(),
+        pepper=leer_pepper(),
+        datos=_leer_datos(),
+        url_redis=_leer_url_redis(),
+    )
 
 
 def _asegurar_directorio_privado(ruta: Path) -> None:

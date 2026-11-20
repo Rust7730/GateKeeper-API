@@ -2,7 +2,6 @@
 
 import hashlib
 import http
-import json
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -28,7 +27,7 @@ from api.app.auth_usuarios import (
     exigir_csrf,
     generar_csrf,
     huella_ip,
-    verificar_codigo_totp,
+    verificar_codigo_totp_con_paso,
     verificar_contrasena_async,
     verificar_dummy_async,
 )
@@ -46,8 +45,37 @@ from api.db.repositorios_admin import (
 )
 
 _CLAVE_MFA = "gk:mfa:"
+_CLAVE_TOTP_USADO = "gk:totp:usado:"
 _CLAVE_LIMITE_CUENTA = "gk:auth:cuenta:"
+_MAX_INTENTOS_MFA = 5
+_TTL_TOTP_USADO_S = 120
 _MAX_INTENTOS_CUENTA_MIN = 10
+# H-09: incremento atómico de intentos de desafío MFA en Redis (sin TOCTOU).
+_SCRIPT_CONSUMIR_INTENTO_MFA = """
+local val = redis.call('GET', KEYS[1])
+if not val then
+    return nil
+end
+local sep = string.find(val, '|', 1, true)
+if not sep then
+    redis.call('DEL', KEYS[1])
+    return nil
+end
+local uid = string.sub(val, 1, sep - 1)
+local intentos = tonumber(string.sub(val, sep + 1)) or 0
+local max_intentos = tonumber(ARGV[1])
+if intentos >= max_intentos then
+    redis.call('DEL', KEYS[1])
+    return nil
+end
+local pttl = redis.call('PTTL', KEYS[1])
+if pttl <= 0 then
+    redis.call('DEL', KEYS[1])
+    return nil
+end
+redis.call('SET', KEYS[1], uid .. '|' .. tostring(intentos + 1), 'PX', pttl)
+return uid
+"""
 _SCRIPT_LIMITE_CUENTA = """
 local c = redis.call('INCR', KEYS[1])
 if c == 1 then
@@ -227,9 +255,7 @@ def crear_router_auth() -> APIRouter:
             redis = request.app.state.cola_orquestar
             await redis.set(
                 f"{_CLAVE_MFA}{desafio_id}",
-                json.dumps({"usuario_id": str(usuario.id), "intentos": 0}).encode(
-                    "utf-8"
-                ),
+                f"{usuario.id}|0".encode("ascii"),
                 ex=DESAFIO_TOTP_TTL_S,
             )
             return {"mfa_requerido": True, "desafio_id": desafio_id}
@@ -243,15 +269,17 @@ def crear_router_auth() -> APIRouter:
         await _exigir_cupo_ip_auth(request)
         redis = request.app.state.cola_orquestar
         clave = f"{_CLAVE_MFA}{datos.desafio_id}"
-        bruto = await redis.get(clave)
-        if not bruto:
+        uid_bruto = await redis.eval(
+            _SCRIPT_CONSUMIR_INTENTO_MFA, 1, clave, _MAX_INTENTOS_MFA
+        )
+        if not uid_bruto:
             raise _no_autorizado()
-        carga = json.loads(bruto.decode("utf-8"))
-        usuario_id = uuid.UUID(carga["usuario_id"])
-        intentos = int(carga.get("intentos", 0))
-        if intentos >= 5:
-            await redis.delete(clave)
-            raise _no_autorizado()
+        uid_texto = (
+            uid_bruto.decode("ascii")
+            if isinstance(uid_bruto, bytes)
+            else str(uid_bruto)
+        )
+        usuario_id = uuid.UUID(uid_texto)
 
         async with request.app.state.sesiones() as sesion:
             usuario = await obtener_usuario_por_id(sesion, usuario_id)
@@ -264,22 +292,34 @@ def crear_router_auth() -> APIRouter:
             raise _no_autorizado()
 
         pepper = request.app.state.ajustes.pepper
-        if not verificar_codigo_totp(
+        paso = verificar_codigo_totp_con_paso(
             pepper, usuario.totp_secreto_cifrado, datos.codigo
-        ):
-            await redis.set(
-                clave,
-                json.dumps(
-                    {"usuario_id": str(usuario_id), "intentos": intentos + 1}
-                ).encode("utf-8"),
-                keepttl=True,
-            )
+        )
+        if paso is None:
             async with request.app.state.sesiones.begin() as sesion:
                 await registrar_evento_auditoria(
                     sesion,
                     usuario_id=usuario.id,
                     accion="inicio_fallido",
                     motivo="totp_invalido",
+                    ip=huella_ip(request),
+                )
+            raise _no_autorizado()
+
+        # H-09 (RFC 6238 §5.2): impedir reutilización del mismo código en la ventana de 90 s.
+        aceptado = await redis.set(
+            f"{_CLAVE_TOTP_USADO}{usuario.id}:{paso}",
+            b"1",
+            nx=True,
+            ex=_TTL_TOTP_USADO_S,
+        )
+        if not aceptado:
+            async with request.app.state.sesiones.begin() as sesion:
+                await registrar_evento_auditoria(
+                    sesion,
+                    usuario_id=usuario.id,
+                    accion="inicio_fallido",
+                    motivo="totp_reutilizado",
                     ip=huella_ip(request),
                 )
             raise _no_autorizado()

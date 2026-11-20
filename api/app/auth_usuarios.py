@@ -6,6 +6,7 @@ import hmac
 import http
 import os
 import secrets
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -99,11 +100,25 @@ def descifrar_totp(pepper: bytes, datos: bytes) -> str:
     return AESGCM(clave).decrypt(nonce, cifrado, None).decode("ascii")
 
 
-def verificar_codigo_totp(pepper: bytes, totp_cifrado: bytes, codigo: str) -> bool:
+def verificar_codigo_totp_con_paso(
+    pepper: bytes, totp_cifrado: bytes, codigo: str
+) -> int | None:
+    """Verifica el código TOTP (±1 ventana de 30 s) y devuelve el ``time_step`` usado (RFC 6238 §5.2)."""
     if not (codigo.isascii() and codigo.isdigit() and len(codigo) == 6):
-        return False
+        return None
     secreto = descifrar_totp(pepper, totp_cifrado)
-    return pyotp.TOTP(secreto).verify(codigo, valid_window=1)
+    totp = pyotp.TOTP(secreto)
+    paso_actual = int(time.time()) // totp.interval
+    for desfase in (-1, 0, 1):
+        paso = paso_actual + desfase
+        esperado = totp.at(paso * totp.interval)
+        if hmac.compare_digest(esperado, codigo):
+            return paso
+    return None
+
+
+def verificar_codigo_totp(pepper: bytes, totp_cifrado: bytes, codigo: str) -> bool:
+    return verificar_codigo_totp_con_paso(pepper, totp_cifrado, codigo) is not None
 
 
 def emitir_jwt(pepper: bytes, usuario: DatosUsuario) -> str:

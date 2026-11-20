@@ -1,5 +1,6 @@
 """Pruebas unitarias de ``api/app/cola.py``, ``worker/`` y ``api/app/coordinador.py``."""
 
+import asyncio
 import secrets
 import uuid
 from pathlib import Path
@@ -116,3 +117,25 @@ def test_validar_resultado_worker_acepta_limpio_y_rechazado_validos() -> None:
     )
     assert (cat2, ver2.veredicto, ms2, err2) == ("rechazado", "rechazado", 3, "")
     assert uuid.uuid4()  # sanity
+
+
+def test_worker_sin_info_async_run_usa_el_bucle_de_asyncio_run(
+    url_redis: str, tmp_path: Path
+) -> None:
+    """Regresión: crear_worker + asyncio.run(async_run()) no debe fallar por distinto bucle."""
+    from worker.principal import crear_worker
+
+    async def _arrancar_y_parar() -> None:
+        worker = crear_worker(
+            AjustesWorker(url_redis_queue=url_redis, datos=tmp_path),
+            handle_signals=False,
+            poll_delay_s=0.05,
+        )
+        tarea = asyncio.create_task(worker.async_run())
+        await asyncio.sleep(0.1)
+        assert not tarea.done(), f"worker terminó con error: {tarea.exception()}"
+        tarea.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await tarea
+
+    asyncio.run(_arrancar_y_parar())

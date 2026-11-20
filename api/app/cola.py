@@ -129,6 +129,14 @@ class WorkerSinInfo(Worker):
     (K59, K62). Además usa ``aclose()`` al cerrar para evitar la deprecación de ``redis-py`` 8.
     """
 
+    async def async_run(self) -> None:
+        self.loop = asyncio.get_running_loop()
+        self.main_task = self.loop.create_task(self.main())
+        try:
+            await self.main_task
+        finally:
+            await self.close()
+
     async def main(self) -> None:
         self.ctx["redis"] = self.pool
         if self.on_startup:

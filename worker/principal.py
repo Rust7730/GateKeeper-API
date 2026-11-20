@@ -111,8 +111,13 @@ async def _escanear_clamav_si_activo(
     return await escanear_clamav(entrada, ajustes.clamav_host, ajustes.clamav_puerto)
 
 
-async def analizar(ctx: dict[str, Any], archivo_id: str) -> dict[str, Any]:
-    """Ejecuta ClamAV (D1, sobre el ORIGINAL) en paralelo con firma+CDR y devuelve JSON."""
+async def analizar(
+    ctx: dict[str, Any], archivo_id: str, solo_cdr: bool = False
+) -> dict[str, Any]:
+    """Ejecuta ClamAV (D1, sobre el ORIGINAL) en paralelo con firma+CDR y devuelve JSON.
+
+    Con ``solo_cdr=True`` (liberación de cuarentena, D4) omite ClamAV y corre solo firma+CDR.
+    """
     inicio = time.perf_counter()
 
     def _duracion_ms() -> int:
@@ -141,15 +146,25 @@ async def analizar(ctx: dict[str, Any], archivo_id: str) -> dict[str, Any]:
     res_clamav = ResultadoClamav(_NO_EVALUADA, None, "no_ejecutada", 0)
     try:
         trabajo.mkdir(mode=_MODO_TRABAJO)
-        # D1: ClamAV sobre el ORIGINAL en paralelo con firma+CDR.
-        res_clamav, resultado_cdr = await asyncio.gather(
-            _escanear_clamav_si_activo(ajustes, entrada),
-            correr_hijo(
-                (*ajustes.comando_cdr, str(entrada), str(parcial)),
-                ajustes.timeout_cdr_s,
-            ),
-            return_exceptions=True,
-        )
+        if solo_cdr:
+            res_clamav = ResultadoClamav(_NO_EVALUADA, None, "liberacion_cdr", 0)
+            try:
+                resultado_cdr: Any = await correr_hijo(
+                    (*ajustes.comando_cdr, str(entrada), str(parcial)),
+                    ajustes.timeout_cdr_s,
+                )
+            except Exception as exc:  # noqa: BLE001
+                resultado_cdr = exc
+        else:
+            # D1: ClamAV sobre el ORIGINAL en paralelo con firma+CDR.
+            res_clamav, resultado_cdr = await asyncio.gather(
+                _escanear_clamav_si_activo(ajustes, entrada),
+                correr_hijo(
+                    (*ajustes.comando_cdr, str(entrada), str(parcial)),
+                    ajustes.timeout_cdr_s,
+                ),
+                return_exceptions=True,
+            )
         if isinstance(res_clamav, BaseException):
             if isinstance(res_clamav, asyncio.CancelledError):
                 raise res_clamav

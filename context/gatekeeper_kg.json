@@ -3690,8 +3690,15 @@
    "tipo": "Paso",
    "label": "Liberación de cuarentena: motivo obligatorio, registro en la bitácora y reencolado en el CDR antes de quedar disponible.",
    "props": {
-    "estado": "pendiente",
-    "orden": 6
+    "estado": "en_progreso",
+    "orden": 6,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {
@@ -3699,8 +3706,15 @@
    "tipo": "Paso",
    "label": "Vista de lista de archivos con filtros por estado, fecha y aplicación (tabla de Angular Material).",
    "props": {
-    "estado": "pendiente",
-    "orden": 7
+    "estado": "en_progreso",
+    "orden": 7,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {
@@ -3708,8 +3722,15 @@
    "tipo": "Paso",
    "label": "Vista de detalle con el resultado de cada capa, incluida 'no_evaluada'.",
    "props": {
-    "estado": "pendiente",
-    "orden": 8
+    "estado": "en_progreso",
+    "orden": 8,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {
@@ -3717,8 +3738,15 @@
    "tipo": "Paso",
    "label": "Vista de cuarentena con botón de liberar (solo admin) y campo de motivo.",
    "props": {
-    "estado": "pendiente",
-    "orden": 9
+    "estado": "en_progreso",
+    "orden": 9,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {
@@ -3726,8 +3754,15 @@
    "tipo": "Paso",
    "label": "Vistas de métricas de amenazas bloqueadas y de bitácora de auditoría.",
    "props": {
-    "estado": "pendiente",
-    "orden": 10
+    "estado": "en_progreso",
+    "orden": 10,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {
@@ -3735,8 +3770,15 @@
    "tipo": "Paso",
    "label": "Alertas en tiempo real: consumir el SSE con fetch y ReadableStream enviando Authorization, dentro de un Observable de RxJS. En Nginx, desactivar proxy_buffering para /v1/admin/events.",
    "props": {
-    "estado": "pendiente",
-    "orden": 11
+    "estado": "en_progreso",
+    "orden": 11,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {

@@ -131,6 +131,9 @@ async def consultar_virustotal(
             cuerpo = respuesta.json()
             stats = cuerpo["data"]["attributes"]["last_analysis_stats"]
             maliciosos = int(stats.get("malicious", 0))
+            total_motores = sum(
+                int(v) for v in stats.values() if isinstance(v, (int, float))
+            )
         except (ValueError, KeyError, TypeError):
             return {
                 "veredicto": "no_evaluada",
@@ -142,6 +145,8 @@ async def consultar_virustotal(
             "veredicto": veredicto,
             "motivo": "malware_detectado" if veredicto == "malicioso" else "ok",
             "motores_maliciosos": maliciosos,
+            "positivos": maliciosos,
+            "total": total_motores or maliciosos,
         }
     else:
         return {

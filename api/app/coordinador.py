@@ -23,6 +23,7 @@ import sys
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +62,7 @@ from api.app.estados import Estado
 from api.app.tipos import TIPOS_PERMITIDOS
 from api.db.config import url_bd
 from api.db.repositorios import cambiar_estado, registrar_resultado
+from api.db.repositorios_admin import liberar_estado_archivo, obtener_metadatos_evento
 from api.db.sesion import fabrica_sesiones
 from worker.ajustes import QUARANTINE, VARIABLE_REDIS_QUEUE
 from worker.ejecutor import LIMPIO, RECHAZADO, Veredicto
@@ -265,6 +267,25 @@ def _asegurar_en_cuarentena(origen: Path, destino: Path) -> None:
         raise
 
 
+def _copiar_desde_cuarentena(cuarentena: Path, destino_uploads: Path) -> bool:
+    """Copia ``quarantine/<uuid>`` a ``uploads_tmp/<uuid>`` (0640) para re-CDR en liberación (INV-07, D4)."""
+    if not cuarentena.exists():
+        return False
+    destino_uploads.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
+    fd = os.open(
+        destino_uploads,
+        os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+        0o640,
+    )
+    try:
+        with os.fdopen(fd, "wb") as salida, cuarentena.open("rb") as entrada:
+            shutil.copyfileobj(entrada, salida)
+    except BaseException:
+        _borrar(destino_uploads)
+        raise
+    return True
+
+
 def _borrar(ruta: Path) -> None:
     try:
         ruta.unlink(missing_ok=True)
@@ -272,14 +293,53 @@ def _borrar(ruta: Path) -> None:
         logger.error("No se pudo borrar temporal (%s)", type(error).__name__)
 
 
-async def _publicar_evento(cola_main: Any, archivo_id: uuid.UUID, estado: str) -> None:
-    """Notifica el cambio de estado por pub/sub de ``redis-main`` (best-effort)."""
+async def _publicar_evento(
+    cola_main: Any,
+    sesiones: Any,
+    archivo_id: uuid.UUID,
+    estado: str,
+    *,
+    liberacion: bool = False,
+) -> None:
+    """Notifica el cambio de estado por pub/sub de ``redis-main`` en formato ``EventoDto`` (K20)."""
+    tipo: str | None = None
+    severidad = "baja"
+    incluir_nombre = False
+    if liberacion and estado == Estado.LIMPIO.value:
+        tipo = "archivo_liberado"
+        severidad = "media"
+        incluir_nombre = True
+    elif estado == Estado.EN_CUARENTENA.value:
+        tipo = "malware_detectado"
+        severidad = "critica"
+        incluir_nombre = True
+    elif estado == Estado.RECHAZADO.value:
+        tipo = "rechazo_politica"
+        severidad = "baja"
+
+    payload: dict[str, Any] = {
+        "id": str(uuid.uuid4()),
+        "archivo_id": str(archivo_id),
+        "estado": estado,
+        "en": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+    }
+    if tipo is not None:
+        app_nombre: str | None = None
+        nombre_original: str | None = None
+        with contextlib.suppress(Exception):
+            async with sesiones() as sesion:
+                app_nombre, nombre_original = await obtener_metadatos_evento(
+                    sesion, archivo_id
+                )
+        payload["tipo"] = tipo
+        payload["severidad"] = severidad
+        payload["aplicacion_nombre"] = app_nombre
+        if incluir_nombre and nombre_original is not None:
+            payload["nombre_archivo"] = nombre_original
+
     try:
         async with asyncio.timeout(1.0):
-            await cola_main.publish(
-                CANAL_EVENTOS,
-                json.dumps({"archivo_id": str(archivo_id), "estado": estado}),
-            )
+            await cola_main.publish(CANAL_EVENTOS, json.dumps(payload))
     except Exception as error:  # noqa: BLE001
         logger.warning(
             "No se pudo publicar evento de %s (%s)", archivo_id, type(error).__name__
@@ -382,13 +442,67 @@ async def _registrar_capas_antimalware(
         )
 
 
+async def _registrar_liberacion(
+    sesiones: Any,
+    aplicacion_id: uuid.UUID,
+    archivo_id: uuid.UUID,
+    destino: Estado,
+    veredicto_cdr: Veredicto | None,
+    duracion_cdr_ms: int,
+    *,
+    usuario: str,
+    motivo: str,
+) -> None:
+    """Registra el re-CDR de liberación y aplica ``en_cuarentena -> destino`` (INV-08, K16, K19)."""
+    async with sesiones.begin() as sesion:
+        if veredicto_cdr is not None:
+            firma_valida = veredicto_cdr.tipo in TIPOS_PERMITIDOS
+            await registrar_resultado(
+                sesion,
+                aplicacion_id,
+                archivo_id,
+                "firma",
+                LIMPIO if firma_valida else RECHAZADO,
+                {"tipo": veredicto_cdr.tipo},
+                None,
+            )
+            ver_cdr = (
+                LIMPIO
+                if veredicto_cdr.veredicto == LIMPIO
+                else (RECHAZADO if firma_valida else _NO_EVALUADA)
+            )
+            await registrar_resultado(
+                sesion,
+                aplicacion_id,
+                archivo_id,
+                "cdr",
+                ver_cdr,
+                {"motivo": veredicto_cdr.motivo},
+                duracion_cdr_ms,
+            )
+        await liberar_estado_archivo(
+            sesion,
+            aplicacion_id,
+            archivo_id,
+            destino,
+            usuario=usuario,
+            motivo=motivo,
+            liberado_en=datetime.now(UTC),
+            tipo_detectado=veredicto_cdr.tipo if veredicto_cdr else None,
+            tipo_error="final" if destino is Estado.ERROR else None,
+        )
+
+
 async def orquestar(
     ctx: dict[str, Any],
     aplicacion_id_str: str,
     archivo_id_str: str,
     sha256: str = "",
+    liberacion: bool = False,
+    usuario_liberacion: str = "",
+    motivo_liberacion: str = "",
 ) -> str:
-    """Orquesta worker + reputation y consolida el veredicto en PostgreSQL (K01, K07, F4.07)."""
+    """Orquesta worker + reputation y consolida el veredicto en PostgreSQL (K01, K07, F4.07, D4)."""
     ajustes: AjustesCoordinador = ctx["ajustes"]
     sesiones = ctx["sesiones"]
     cola_queue = ctx["cola_queue"]
@@ -407,6 +521,88 @@ async def orquestar(
     confirmado = False
     estado_final = Estado.ERROR.value
     try:
+        if liberacion:
+            if not _copiar_desde_cuarentena(cuarentena, entrada):
+                await _registrar_liberacion(
+                    sesiones,
+                    aplicacion_id,
+                    archivo_id,
+                    Estado.ERROR,
+                    None,
+                    _duracion_ms(),
+                    usuario=usuario_liberacion,
+                    motivo=motivo_liberacion,
+                )
+                return Estado.ERROR.value
+
+            trabajo_worker = await cola_queue.enqueue_job(
+                "analizar",
+                str(archivo_id),
+                True,
+                _job_id=f"analizar:liberar:{archivo_id}:{uuid.uuid4().hex[:8]}",
+                _queue_name=COLA_ANALIZAR,
+            )
+            if trabajo_worker is None:
+                raise RuntimeError("job duplicado en redis-queue")
+            try:
+                bruto = await _esperar_resultado(
+                    trabajo_worker,
+                    ajustes.timeout_worker_s,
+                    ajustes.poll_delay_s,
+                )
+            except TimeoutError:
+                _borrar(final)
+                await _registrar_liberacion(
+                    sesiones,
+                    aplicacion_id,
+                    archivo_id,
+                    Estado.ERROR,
+                    None,
+                    _duracion_ms(),
+                    usuario=usuario_liberacion,
+                    motivo=motivo_liberacion,
+                )
+                return Estado.ERROR.value
+
+            categoria, veredicto, duracion_ms, _motivo_err = validar_resultado_worker(
+                bruto
+            )
+            if categoria == LIMPIO and veredicto is not None:
+                problema = _verificar_salida_limpia(final)
+                if problema == _MOTIVO_SALIDA_GRANDE:
+                    _borrar(final)
+                    veredicto = Veredicto(
+                        RECHAZADO, veredicto.tipo, _MOTIVO_SALIDA_GRANDE
+                    )
+                    destino_lib = Estado.RECHAZADO
+                elif problema is not None:
+                    _borrar(final)
+                    destino_lib = Estado.ERROR
+                else:
+                    destino_lib = Estado.LIMPIO
+            elif categoria == RECHAZADO and veredicto is not None:
+                _borrar(final)
+                destino_lib = Estado.RECHAZADO
+            else:
+                _borrar(final)
+                destino_lib = Estado.ERROR
+
+            await _registrar_liberacion(
+                sesiones,
+                aplicacion_id,
+                archivo_id,
+                destino_lib,
+                veredicto,
+                duracion_ms or _duracion_ms(),
+                usuario=usuario_liberacion,
+                motivo=motivo_liberacion,
+            )
+            if destino_lib is Estado.LIMPIO:
+                _borrar(cuarentena)
+            confirmado = True
+            estado_final = destino_lib.value
+            return estado_final
+
         # Encolar worker y reputation en paralelo (D1, K01).
         trabajo_worker = await cola_queue.enqueue_job(
             "analizar",
@@ -563,7 +759,9 @@ async def orquestar(
         if not confirmado:
             _borrar(final)
         _borrar(entrada)
-        await _publicar_evento(cola_main, archivo_id, estado_final)
+        await _publicar_evento(
+            cola_main, sesiones, archivo_id, estado_final, liberacion=liberacion
+        )
 
 
 def crear_coordinador(

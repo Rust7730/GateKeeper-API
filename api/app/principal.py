@@ -22,6 +22,7 @@ from api.app.arranque import (
 )
 from api.app.cola import COLA_ORQUESTAR, abrir_cola, cerrar_cola
 from api.app.limite import abrir_limitador
+from api.app.rutas_admin import crear_router_admin
 from api.app.rutas_auth import crear_router_auth
 from api.app.seguridad import HeadersSeguridad
 from api.app.v1 import crear_router_v1
@@ -108,6 +109,7 @@ def crear_app(ajustes: Ajustes | None = None) -> FastAPI:
 
     app.include_router(crear_router_v1())
     app.include_router(crear_router_auth())
+    app.include_router(crear_router_admin())
 
     @app.get("/health")
     def health() -> dict[str, str]:

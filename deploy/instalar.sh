@@ -491,7 +491,7 @@ fi
 gk-compose up -d --wait --wait-timeout 120 --force-recreate nginx nginx-http
 
 paso "Timers de systemd"
-systemctl enable --now gatekeeper-actualizar.timer gatekeeper-certificados.timer
+systemctl enable --now gatekeeper-actualizar.timer gatekeeper-certificados.timer gatekeeper-purga.timer
 timer_activo=no
 
 paso "Listo"

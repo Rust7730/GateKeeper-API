@@ -1,0 +1,18 @@
+[Unit]
+Description=Gatekeeper: purga archivos en cuarentena con mas de 30 dias (F4.09)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/gk-compose exec -T coordinator /app/.venv/bin/python -m api.app.purga_cuarentena
+TimeoutStartSec=5min
+Environment=DOCKER_CONFIG=%S/gatekeeper/docker
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/gatekeeper
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes

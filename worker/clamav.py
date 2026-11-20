@@ -7,12 +7,15 @@ interna ``isolated``. Cualquier error de red, timeout o respuesta inesperada dev
 
 import asyncio
 import contextlib
+import os
+import stat
 import struct
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 TAMANO_TROZO_INSTREAM = 65_536
+TOPE_INSTREAM_BYTES = 10 * 1024 * 1024  # 10 MiB (K41 / CWE-400)
 TIMEOUT_CLAMAV_S = 10.0
 _COMANDO_INSTREAM = b"zINSTREAM\0"
 _FIN_INSTREAM = b"\x00\x00\x00\x00"
@@ -64,18 +67,27 @@ async def escanear_clamav(
         return round((time.perf_counter() - inicio) * 1000)
 
     escritor = None
+    fd_in: int | None = None
     try:
+        fd_in = os.open(ruta, os.O_RDONLY | os.O_NOFOLLOW)
+        info = os.fstat(fd_in)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > TOPE_INSTREAM_BYTES:
+            return ResultadoClamav("error", None, "archivo_invalido", _ms())
+
         async with asyncio.timeout(timeout_s):
             lector, escritor = await asyncio.open_connection(host, puerto)
             escritor.write(_COMANDO_INSTREAM)
-            with ruta.open("rb") as archivo:
-                while True:
-                    trozo = archivo.read(TAMANO_TROZO_INSTREAM)
-                    if not trozo:
-                        break
-                    escritor.write(struct.pack("!I", len(trozo)))
-                    escritor.write(trozo)
-                    await escritor.drain()
+            enviados = 0
+            while True:
+                trozo = os.read(fd_in, TAMANO_TROZO_INSTREAM)
+                if not trozo:
+                    break
+                enviados += len(trozo)
+                if enviados > TOPE_INSTREAM_BYTES:
+                    return ResultadoClamav("error", None, "archivo_invalido", _ms())
+                escritor.write(struct.pack("!I", len(trozo)))
+                escritor.write(trozo)
+                await escritor.drain()
             escritor.write(_FIN_INSTREAM)
             await escritor.drain()
             respuesta = await lector.read(_TOPE_RESPUESTA)
@@ -85,6 +97,8 @@ async def escanear_clamav(
     except OSError:
         return ResultadoClamav("error", None, "clamav_no_disponible", _ms())
     finally:
+        if fd_in is not None:
+            os.close(fd_in)
         if escritor is not None:
             escritor.close()
             with contextlib.suppress(OSError):

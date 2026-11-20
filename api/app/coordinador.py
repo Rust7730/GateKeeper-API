@@ -17,7 +17,6 @@ import json
 import logging
 import math
 import os
-import shutil
 import stat
 import sys
 import time
@@ -78,7 +77,9 @@ _MOTIVO_SIN_SALIDA = "sin_salida"
 _MOTIVO_SALIDA_GRANDE = "salida_grande"
 _MALICIOSO = "malicioso"
 _NO_EVALUADA = "no_evaluada"
-_MODO_CUARENTENA = 0o600
+_MODO_CUARENTENA = 0o640
+_TOPE_COPIA_BYTES = 10 * 1024 * 1024  # 10 MiB (K41 / CWE-400)
+_BLOQUE_COPIA = 65_536
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,39 +252,62 @@ def _verificar_salida_limpia(final: Path) -> str | None:
     return None
 
 
-def _asegurar_en_cuarentena(origen: Path, destino: Path) -> None:
-    """Copia el original a ``quarantine/<uuid>`` (0600) si aún no lo copió el worker (F4.09)."""
-    if destino.exists() or not origen.exists():
-        return
-    destino.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
-    fd = os.open(
-        destino, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, _MODO_CUARENTENA
-    )
+def _copiar_regular_acotado(
+    origen: Path,
+    destino: Path,
+    *,
+    modo: int,
+    exclusivo: bool = False,
+) -> bool:
+    """Copia un archivo regular sin seguir symlinks y con tope de 10 MiB (CWE-59, CWE-400)."""
     try:
-        with os.fdopen(fd, "wb") as salida, origen.open("rb") as entrada:
-            shutil.copyfileobj(entrada, salida)
-    except BaseException:
-        _borrar(destino)
-        raise
+        fd_in = os.open(origen, os.O_RDONLY | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return False
+
+    try:
+        info = os.fstat(fd_in)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > _TOPE_COPIA_BYTES:
+            return False
+        destino.parent.mkdir(mode=0o770, parents=True, exist_ok=True)
+        flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
+        flags |= os.O_EXCL if exclusivo else os.O_TRUNC
+        try:
+            fd_out = os.open(destino, flags, modo)
+        except FileExistsError:
+            return True
+        try:
+            os.fchmod(fd_out, modo)
+            copiados = 0
+            with os.fdopen(fd_out, "wb") as salida:
+                while True:
+                    trozo = os.read(fd_in, _BLOQUE_COPIA)
+                    if not trozo:
+                        break
+                    copiados += len(trozo)
+                    if copiados > _TOPE_COPIA_BYTES:
+                        raise ValueError("archivo supera el tope de copia")
+                    salida.write(trozo)
+        except BaseException:
+            _borrar(destino)
+            raise
+        return True
+    finally:
+        os.close(fd_in)
+
+
+def _asegurar_en_cuarentena(origen: Path, destino: Path) -> None:
+    """Copia el original a ``quarantine/<uuid>`` (0640, sin symlinks) si aún no existe (F4.09)."""
+    _copiar_regular_acotado(origen, destino, modo=_MODO_CUARENTENA, exclusivo=True)
 
 
 def _copiar_desde_cuarentena(cuarentena: Path, destino_uploads: Path) -> bool:
-    """Copia ``quarantine/<uuid>`` a ``uploads_tmp/<uuid>`` (0640) para re-CDR en liberación (INV-07, D4)."""
-    if not cuarentena.exists():
-        return False
-    destino_uploads.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
-    fd = os.open(
-        destino_uploads,
-        os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
-        0o640,
+    """Copia ``quarantine/<uuid>`` a ``uploads_tmp/<uuid>`` (0640, O_NOFOLLOW) para re-CDR (INV-07, D4)."""
+    return _copiar_regular_acotado(
+        cuarentena, destino_uploads, modo=0o640, exclusivo=False
     )
-    try:
-        with os.fdopen(fd, "wb") as salida, cuarentena.open("rb") as entrada:
-            shutil.copyfileobj(entrada, salida)
-    except BaseException:
-        _borrar(destino_uploads)
-        raise
-    return True
 
 
 def _borrar(ruta: Path) -> None:

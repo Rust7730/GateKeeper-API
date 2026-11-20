@@ -219,7 +219,7 @@ curl -s -H "Authorization: Bearer $API_KEY" -o salida.jpg http://127.0.0.1:8000/
 | `413` | El archivo supera 10 MiB |
 | `415` | La petición no es `multipart/form-data` |
 | `429` | Rate limit superado (con `Retry-After` en segundos), o la aplicación ya tiene 20 archivos en análisis (`pendiente`) y se puede reintentar cuando termine alguno |
-| `503` | Redis no responde: el rate limit falla cerrado y la petición no pasa (propuesta pendiente de confirmar) |
+| `503` | Redis no responde en 1 s o está lleno: el rate limit falla cerrado y la petición no pasa (K60, K61) |
 
 ## Desarrollo
 
@@ -512,7 +512,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --wait re
   reiniciarse los contadores empiezan de cero. Está en la red interna `backend`, sin puertos publicados. Sin contraseña
   no ejecuta ningún comando, y la API no puede usar `CONFIG`, `FLUSHALL`, `KEYS`, `DEBUG` ni `MODULE`. Tiene 32 MiB
   con `noeviction`: si se llenaran, Redis rechaza las escrituras y la API responde `503` en lugar de dejar pasar sin
-  límite. Si Redis no responde, también `503` (propuesta pendiente de confirmar); `/health` no depende de Redis.
+  límite. Si Redis no responde en 1 s, también `503` (K60, K61); `/health` no depende de Redis.
 - **Puerto 80 abierto a todos.** `nginx-http` tiene su propio pool (1024 conexiones), un timeout de cabeceras de 5 s y
   el límite de 32 conexiones por IP. Un ataque distribuido desde muchas IP aún podría llenarlo y retrasar la
   renovación del certificado, pero no afecta al 443.

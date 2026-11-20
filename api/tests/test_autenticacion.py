@@ -25,10 +25,12 @@ from api.app.autenticacion import (
     calcular_hash,
     generar_key,
 )
+from api.app.limite import RedisNoDisponible, Veredicto
 from api.app.principal import crear_app
 from api.app.v1 import crear_router_v1
 from api.db.modelos import ApiKey, Aplicacion
 from api.tests.soporte_api import KeySembrada, sembrar_key, url_sin_servidor
+from api.tests.soporte_redis import url_redis_sin_servidor
 
 RUTA = "/v1/_prueba"
 URL_SIN_SERVIDOR = url_sin_servidor(secrets.token_urlsafe(24))
@@ -66,8 +68,15 @@ CABECERAS_MAL_FORMADAS: list[tuple[bytes, bytes]] = [
 ]
 
 
-def _ajustes(url: URL | str, pepper: bytes, tmp_path: Path) -> Ajustes:
-    return Ajustes(url_bd=url, pepper=pepper, datos=tmp_path / "datos")
+def _ajustes(
+    url: URL | str, pepper: bytes, tmp_path: Path, url_redis: str | None = None
+) -> Ajustes:
+    return Ajustes(
+        url_bd=url,
+        pepper=pepper,
+        datos=tmp_path / "datos",
+        url_redis=url_redis or url_redis_sin_servidor(),
+    )
 
 
 def _app_de_prueba(ajustes: Ajustes) -> FastAPI:
@@ -138,6 +147,20 @@ def consultas(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return registradas
 
 
+class _LimitadorFalso:
+    """Anota la IP de cada rechazo y responde lo que se le pida, sin Redis."""
+
+    def __init__(self, veredicto: Veredicto | None = None) -> None:
+        self.veredicto = veredicto or Veredicto(permitido=True)
+        self.ips: list[str | None] = []
+
+    async def contar_sin_autenticar(self, host: str | None) -> Veredicto:
+        self.ips.append(host)
+        if self.veredicto.reintentar_en_s < 0:
+            raise RedisNoDisponible
+        return self.veredicto
+
+
 class _SesionFalsa:
     async def __aenter__(self) -> Self:
         return self
@@ -146,13 +169,19 @@ class _SesionFalsa:
         return None
 
 
-def _request(headers: list[tuple[bytes, bytes]]) -> Request:
+def _request(
+    headers: list[tuple[bytes, bytes]],
+    limitador: _LimitadorFalso | None = None,
+    cliente: tuple[str, int] | None = None,
+) -> Request:
     app = SimpleNamespace(
         state=SimpleNamespace(
-            sesiones=_SesionFalsa, ajustes=SimpleNamespace(pepper=PEPPER_FICTICIO)
+            sesiones=_SesionFalsa,
+            ajustes=SimpleNamespace(pepper=PEPPER_FICTICIO),
+            limitador=limitador or _LimitadorFalso(),
         )
     )
-    return Request({"type": "http", "headers": headers, "app": app})
+    return Request({"type": "http", "headers": headers, "app": app, "client": cliente})
 
 
 @pytest.mark.anyio
@@ -257,6 +286,68 @@ async def test_sin_fila_rechaza_aunque_la_comparacion_diera_verdadero(
     assert error.value.status_code == 401
 
 
+# ------------------------------------------------- límite por IP de lo no autenticado (K58)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("cabecera", CABECERAS_MAL_FORMADAS[:3])
+async def test_un_rechazo_cuenta_la_ip_de_la_conexion_y_no_la_de_las_cabeceras(
+    cabecera: tuple[bytes, bytes], consultas: list[str]
+) -> None:
+    limitador = _LimitadorFalso()
+    falsas = [
+        (b"x-forwarded-for", b"198.51.100.1"),
+        (b"x-real-ip", b"198.51.100.2"),
+        (b"forwarded", b"for=198.51.100.3"),
+    ]
+    with pytest.raises(HTTPException) as error:
+        await autenticar(
+            _request([cabecera, *falsas], limitador, ("203.0.113.9", 4444))
+        )
+    assert error.value.status_code == 401
+    assert limitador.ips == ["203.0.113.9"]
+
+
+@pytest.mark.anyio
+async def test_una_key_con_formato_que_no_autentica_tambien_cuenta(
+    consultas: list[str],
+) -> None:
+    limitador = _LimitadorFalso()
+    cabecera = (b"authorization", b"Bearer " + KEY_CON_FORMATO.encode())
+    with pytest.raises(HTTPException):
+        await autenticar(_request([cabecera], limitador, ("203.0.113.9", 1)))
+    assert consultas == [PREFIJO_CON_FORMATO]
+    assert limitador.ips == ["203.0.113.9"]
+
+
+@pytest.mark.anyio
+async def test_sin_conexion_tcp_cuenta_como_sin_ip(consultas: list[str]) -> None:
+    limitador = _LimitadorFalso()
+    with pytest.raises(HTTPException):
+        await autenticar(_request([], limitador))
+    assert limitador.ips == [None]
+
+
+@pytest.mark.anyio
+async def test_pasado_el_limite_es_429_con_retry_after(consultas: list[str]) -> None:
+    limitador = _LimitadorFalso(Veredicto(permitido=False, reintentar_en_s=37))
+    with pytest.raises(HTTPException) as error:
+        await autenticar(_request([], limitador))
+    assert error.value.status_code == 429
+    assert error.value.detail == "Too Many Requests"
+    assert error.value.headers == {"Retry-After": "37", "Connection": "close"}
+
+
+@pytest.mark.anyio
+async def test_sin_redis_un_rechazo_es_503_y_no_401(consultas: list[str]) -> None:
+    limitador = _LimitadorFalso(Veredicto(permitido=False, reintentar_en_s=-1))
+    with pytest.raises(HTTPException) as error:
+        await autenticar(_request([], limitador))
+    assert error.value.status_code == 503
+    assert error.value.detail == "Service Unavailable"
+    assert error.value.headers == {"Connection": "close"}
+
+
 # ------------------------------------------------------------------- HTTP y BD real
 
 
@@ -266,8 +357,8 @@ def pepper() -> bytes:
 
 
 @pytest.fixture
-def ajustes(bd_limpia: URL, pepper: bytes, tmp_path: Path) -> Ajustes:
-    return _ajustes(bd_limpia, pepper, tmp_path)
+def ajustes(bd_limpia: URL, pepper: bytes, tmp_path: Path, url_redis: str) -> Ajustes:
+    return _ajustes(bd_limpia, pepper, tmp_path, url_redis)
 
 
 @pytest.fixture
@@ -376,10 +467,10 @@ def test_todo_rechazo_es_el_mismo_401(
 
 
 def test_un_pepper_distinto_no_autentica(
-    bd_limpia: URL, sembrada: KeySembrada, tmp_path: Path
+    bd_limpia: URL, sembrada: KeySembrada, tmp_path: Path, url_redis: str
 ) -> None:
     otro_pepper = secrets.token_hex(32).encode()
-    app = _app_de_prueba(_ajustes(bd_limpia, otro_pepper, tmp_path))
+    app = _app_de_prueba(_ajustes(bd_limpia, otro_pepper, tmp_path, url_redis))
     with TestClient(app) as cliente:
         _assert_401_exacto(cliente.get(RUTA, headers=_bearer(sembrada.key)))
 

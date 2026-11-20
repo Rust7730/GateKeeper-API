@@ -28,6 +28,7 @@ from api.app.principal import crear_app
 from api.db.repositorios import DatoRechazado, ViolacionDeRestriccion, crear_archivo
 from api.db.sesion import crear_motor, fabrica_sesiones
 from api.tests.soporte_api import KeySembrada, sembrar_key
+from api.tests.soporte_redis import RelojQueCorre
 
 PNG_MINIMO = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x00\x00"
@@ -54,6 +55,7 @@ class Banco:
     pepper: bytes
     datos: Path
     app_a: KeySembrada
+    url_redis: str
 
     def fila(self, archivo_id: str) -> dict[str, Any]:
         motor = create_engine(self.url)
@@ -95,8 +97,16 @@ class Banco:
 
     @contextmanager
     def api(self, **costura: Any) -> Iterator[TestClient]:
+        # El rate limit tiene sus pruebas en test_limite.py: aquí no debe mezclarse (K58).
+        base: dict[str, Any] = {
+            "url_redis": self.url_redis,
+            "reloj_limite": RelojQueCorre(time.time()),
+        }
         ajustes = Ajustes(
-            url_bd=self.url, pepper=self.pepper, datos=self.datos, **costura
+            url_bd=self.url,
+            pepper=self.pepper,
+            datos=self.datos,
+            **{**base, **costura},
         )
         with TestClient(crear_app(ajustes), raise_server_exceptions=False) as cliente:
             cliente.headers["Authorization"] = f"Bearer {self.app_a.key}"
@@ -112,9 +122,15 @@ class Banco:
 
 
 @pytest.fixture
-def banco(bd_limpia: URL, tmp_path: Path) -> Banco:
+def banco(bd_limpia: URL, tmp_path: Path, url_redis: str) -> Banco:
     pepper = secrets.token_hex(32).encode()
-    return Banco(bd_limpia, pepper, tmp_path / "datos", sembrar_key(bd_limpia, pepper))
+    return Banco(
+        bd_limpia,
+        pepper,
+        tmp_path / "datos",
+        sembrar_key(bd_limpia, pepper),
+        url_redis,
+    )
 
 
 def _comando(tmp_path: Path, cuerpo: str) -> tuple[str, ...]:

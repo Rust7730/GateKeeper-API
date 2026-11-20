@@ -22,13 +22,20 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 
 from api.app import arranque, principal
-from api.app.ajustes import VARIABLE_DATOS, VARIABLE_HMAC, Ajustes, ConfiguracionError
+from api.app.ajustes import (
+    VARIABLE_DATOS,
+    VARIABLE_HMAC,
+    VARIABLE_REDIS,
+    Ajustes,
+    ConfiguracionError,
+)
 from api.app.estados import Estado
 from api.app.principal import crear_app
 from api.db.config import VARIABLE_URL_BD, VARIABLE_URL_MIGRACION
 from api.db.repositorios import cambiar_estado, crear_archivo, registrar_resultado
 from api.db.sesion import crear_motor, fabrica_sesiones
 from api.tests.soporte_api import KeySembrada, sembrar_key, url_sin_servidor
+from api.tests.soporte_redis import url_redis_sin_servidor
 
 RAIZ = Path(__file__).resolve().parents[2]
 _PR_GET_DUMPABLE = 3
@@ -92,7 +99,12 @@ def datos(tmp_path: Path) -> Path:
 
 
 def _ajustes(url: URL, datos: Path) -> Ajustes:
-    return Ajustes(url_bd=url, pepper=secrets.token_hex(32).encode(), datos=datos)
+    return Ajustes(
+        url_bd=url,
+        pepper=secrets.token_hex(32).encode(),
+        datos=datos,
+        url_redis=url_redis_sin_servidor(),
+    )
 
 
 def test_k51_el_tipo_de_error_del_barrido_es_el_de_la_decision() -> None:
@@ -160,6 +172,7 @@ def test_sin_bd_al_arrancar_no_arranca_ni_muestra_la_contrasena(
         url_bd=url_sin_servidor(contrasena),
         pepper=secrets.token_hex(32).encode(),
         datos=datos,
+        url_redis=url_redis_sin_servidor(),
     )
     with pytest.raises(ConfiguracionError) as error, TestClient(crear_app(ajustes)):
         pass  # pragma: no cover
@@ -192,6 +205,7 @@ def test_k28_con_uvicorn_nadie_lee_el_entorno_de_la_api(
         VARIABLE_URL_BD: bd_limpia.render_as_string(hide_password=False),
         VARIABLE_HMAC: secrets.token_hex(32),
         VARIABLE_DATOS: str(datos),
+        VARIABLE_REDIS: url_redis_sin_servidor(),
     }
     proceso = subprocess.Popen(
         [
@@ -272,7 +286,7 @@ def _desde_un_padre(entorno_del_padre: dict[str, str], antes: str = "") -> str:
     return salida.stdout
 
 
-@pytest.mark.parametrize("variable", [VARIABLE_HMAC, VARIABLE_URL_BD])
+@pytest.mark.parametrize("variable", [VARIABLE_HMAC, VARIABLE_URL_BD, VARIABLE_REDIS])
 def test_k52_un_padre_con_los_secretos_impide_arrancar(variable: str) -> None:
     secreto = secrets.token_hex(24)
     salida = _desde_un_padre({variable: secreto})

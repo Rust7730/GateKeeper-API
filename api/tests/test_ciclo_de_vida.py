@@ -18,12 +18,14 @@ from api.app.ajustes import (
     UPLOADS_TMP,
     VARIABLE_DATOS,
     VARIABLE_HMAC,
+    VARIABLE_REDIS,
     Ajustes,
     ConfiguracionError,
 )
 from api.app.principal import crear_app
 from api.db.config import VARIABLE_URL_BD, ConfiguracionBDError
 from api.tests.soporte_api import url_cruda, url_sin_servidor
+from api.tests.soporte_redis import url_redis_sin_servidor
 
 RAIZ = Path(__file__).resolve().parents[2]
 # token_urlsafe y no token_hex: una URL de abajo la usa de puerto y no debe ser un número.
@@ -32,6 +34,8 @@ CONTRASENA_BD = secrets.token_urlsafe(24)
 URL_SIN_SERVIDOR = url_sin_servidor(CONTRASENA_BD)
 PEPPER = secrets.token_hex(16).encode()
 PEPPER_CORTO = secrets.token_hex(15)
+# K59: tampoco hay Redis; la app arranca igual (K60) y aquí no se cuenta nada.
+URL_REDIS = url_redis_sin_servidor()
 
 
 async def _sin_barrido(*_: object) -> None:
@@ -49,12 +53,17 @@ def sin_barrido(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def ajustes(tmp_path: Path) -> Ajustes:
-    return Ajustes(url_bd=URL_SIN_SERVIDOR, pepper=PEPPER, datos=tmp_path / "datos")
+    return Ajustes(
+        url_bd=URL_SIN_SERVIDOR,
+        pepper=PEPPER,
+        datos=tmp_path / "datos",
+        url_redis=URL_REDIS,
+    )
 
 
 @pytest.fixture
 def sin_entorno(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
-    for variable in (VARIABLE_URL_BD, VARIABLE_HMAC, VARIABLE_DATOS):
+    for variable in (VARIABLE_URL_BD, VARIABLE_HMAC, VARIABLE_DATOS, VARIABLE_REDIS):
         monkeypatch.delenv(variable, raising=False)
     return monkeypatch
 
@@ -117,6 +126,7 @@ def test_sin_ajustes_se_leen_del_entorno_al_arrancar(
     sin_entorno.setenv(VARIABLE_URL_BD, URL_SIN_SERVIDOR)
     sin_entorno.setenv(VARIABLE_HMAC, PEPPER.decode())
     sin_entorno.setenv(VARIABLE_DATOS, str(tmp_path / "datos"))
+    sin_entorno.setenv(VARIABLE_REDIS, URL_REDIS)
     with TestClient(app) as cliente:
         assert cliente.app.state.ajustes.pepper == PEPPER
     assert (tmp_path / "datos" / UPLOADS_TMP).is_dir()
@@ -128,6 +138,7 @@ def test_sin_ajustes_se_leen_del_entorno_al_arrancar(
         (VARIABLE_URL_BD, ConfiguracionBDError),
         (VARIABLE_HMAC, ConfiguracionError),
         (VARIABLE_DATOS, ConfiguracionError),
+        (VARIABLE_REDIS, ConfiguracionError),
     ],
 )
 def test_sin_un_dato_el_arranque_falla(
@@ -139,6 +150,7 @@ def test_sin_un_dato_el_arranque_falla(
     sin_entorno.setenv(VARIABLE_URL_BD, URL_SIN_SERVIDOR)
     sin_entorno.setenv(VARIABLE_HMAC, PEPPER.decode())
     sin_entorno.setenv(VARIABLE_DATOS, str(tmp_path / "datos"))
+    sin_entorno.setenv(VARIABLE_REDIS, URL_REDIS)
     sin_entorno.delenv(faltante)
     with pytest.raises(error, match=faltante) as capturado, TestClient(crear_app()):
         pass  # pragma: no cover
@@ -152,6 +164,7 @@ def test_un_pepper_corto_falla_al_arrancar_sin_mostrarlo(
     sin_entorno.setenv(VARIABLE_URL_BD, URL_SIN_SERVIDOR)
     sin_entorno.setenv(VARIABLE_HMAC, PEPPER_CORTO)
     sin_entorno.setenv(VARIABLE_DATOS, str(tmp_path / "datos"))
+    sin_entorno.setenv(VARIABLE_REDIS, URL_REDIS)
     with pytest.raises(ConfiguracionError) as capturado, TestClient(crear_app()):
         pass  # pragma: no cover
     assert PEPPER_CORTO not in str(capturado.value)
@@ -172,7 +185,11 @@ def test_un_pepper_corto_falla_al_arrancar_sin_mostrarlo(
 def test_una_url_invalida_falla_al_arrancar_sin_mostrarla(
     tmp_path: Path, url: str
 ) -> None:
-    app = crear_app(Ajustes(url_bd=url, pepper=PEPPER, datos=tmp_path / "datos"))
+    app = crear_app(
+        Ajustes(
+            url_bd=url, pepper=PEPPER, datos=tmp_path / "datos", url_redis=URL_REDIS
+        )
+    )
     with pytest.raises(ConfiguracionError) as capturado, TestClient(app):
         pass  # pragma: no cover
     assert CONTRASENA_BD not in str(capturado.value)
@@ -183,7 +200,12 @@ def test_una_url_invalida_falla_al_arrancar_sin_mostrarla(
 def test_si_fallan_los_directorios_no_arranca(tmp_path: Path) -> None:
     (tmp_path / "datos").write_bytes(b"x")
     app = crear_app(
-        Ajustes(url_bd=URL_SIN_SERVIDOR, pepper=PEPPER, datos=tmp_path / "datos")
+        Ajustes(
+            url_bd=URL_SIN_SERVIDOR,
+            pepper=PEPPER,
+            datos=tmp_path / "datos",
+            url_redis=URL_REDIS,
+        )
     )
     with pytest.raises(ConfiguracionError), TestClient(app):
         pass  # pragma: no cover
@@ -196,6 +218,7 @@ def test_una_ruta_de_datos_relativa_no_arranca_ni_crea_nada(
     sin_entorno.setenv(VARIABLE_URL_BD, URL_SIN_SERVIDOR)
     sin_entorno.setenv(VARIABLE_HMAC, PEPPER.decode())
     sin_entorno.setenv(VARIABLE_DATOS, "relativa")
+    sin_entorno.setenv(VARIABLE_REDIS, URL_REDIS)
     with (
         pytest.raises(ConfiguracionError, match=VARIABLE_DATOS),
         TestClient(crear_app()),

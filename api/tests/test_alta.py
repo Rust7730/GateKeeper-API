@@ -89,6 +89,7 @@ def test_la_key_se_imprime_una_sola_vez_y_solo_en_stdout(
 @pytest.mark.usefixtures("entorno")
 def test_la_key_impresa_autentica_en_la_api(
     bd_limpia: URL,
+    url_redis: str,
     pepper: bytes,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -96,7 +97,11 @@ def test_la_key_impresa_autentica_en_la_api(
     assert alta.main(["portal"]) == 0
     key = capsys.readouterr().out.strip()
 
-    app = crear_app(Ajustes(url_bd=bd_limpia, pepper=pepper, datos=tmp_path / "d"))
+    app = crear_app(
+        Ajustes(
+            url_bd=bd_limpia, pepper=pepper, datos=tmp_path / "d", url_redis=url_redis
+        )
+    )
     router = crear_router_v1()
 
     @router.get("/_prueba")

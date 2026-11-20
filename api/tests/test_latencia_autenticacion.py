@@ -11,7 +11,7 @@ p95 que se imprime con ``pytest -s``. Los topes se multiplican por el factor de
 import secrets
 import statistics
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -23,9 +23,11 @@ from starlette.requests import Request
 
 from api.app.ajustes import Ajustes
 from api.app.autenticacion import autenticar, calcular_hash, generar_key
+from api.app.limite import abrir_limitador
 from api.app.principal import crear_app
 from api.db.repositorios import crear_api_key, crear_aplicacion
 from api.db.tests.latencia import exigir_tope_ms
+from api.tests.soporte_redis import RelojQueCorre
 
 pytestmark = pytest.mark.anyio
 
@@ -43,13 +45,26 @@ def pepper() -> bytes:
 
 
 @pytest.fixture
-def app(bd_limpia: URL, pepper: bytes, tmp_path: Path, sesiones: Sesiones) -> Any:
+async def app(
+    bd_limpia: URL, pepper: bytes, tmp_path: Path, sesiones: Sesiones, url_redis: str
+) -> AsyncIterator[Any]:
     # Sin lifespan: usa la fábrica del fixture, sobre el mismo bucle de eventos que la prueba.
-    ajustes = Ajustes(url_bd=bd_limpia, pepper=pepper, datos=tmp_path)
+    ajustes = Ajustes(
+        url_bd=bd_limpia,
+        pepper=pepper,
+        datos=tmp_path,
+        url_redis=url_redis,
+        reloj_limite=RelojQueCorre(time.time()),
+    )
     aplicacion = crear_app(ajustes)
+    limitador = abrir_limitador(url_redis, ajustes.reloj_limite)
     aplicacion.state.ajustes = ajustes
     aplicacion.state.sesiones = sesiones
-    return aplicacion
+    aplicacion.state.limitador = limitador
+    try:
+        yield aplicacion
+    finally:
+        await limitador.cerrar()
 
 
 def _request(app: Any, key: str) -> Request:

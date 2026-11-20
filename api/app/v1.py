@@ -16,7 +16,7 @@ import logging
 import os
 import stat
 import uuid
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse
@@ -24,6 +24,7 @@ from fastapi.responses import FileResponse
 from api.app.analisis import agendar_analisis
 from api.app.autenticacion import AplicacionAutenticada, autenticar
 from api.app.estados import Estado, es_descargable
+from api.app.limite import RedisNoDisponible, demasiadas_peticiones, no_disponible
 from api.app.recepcion import rechazo, recibir_archivo
 from api.app.tipos import EXTENSIONES
 from api.db.repositorios import (
@@ -67,14 +68,34 @@ async def _archivo_propio(
     return archivo
 
 
+async def limitar_subida(
+    request: Request, aplicacion_id: AplicacionAutenticada
+) -> uuid.UUID:
+    """Una ficha del bucket de la aplicación (K10, K58), antes de leer el cuerpo.
+
+    Solo la pide ``POST /v1/files``: consultar el estado o descargar no gasta cupo.
+    """
+    try:
+        veredicto = await request.app.state.limitador.gastar_subida(aplicacion_id)
+    except RedisNoDisponible:
+        raise no_disponible() from None
+    if not veredicto.permitido:
+        raise demasiadas_peticiones(veredicto.reintentar_en_s)
+    return aplicacion_id
+
+
+SubidaPermitida = Annotated[uuid.UUID, Depends(limitar_subida)]
+
+
 def crear_router_v1() -> APIRouter:
     router = APIRouter(prefix="/v1", dependencies=[Depends(autenticar)])
 
     @router.post("/files", status_code=status.HTTP_202_ACCEPTED)
     async def subir_archivo(
-        request: Request, aplicacion_id: AplicacionAutenticada
+        request: Request, aplicacion_id: SubidaPermitida
     ) -> dict[str, str]:
-        """Antes del 202 solo hay streaming a disco, SHA-256 e ``INSERT`` (M1).
+        """Antes del 202 solo hay streaming a disco, SHA-256 e ``INSERT`` (M1), y antes de
+        leer el cuerpo, una ida a Redis por el rate limit (``limitar_subida``).
 
         K48: como mucho ``TOPE_PENDIENTES`` archivos en ``pendiente`` por aplicación; el
         siguiente recibe 429, sin temporal ni fila. Lo garantiza ``crear_archivo_con_cupo``,

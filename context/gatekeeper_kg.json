@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 448,
-   "aristas": 1053,
+   "nodos": 449,
+   "aristas": 1057,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 62,
+    "Observacion": 63,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 246,
+    "afecta": 250,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -3078,8 +3078,16 @@
    "tipo": "Paso",
    "label": "Rate limiting en Redis por API key y por IP, con respuesta 429.",
    "props": {
-    "estado": "pendiente",
-    "orden": 7
+    "estado": "en_progreso",
+    "orden": 7,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "Rate limit en Redis (K58-K61), rol gk_app (0002) e infra de apertura (K57, K62) implementados y probados; falta integrar con el worker de F1"
+     }
+    ]
    }
   },
   {
@@ -4944,6 +4952,18 @@
     "origen": "gatekeeper-guardian",
     "eleccion": "(1) redis-main con maxmemory 32mb y política noeviction: al llenarse rechaza escrituras y la API responde 503 (falla cerrado). (2) ACL de Redis: usuario default desactivado, usuario salud solo con PING, usuario gatekeeper sin comandos peligrosos. (3) Redis corre con UID 10002. (4) Rol gk_app con CONNECTION LIMIT 25 y NOINHERIT. (5) Red frontend con subred 172.29.80.0/28 y nginx fijo en 172.29.80.2, único proxy en que confía uvicorn. (6) Si se revierte a una imagen anterior a la migración 0002 (solo con --revertir), la API vuelve a conectarse como dueña del esquema, con un AVISO en el registro.",
     "fecha_decision": "2026-11-19"
+   }
+  },
+  {
+   "id": "K63",
+   "tipo": "Observacion",
+   "label": "Tamaño del pool de conexiones a Redis",
+   "props": {
+    "propuesta": "CONEXIONES_REDIS = 16 en el BlockingConnectionPool del rate limit",
+    "hallazgo": "Cada operación Lua en Redis tarda menos de 1 ms; 16 conexiones acotan la concurrencia hacia redis-main sin bloquear ráfagas y respetan el timeout de 1 s de K61",
+    "decision": "pendiente",
+    "fecha_propuesta": "2026-11-19",
+    "origen": "gatekeeper-guardian"
    }
   }
  ],
@@ -10310,6 +10330,26 @@
    "de": "K62",
    "rel": "afecta",
    "a": "svc:nginx"
+  },
+  {
+   "de": "K63",
+   "rel": "afecta",
+   "a": "F2.07"
+  },
+  {
+   "de": "K63",
+   "rel": "afecta",
+   "a": "K59"
+  },
+  {
+   "de": "K63",
+   "rel": "afecta",
+   "a": "svc:api"
+  },
+  {
+   "de": "K63",
+   "rel": "afecta",
+   "a": "svc:redis"
   }
  ]
 }

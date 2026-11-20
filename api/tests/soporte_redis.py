@@ -28,7 +28,9 @@ from api.db.tests.soporte_postgres import (
     exigir_docker,
 )
 
-IMAGEN_REDIS = "redis:8.10.3-alpine3.23"  # la de `redis-main` (deploy/docker-compose.yml)
+IMAGEN_REDIS = (
+    "redis:8.10.3-alpine3.23"  # la de `redis-main` (deploy/docker-compose.yml)
+)
 PUERTO_REDIS = 6379
 USUARIO_API = "gatekeeper"
 ACL_API = "~* +@all -@dangerous"  # deploy/instalar.sh
@@ -168,3 +170,11 @@ class RelojQueCorre:
     def __call__(self) -> float:
         self.ahora += 1.0
         return self.ahora
+
+
+def url_redis_sin_servidor() -> str:
+    """URL válida con contraseña aleatoria; en el puerto 1 no escucha nadie.
+
+    Para las pruebas que solo construyen la app o arrancan sin llegar a contar nada.
+    """
+    return f"redis://{USUARIO_API}:{secrets.token_hex(16)}@{IP_PUBLICACION}:1/0"

@@ -20,6 +20,22 @@ RUTAS_V1 = {
     "/v1/files",
     "/v1/files/{archivo_id}",
     "/v1/files/{archivo_id}/content",
+    "/v1/auth/login",
+    "/v1/auth/totp",
+    "/v1/auth/totp/enroll",
+    "/v1/auth/refresh",
+    "/v1/auth/logout",
+    "/v1/auth/me",
+    "/v1/auth/admin-check",
+    "/v1/admin/files",
+    "/v1/admin/files/{archivo_id}",
+    "/v1/admin/files/{archivo_id}/release",
+    "/v1/admin/metrics",
+    "/v1/admin/audit",
+    "/v1/admin/api-keys",
+    "/v1/admin/api-keys/{key_id}",
+    "/v1/admin/applications",
+    "/v1/admin/events",
 }
 
 

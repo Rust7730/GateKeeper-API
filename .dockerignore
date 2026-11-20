@@ -4,10 +4,12 @@
 !pyproject.toml
 !uv.lock
 !api/
+!worker/
 
-# Dentro de api/: ni pruebas ni cachés.
+# Dentro de api/ y worker/: ni pruebas ni cachés.
 api/tests/
 api/db/tests/
+worker/tests/
 **/__pycache__/
 **/*.pyc
 **/.pytest_cache/

@@ -1,9 +1,9 @@
 """Endpoints de administración del dashboard SecOps ``/v1/admin/*`` (F5.06–F5.11, K06, K18–K20)."""
 
-import contextlib
+import asyncio
 import http
-import json
 import re
+import time
 import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime
@@ -19,8 +19,9 @@ from api.app.auth_usuarios import (
     UsuarioAutenticado,
     huella_ip,
 )
-from api.app.cola import CANAL_EVENTOS, COLA_ORQUESTAR
+from api.app.cola import COLA_ORQUESTAR, TIMEOUT_COLA_S
 from api.app.estados import Estado
+from api.app.eventos_sse import LimiteClientesSSE
 from api.db.repositorios import ViolacionDeRestriccion, crear_api_key
 from api.db.repositorios_admin import (
     ArchivoAdmin,
@@ -111,6 +112,8 @@ def crear_router_admin() -> APIRouter:
             for item in estado:
                 if item not in estados_validos:
                     raise _error(status.HTTP_400_BAD_REQUEST)
+        if q is not None and "\x00" in q:
+            raise _error(status.HTTP_400_BAD_REQUEST)
         async with request.app.state.sesiones() as sesion:
             elementos, total = await listar_archivos_admin(
                 sesion,
@@ -174,20 +177,23 @@ def crear_router_admin() -> APIRouter:
             )
             aplicacion_id = archivo.aplicacion_id
 
-        # INV-07 / D4: la API no toca quarantine/. Encola al coordinator, que copia
-        # quarantine/<uuid> -> uploads_tmp/<uuid> y reencola solo el CDR en el worker.
-        trabajo_id = f"liberar:{archivo_id}:{uuid.uuid4().hex[:8]}"
-        await request.app.state.cola_orquestar.enqueue_job(
-            "orquestar",
-            str(aplicacion_id),
-            str(archivo_id),
-            "",
-            True,
-            str(admin.id),
-            motivo,
-            _job_id=trabajo_id,
-            _queue_name=COLA_ORQUESTAR,
-        )
+        # INV-07 / D4 / M-10: _job_id determinista para deduplicar liberaciones concurrentes.
+        trabajo_id = f"liberar:{archivo_id}"
+        try:
+            async with asyncio.timeout(TIMEOUT_COLA_S):
+                await request.app.state.cola_orquestar.enqueue_job(
+                    "orquestar",
+                    str(aplicacion_id),
+                    str(archivo_id),
+                    "",
+                    True,
+                    str(admin.id),
+                    motivo,
+                    _job_id=trabajo_id,
+                    _queue_name=COLA_ORQUESTAR,
+                )
+        except Exception:  # noqa: BLE001
+            raise _error(status.HTTP_503_SERVICE_UNAVAILABLE) from None
         return {
             "id": str(archivo_id),
             "estado": Estado.EN_CUARENTENA.value,
@@ -347,35 +353,34 @@ def crear_router_admin() -> APIRouter:
     @router.get("/events")
     async def stream_eventos(
         request: Request,
-        _usuario: UsuarioAutenticado,
+        usuario: UsuarioAutenticado,
     ) -> StreamingResponse:
-        """Flujo SSE en tiempo real suscrito a ``gk:eventos:archivo`` (F5.11, K20)."""
+        """Flujo SSE en tiempo real sobre ``HubEventosSSE`` dedicado (H-07, M-7, F5.11, K20)."""
+        hub = request.app.state.hub_sse
 
         async def _generador() -> AsyncIterator[str]:
-            pubsub = request.app.state.cola_orquestar.pubsub()
-            await pubsub.subscribe(CANAL_EVENTOS)
             try:
-                yield ": conectado\n\n"
-                while not await request.is_disconnected():
-                    mensaje = await pubsub.get_message(
-                        ignore_subscribe_messages=True,
-                        timeout=_KEEPALIVE_SSE_S,
-                    )
-                    if mensaje is None:
-                        yield ": keepalive\n\n"
-                        continue
-                    datos = mensaje.get("data")
-                    if isinstance(datos, bytes):
-                        datos = datos.decode("utf-8", errors="replace")
-                    if isinstance(datos, str):
-                        with contextlib.suppress(json.JSONDecodeError):
-                            evento = json.loads(datos)
-                            if isinstance(evento, dict) and "tipo" in evento:
-                                yield f"data: {json.dumps(evento)}\n\n"
-            finally:
-                with contextlib.suppress(Exception):
-                    await pubsub.unsubscribe(CANAL_EVENTOS)
-                    await pubsub.aclose()
+                async with hub.suscribir() as cola:
+                    yield ": conectado\n\n"
+                    while not await request.is_disconnected():
+                        # M-7: cortar el stream al expirar el JWT (obliga a refrescar sesión).
+                        if usuario.exp and time.time() >= usuario.exp:
+                            yield ": token_expirado\n\n"
+                            break
+                        try:
+                            evento = await asyncio.wait_for(
+                                cola.get(), timeout=_KEEPALIVE_SSE_S
+                            )
+                        except TimeoutError:
+                            yield ": keepalive\n\n"
+                            continue
+                        yield f"data: {evento}\n\n"
+            except LimiteClientesSSE:
+                yield ": limite_clientes\n\n"
+
+        # Comprobación rápida previa para responder 503 si el hub ya está lleno.
+        if len(hub._clientes) >= hub._max_clientes:
+            raise _error(status.HTTP_503_SERVICE_UNAVAILABLE)
 
         return StreamingResponse(
             _generador(),

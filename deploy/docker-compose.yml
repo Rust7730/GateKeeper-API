@@ -208,21 +208,23 @@ services:
 
   # Demonio clamd aislado sin salida a internet (D1, D2, F4.01, K65): lee las firmas que descarga
   # freshclam en clamav_db (:ro) y escanea originales por INSTREAM en el puerto 3310.
+  # Sin /init de la imagen: /init corre como root e intenta `chown /var/lib/clamav`, que falla con :ro.
   clamav:
     image: clamav/clamav:1.4.2_base
     restart: unless-stopped
-    environment:
-      CLAMAV_NO_FRESHCLAMD: "true"
-      CLAMAV_NO_MILTERD: "true"
+    user: "clamav"
+    entrypoint: ["clamd", "--foreground"]
     volumes:
       - clamav_db:/var/lib/clamav:ro
+    tmpfs:
+      - /tmp:size=64m
     networks: [isolated]
     healthcheck:
-      test: ["CMD", "clamdcheck.sh"]
-      interval: 15s
+      test: ["CMD-SHELL", "printf 'PING\n' | nc -w 3 127.0.0.1 3310 | grep -qx PONG"]
+      interval: 10s
       timeout: 5s
       retries: 20
-      start_period: 90s
+      start_period: 60s
     mem_limit: 2560m
     memswap_limit: 2560m
     pids_limit: 64

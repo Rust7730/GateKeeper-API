@@ -8,10 +8,14 @@
 # secretos, no reinstala lo que ya está y solo pide otro certificado si el dominio cambió o vence.
 #
 # Hace, en orden: comprobaciones, Docker Engine desde su repositorio oficial (solo la llave con la
-# huella publicada), cosign (versión y checksum fijados), actualizaciones automáticas, swap, usuario de
+# huella publicada), cosign (versión y checksum fijados), actualizaciones automáticas, swap, usuarios de
 # servicio y directorios, copia de deploy/ a /opt/gatekeeper, límite de conexiones por IP al puerto 80,
-# secretos en /etc/gatekeeper/*.env (0600, nunca se imprimen), certificado de Let's Encrypt (HTTP-01
-# por webroot), primer despliegue (con la firma de la imagen verificada) y timers de systemd.
+# secretos en /etc/gatekeeper/ (nunca se imprimen), certificado de Let's Encrypt (HTTP-01 por webroot),
+# rol gk_app de PostgreSQL, primer despliegue (con la firma de la imagen verificada) y timers de systemd.
+#
+# Sobre una instalación anterior a gk_app y Redis (la API conectada como dueña del esquema), conserva
+# la base, el pepper y las contraseñas que ya existen, y añade las nuevas. La API pasa a gk_app en
+# cuanto el esquema le da permisos (migración 0002); hasta entonces sigue como dueña (actualizar.sh).
 set -euo pipefail
 umask 022
 
@@ -23,6 +27,7 @@ readonly VAR=/var/lib/gatekeeper
 readonly LOG=/var/log/gatekeeper
 readonly IMAGEN_INICIAL="ghcr.io/rust7730/gatekeeper-api:main"
 readonly UID_SERVICIO=10001 # el mismo usuario que corre la API dentro de la imagen
+readonly UID_REDIS=10002     # el usuario de redis-main en el compose
 # Huella publicada por Docker para su llave de firma de paquetes (docs.docker.com/engine/install/ubuntu).
 readonly HUELLA_DOCKER="9DC858229FC7DD38854AE2D88D81803C0EBFCD88" # pragma: allowlist secret (huella pública)
 # cosign verifica la firma de cada imagen antes de desplegarla. SHA-256 de cosign-linux-amd64 según
@@ -105,7 +110,8 @@ flock 9
 paso "Instalando paquetes base"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-apt-get install -y -q ca-certificates curl gnupg openssl unattended-upgrades
+# python3: calcula el verificador SCRAM de la contraseña de gk_app (ver "Rol gk_app").
+apt-get install -y -q ca-certificates curl gnupg openssl python3 unattended-upgrades
 
 # Deja en `destino` solo la llave con la huella de Docker, y solo si el archivo descargado trae
 # exactamente una llave principal y es esa. Un archivo con otra llave añadida se rechaza.
@@ -191,21 +197,28 @@ fi
 
 # --- Usuario y directorios ----------------------------------------------------------------------
 
-# La API corre en el contenedor como UID 10001. Se reserva en el host con nombre propio para que
-# ninguna cuenta del sistema reciba ese UID y sus archivos en los volúmenes se vean como `gatekeeper`.
-# No tiene shell ni está en el grupo docker.
-paso "Usuario de servicio"
-if id gatekeeper >/dev/null 2>&1; then
-    [[ $(id -u gatekeeper) == "$UID_SERVICIO" ]] ||
-        fallar "el usuario gatekeeper existe con otro UID ($(id -u gatekeeper))."
-else
-    if getent passwd "$UID_SERVICIO" >/dev/null || getent group "$UID_SERVICIO" >/dev/null; then
-        fallar "el UID o GID $UID_SERVICIO ya está en uso."
+# La API corre en el contenedor como UID 10001 y redis-main como 10002. Se reservan en el host con
+# nombre propio para que ninguna cuenta del sistema reciba esos UID: la configuración de redis-main es
+# del 10002, y los archivos de la API en los volúmenes se ven como `gatekeeper`. No tienen shell ni
+# están en el grupo docker.
+reservar_usuario() {
+    local nombre=$1 uid=$2
+    if id "$nombre" >/dev/null 2>&1; then
+        [[ $(id -u "$nombre") == "$uid" ]] ||
+            fallar "el usuario $nombre existe con otro UID ($(id -u "$nombre"))."
+    else
+        if getent passwd "$uid" >/dev/null || getent group "$uid" >/dev/null; then
+            fallar "el UID o GID $uid ya está en uso."
+        fi
+        groupadd --system --gid "$uid" "$nombre"
+        useradd --system --uid "$uid" --gid "$uid" --no-create-home \
+            --home-dir /nonexistent --shell /usr/sbin/nologin "$nombre"
     fi
-    groupadd --system --gid "$UID_SERVICIO" gatekeeper
-    useradd --system --uid "$UID_SERVICIO" --gid "$UID_SERVICIO" --no-create-home \
-        --home-dir /nonexistent --shell /usr/sbin/nologin gatekeeper
-fi
+}
+
+paso "Usuarios de servicio"
+reservar_usuario gatekeeper "$UID_SERVICIO"
+reservar_usuario gatekeeper-redis "$UID_REDIS"
 
 paso "Directorios y archivos del despliegue"
 install -d -o root -g root -m 0755 "$OPT"
@@ -275,17 +288,81 @@ else
     usuario_bd=gatekeeper
     clave_bd=$(openssl rand -hex 32)
     pepper=$(openssl rand -hex 32)
-    # Mientras no exista gk_app (migración 0002), la API y las migraciones usan el mismo rol, dueño
-    # del esquema: es una limitación declarada en el README.
+    # La URL del dueño del esquema es solo para las migraciones (y el respaldo, que corre dentro del
+    # contenedor de postgres). La API recibe la suya en api-bd.env (abajo y actualizar.sh).
     url_bd="postgresql+psycopg://${usuario_bd}:${clave_bd}@postgres:5432/gatekeeper"
     escribir_secreto "$ETC/postgres.env" \
         "POSTGRES_USER=${usuario_bd}" "POSTGRES_DB=gatekeeper" "POSTGRES_PASSWORD=${clave_bd}"
-    escribir_secreto "$ETC/api.env" \
-        "GATEKEEPER_DATABASE_URL=${url_bd}" "GATEKEEPER_PEPPER=${pepper}"
+    escribir_secreto "$ETC/api.env" "GATEKEEPER_PEPPER=${pepper}"
     escribir_secreto "$ETC/migrate.env" "GATEKEEPER_DATABASE_URL_MIGRACION=${url_bd}"
     unset clave_bd pepper url_bd
     echo "Generados (no se muestran)."
 fi
+
+# Las contraseñas de gk_app y de redis-main (K59), una sola vez cada una; en una instalación anterior
+# se añaden sin tocar las demás. La de gk_app se vuelve a fijar en la base en cada corrida (ver "Rol
+# gk_app"), y Redis no guarda nada: regenerar una que falte no rompe nada. Hexadecimal de 256 bits:
+# va tal cual dentro de una URL, sin escapar.
+for archivo in gk_app.clave redis.clave; do
+    if [[ ! -s $ETC/$archivo ]]; then
+        escribir_secreto "$ETC/$archivo" "$(openssl rand -hex 32)"
+        echo "Generada $archivo (no se muestra)."
+    fi
+    [[ $(<"$ETC/$archivo") =~ ^[0-9a-f]{64}$ ]] || fallar "$ETC/$archivo no tiene el formato esperado."
+done
+
+# $VAR/api-bd.env lleva GATEKEEPER_DATABASE_URL de la API. Lo reescribe actualizar.sh antes de cada
+# arranque de la API (gk_app si el esquema ya le da permisos), y va en $VAR porque el timer no puede
+# escribir en /etc. Si aún no existe, empieza con la URL del dueño, que es con la que corre hoy una
+# instalación anterior. Se escribe antes de quitar esa URL de api.env: la API nunca se queda sin ella.
+if [[ ! -f $VAR/api-bd.env ]]; then
+    url_dueno=$(sed -n 's/^GATEKEEPER_DATABASE_URL_MIGRACION=//p' "$ETC/migrate.env")
+    [[ $url_dueno == postgresql+psycopg://* ]] || fallar "$ETC/migrate.env no tiene la URL de migración."
+    temporal=$(mktemp "$VAR/.secreto.XXXXXX")
+    chmod 0600 "$temporal"
+    printf 'GATEKEEPER_DATABASE_URL=%s\n' "$url_dueno" >"$temporal"
+    mv -f "$temporal" "$VAR/api-bd.env"
+    unset url_dueno
+fi
+
+# api.env: todo lo que ya tenía, tal cual (el pepper nunca se toca), menos GATEKEEPER_DATABASE_URL, que
+# pasa a api-bd.env, y con GATEKEEPER_REDIS_URL, que se escribe a partir de redis.clave. El usuario
+# `gatekeeper` de Redis es el de la API (ver redis.conf, abajo).
+lineas_api=()
+while IFS= read -r linea || [[ -n $linea ]]; do
+    case $linea in
+    GATEKEEPER_DATABASE_URL=* | GATEKEEPER_REDIS_URL=*) ;;
+    *) lineas_api+=("$linea") ;;
+    esac
+done <"$ETC/api.env"
+[[ $(printf '%s\n' "${lineas_api[@]}" | grep -c '^GATEKEEPER_PEPPER=') == 1 ]] ||
+    fallar "$ETC/api.env debe tener exactamente un GATEKEEPER_PEPPER; no se toca."
+clave_redis=$(<"$ETC/redis.clave")
+lineas_api+=("GATEKEEPER_REDIS_URL=redis://gatekeeper:${clave_redis}@redis-main:6379/0")
+if [[ $(printf '%s\n' "${lineas_api[@]}") != "$(<"$ETC/api.env")" ]]; then
+    escribir_secreto "$ETC/api.env" "${lineas_api[@]}"
+    echo "api.env actualizado (no se muestra)."
+fi
+
+# redis.conf: los usuarios de redis-main. Lleva el SHA-256 de la contraseña, no la contraseña, y es del
+# usuario del contenedor (10002) con modo 0400: el compose la monta en solo lectura.
+#   default    desactivado: sin AUTH, Redis no ejecuta nada.
+#   salud      sin contraseña, solo PING: lo usa el healthcheck, que así no necesita el secreto.
+#   gatekeeper la API. Todas las claves, todo menos @dangerous (CONFIG, DEBUG, MODULE, SAVE, KEYS,
+#              FLUSHALL, SHUTDOWN, MONITOR...): una API comprometida no reconfigura ni vacía Redis.
+huella_redis=$(printf '%s' "$clave_redis" | sha256sum | cut -d' ' -f1)
+unset clave_redis lineas_api
+temporal=$(mktemp "$ETC/.secreto.XXXXXX")
+chmod 0600 "$temporal"
+printf '%s\n' "# Generado por instalar.sh; no se edita a mano." \
+    "user default off" \
+    "user salud on nopass -@all +ping" \
+    "user gatekeeper on #${huella_redis} ~* +@all -@dangerous" >"$temporal"
+chown "$UID_REDIS:$UID_REDIS" "$temporal"
+chmod 0400 "$temporal"
+mv -f "$temporal" "$ETC/redis.conf"
+unset huella_redis
+
 escribir_secreto "$ETC/compose.env" "GATEKEEPER_DOMINIO=${dominio}"
 if [[ ! -f $VAR/imagen.env ]]; then
     printf 'GATEKEEPER_IMAGEN=%s\n' "$IMAGEN_INICIAL" >"$VAR/imagen.env"
@@ -313,25 +390,66 @@ fi
 
 # --- Primer despliegue y timers -----------------------------------------------------------------
 
-paso "Despliegue"
+paso "Estado del despliegue"
 # Tras un downgrade fallido, actualizar.sh deja la API parada y este marcador. Levantarla aquí la pondría
 # a correr sobre un esquema que no conoce: primero hay que restaurar la base (README, Rollback).
 if [[ -e $VAR/detenido ]]; then
     fallar "la API está DETENIDA desde $(cat "$VAR/detenido"). Restaura la base y borra $VAR/detenido (README, Rollback); no se levanta nada."
 fi
+
+# El rol de la API, antes de migrar: la migración 0002 (que corre con el dueño) le da sus permisos, y
+# hace falta que el rol ya exista. Aquí solo se crea y se fija su contraseña y sus atributos: nada de
+# superusuario, ni crear bases o roles, ni replicación, ni saltarse RLS, ni heredar permisos de otros.
+# Se puede correr siempre: crea el rol si falta y si no, solo lo ajusta.
+#
+# La contraseña no llega al servidor: se envía su verificador SCRAM-SHA-256 (sal aleatoria, 4096
+# iteraciones), así que ni el log de PostgreSQL ni pg_stat_activity la ven. Entra a python3 por stdin,
+# nunca como argumento. Límite de 25 conexiones: el pool de la API (5 + 10) y alguna `alta`, dejando
+# sitio al dueño en las 40 de max_connections.
+paso "Rol gk_app de PostgreSQL"
+# shellcheck disable=SC2016 # código Python: sus $ son literales
+verificador_scram='
+import base64, hashlib, hmac, os, sys
+clave = sys.stdin.readline().strip().encode()
+if len(clave) != 64:
+    sys.exit("contraseña de gk_app vacía o con otro formato")
+sal, iteraciones = os.urandom(16), 4096
+salada = hashlib.pbkdf2_hmac("sha256", clave, sal, iteraciones)
+cliente = hmac.new(salada, b"Client Key", "sha256").digest()
+servidor = hmac.new(salada, b"Server Key", "sha256").digest()
+b64 = lambda datos: base64.b64encode(datos).decode()
+print(f"SCRAM-SHA-256${iteraciones}:{b64(sal)}${b64(hashlib.sha256(cliente).digest())}:{b64(servidor)}")
+'
+verificador=$(python3 -I -c "$verificador_scram" <"$ETC/gk_app.clave")
+[[ $verificador =~ ^SCRAM-SHA-256\$4096:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$ ]] ||
+    fallar "no se pudo calcular el verificador de la contraseña de gk_app."
+gk-compose up -d --wait --wait-timeout 120 postgres
+# shellcheck disable=SC2016 # las variables de sh -c se expanden dentro del contenedor de postgres
+gk-compose exec -T postgres sh -c 'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<EOF ||
+SELECT 'CREATE ROLE gk_app' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'gk_app') \gexec
+ALTER ROLE gk_app WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS
+    CONNECTION LIMIT 25 PASSWORD '${verificador}';
+EOF
+    fallar "no se pudo crear o ajustar el rol gk_app."
+unset verificador
+echo "Listo (la contraseña no se muestra)."
+
+paso "Despliegue de la imagen"
 # actualizar.sh toma el mismo cerrojo: se suelta aquí; el timer sigue parado hasta el final.
 flock -u 9
 if ! "$OPT/actualizar.sh"; then
     fallar "el despliegue falló; revisa $LOG/despliegues.log y 'gk-compose logs api'."
 fi
-# Si la imagen ya estaba desplegada, actualizar.sh no hace nada: esto aplica los cambios de
-# configuración de una nueva corrida (compose o nginx). Solo con una imagen ya fijada por digest.
-if grep -q '^GATEKEEPER_IMAGEN=.*@sha256:' "$VAR/imagen.env"; then
-    gk-compose up -d --wait --wait-timeout 120 postgres api
-    gk-compose up -d --wait --wait-timeout 120 --force-recreate nginx nginx-http
-else
+# Si la imagen ya estaba desplegada, actualizar.sh no hace nada: --reaplicar aplica los cambios de
+# configuración de esta corrida (compose, secretos, redis.conf y el rol de la API) a la imagen
+# desplegada y comprueba /health. Solo con una imagen ya fijada por digest.
+if ! grep -q '^GATEKEEPER_IMAGEN=.*@sha256:' "$VAR/imagen.env"; then
     fallar "no hay ninguna imagen desplegada; revisa $LOG/despliegues.log."
 fi
+if ! "$OPT/actualizar.sh" --reaplicar; then
+    fallar "la API no quedó en servicio con la configuración nueva; revisa $LOG/despliegues.log y 'gk-compose logs api'."
+fi
+gk-compose up -d --wait --wait-timeout 120 --force-recreate nginx nginx-http
 
 paso "Timers de systemd"
 systemctl enable --now gatekeeper-actualizar.timer gatekeeper-certificados.timer
@@ -339,7 +457,8 @@ timer_activo=no
 
 paso "Listo"
 cat <<EOF
-Gatekeeper responde en https://$dominio (solo desde las IP permitidas por el grupo de seguridad).
+Gatekeeper responde en https://$dominio para quien deje pasar el grupo de seguridad
+(K57: 443 abierto a todos, 22 solo desde tus IP).
 
 Crear una aplicación y su API key (se muestra una sola vez):
   sudo gk-compose run --rm api /app/.venv/bin/python -m api.app.alta "Mi aplicación"

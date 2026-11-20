@@ -30,7 +30,7 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from api.app.ajustes import VARIABLE_HMAC, Ajustes, ConfiguracionError
+from api.app.ajustes import VARIABLE_HMAC, VARIABLE_REDIS, Ajustes, ConfiguracionError
 from api.db.config import VARIABLE_URL_BD, VARIABLE_URL_MIGRACION
 from api.db.repositorios import cerrar_pendientes_huerfanos
 
@@ -38,8 +38,13 @@ logger = logging.getLogger("gatekeeper.api")
 
 TIPO_ERROR_BARRIDO = "final"  # K51
 # K52: lo que no puede quedar a la vista en el entorno de un ancestro.
-# La de migración lleva la misma contraseña en el README.
-VARIABLES_SECRETAS = (VARIABLE_HMAC, VARIABLE_URL_BD, VARIABLE_URL_MIGRACION)
+# La de migración lleva la misma contraseña en el README. La de Redis, la de su usuario (K59).
+VARIABLES_SECRETAS = (
+    VARIABLE_HMAC,
+    VARIABLE_URL_BD,
+    VARIABLE_URL_MIGRACION,
+    VARIABLE_REDIS,
+)
 SUFIJO_PARCIAL = ".parcial"
 _PR_SET_DUMPABLE = 4  # <linux/prctl.h>
 
@@ -77,7 +82,7 @@ def _secretos_a_la_vista(pid: int) -> list[str]:
 
 
 def comprobar_ancestros() -> None:
-    """K52: ``ConfiguracionError`` si un ancestro tiene a la vista el pepper o la URL de la BD.
+    """K52: ``ConfiguracionError`` si un ancestro expone el pepper o una URL con contraseña.
 
     Recorre desde el padre hasta el pid 1. El mensaje nombra la variable y el pid, nunca el
     valor.

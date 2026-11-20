@@ -52,4 +52,6 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --start-interval=2s -
 # K52: uvicorn es el PID 1, sin uv run, sin shell y sin init intermedios. Un proceso padre con el
 # pepper o la URL de la BD en su entorno haría que la API se negara a arrancar.
 # Un solo proceso (sin --workers): el barrido del arranque supone una sola API (K51).
+# Así, uvicorn solo acepta X-Forwarded-For de 127.0.0.1 (su valor por defecto). En el despliegue, el
+# compose (deploy/docker-compose.yml) repite este comando con --forwarded-allow-ips = la IP fija de nginx.
 CMD ["/app/.venv/bin/uvicorn", "--factory", "api.app.principal:crear_app", "--no-server-header", "--host", "0.0.0.0", "--port", "8000"]

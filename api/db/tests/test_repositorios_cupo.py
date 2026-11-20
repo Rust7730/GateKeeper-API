@@ -208,13 +208,16 @@ async def test_contar_pendientes_devuelve_un_int(sesiones: Sesiones) -> None:
     assert resultado == 0
 
 
-async def test_contar_pendientes_lo_sirve_el_indice(sesiones: Sesiones) -> None:
+async def test_contar_pendientes_lo_sirve_el_indice(
+    sesiones: Sesiones, sesiones_dueno: Sesiones
+) -> None:
     # Con datos y estadísticas, como en producción: una tabla vacía siempre da Seq Scan.
     app_id, vecina = await _aplicacion(sesiones), await _aplicacion(sesiones)
     await _cargar(sesiones, vecina, 5000, "limpio")
     await _cargar(sesiones, app_id, 15, "pendiente")
     await _cargar(sesiones, app_id, 500, "rechazado")
-    async with sesiones() as sesion, sesion.begin():
+    # ANALYZE como dueño: con gk_app PostgreSQL 16 lo salta con una advertencia.
+    async with sesiones_dueno() as sesion, sesion.begin():
         await sesion.execute(text("ANALYZE archivo"))
 
     # Misma forma que la consulta de contar_pendientes (y que la cuenta dentro de

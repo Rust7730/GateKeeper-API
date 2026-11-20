@@ -6,6 +6,7 @@ La configuración, con la contraseña de la BD y el pepper, llega por el entorno
 nunca por argumentos ni por disco.
 """
 
+import dataclasses
 import hashlib
 import json
 import os
@@ -25,6 +26,18 @@ import pytest
 from hijos import MARCA, RAIZ_API
 from soporte_matriz import INTERVALO_SONDEO_S, UUID_RE, multipart
 
+from api.app.ajustes import Ajustes
+
+# K59: la URL de Redis (con su contraseña) llega igual que las demás, por el entorno.
+VARIABLE_REDIS = "GATEKEEPER_REDIS_URL"
+
+
+def _con_redis(banco) -> bool:
+    """La API ya pide Redis y el banco tiene uno."""
+    campos = {campo.name for campo in dataclasses.fields(Ajustes)}
+    return "url_redis" in campos and banco.url_redis is not None
+
+
 _LANZADOR = """
 import json, os, sys
 sys.path.insert(0, {raiz!r})
@@ -33,12 +46,23 @@ import uvicorn
 from api.app.ajustes import Ajustes
 from api.app.principal import crear_app
 cfg = json.loads(os.environ.pop("GK_MATRIZ_CFG"))
+redis = {{"url_redis": cfg["url_redis"]}} if "url_redis" in cfg else {{}}
+if cfg.get("reloj_que_corre"):
+    # Ver soporte_matriz.RelojQueCorre: el rate limit no se mezcla con lo que se prueba.
+    import time
+    class RelojQueCorre:
+        ahora = time.time()
+        def __call__(self):
+            RelojQueCorre.ahora += 1.0
+            return RelojQueCorre.ahora
+    redis["reloj_limite"] = RelojQueCorre()
 app = crear_app(Ajustes(
     url_bd=cfg["url"],
     pepper=cfg["pepper"].encode(),
     datos=Path(cfg["datos"]),
     comando_cdr=tuple(cfg["comando"]),
     timeout_cdr_s=cfg["timeout"],
+    **redis,
 ))
 uvicorn.run(app, host="127.0.0.1", port=cfg["puerto"], log_level="warning",
             server_header=False, loop="uvloop")
@@ -102,6 +126,10 @@ def api_en_proceso(
         "timeout": timeout_cdr_s,
         "puerto": puerto,
     }
+    if _con_redis(banco):
+        configuracion["url_redis"] = banco.url_redis
+    if "reloj_limite" in {campo.name for campo in dataclasses.fields(Ajustes)}:
+        configuracion["reloj_que_corre"] = True
     registro = (directorio / "api.log").open("wb")
     proceso = subprocess.Popen(
         [sys.executable, str(lanzador)],
@@ -430,6 +458,8 @@ def api_por_entorno(
         "GATEKEEPER_PEPPER": banco.pepper.decode(),
         "GATEKEEPER_DATOS": str(banco.datos),
     }
+    if banco.url_redis is not None:
+        entorno[VARIABLE_REDIS] = banco.url_redis
     registro = directorio / f"api_{intermediario}.log"
     with registro.open("wb") as salida:
         proceso = subprocess.Popen(

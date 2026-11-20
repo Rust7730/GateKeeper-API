@@ -13,6 +13,22 @@ Costura de pruebas que debe dar gk-api-dev:
 - ``timeout_cdr_s: float = 30``.
 
 Sin esa costura, ``Banco.api`` hace fallar la prueba con un mensaje claro, no con un TypeError.
+
+Apertura al público (K57–K59): ``Ajustes.url_redis`` (``GATEKEEPER_REDIS_URL``, obligatoria). Si
+``Ajustes`` ya tiene ese campo, ``Banco.ajustes`` le pasa el Redis desechable de la sesión. Costura
+de pruebas del rate limit, que ``leer_ajustes()`` nunca lee del entorno:
+
+- ``reloj_limite: Callable[[], float] = time.time``: el instante actual, en segundos de época, que
+  el limitador usa para recargar el bucket y contar la ventana. Las pruebas lo congelan y lo
+  adelantan a mano (``soporte_limite.RelojFalso``) para probar el ritmo sin esperar.
+
+Las pruebas que no son del rate limit sondean el estado por HTTP cada 20 ms y suben más de 20
+archivos (K48): con el límite de K58 recibirían 429 y probarían otra cosa. Por eso, si ``Ajustes``
+ya tiene la costura, ``Banco.api`` les pasa un ``RelojQueCorre`` (cada lectura avanza 1 s), salvo
+que la prueba pase su propio reloj o pida ``reloj_real=True`` (el ``time.time`` de producción).
+
+La API ve a todo cliente de TestClient desde ``IP_CLIENTE``, una IP de documentación (RFC 5737):
+``"testclient"``, el valor por defecto, no es una IP.
 """
 
 import asyncio
@@ -22,7 +38,7 @@ import re
 import secrets
 import time
 import uuid
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -73,6 +89,23 @@ CAMPOS_ESTADO = {
 # Se deja de alimentar a la app al pasar de aquí: si no corta, no hace falta mandarle 500 MB.
 _ALARMA_BYTES = 32 * 1024 * 1024
 DESCONEXION = object()
+# Origen de las peticiones de prueba (RFC 5737, TEST-NET-1).
+IP_CLIENTE = "192.0.2.10"
+
+
+class RelojQueCorre:
+    """Reloj del rate limit para las pruebas de otros controles: cada lectura avanza 1 s.
+
+    Cada petición recarga al menos 2 fichas del bucket (K58) y la ventana por IP se renueva cada
+    60 lecturas: el límite no se mezcla con lo que se prueba. Las del rate limit no lo usan.
+    """
+
+    def __init__(self) -> None:
+        self.ahora = time.time()
+
+    def __call__(self) -> float:
+        self.ahora += 1.0
+        return self.ahora
 
 
 def multipart(
@@ -113,6 +146,8 @@ class RespuestaAsgi:
     cuerpo: bytes
     leidos: int
     excedio_alarma: bool
+    # Nombres en minúsculas; si se repite una, queda la última.
+    cabeceras: Mapping[str, str] = field(default_factory=dict)
 
 
 class ClienteMatriz:
@@ -198,16 +233,19 @@ class ClienteMatriz:
         ruta: str,
         cabeceras: dict[str, str],
         trozos: Iterable[Any] = (),
+        origen: str = IP_CLIENTE,
     ) -> RespuestaAsgi:
         """Una petición ASGI cuyo cuerpo se entrega trozo a trozo, contando lo que se lee.
 
-        Un trozo ``DESCONEXION`` simula que el cliente corta la conexión.
+        Un trozo ``DESCONEXION`` simula que el cliente corta la conexión. ``origen`` es la IP de
+        la conexión (``scope["client"]``), la que la API ve sin proxy de confianza.
         """
         leidos = 0
         excedio = False
         agotado = False
         estado = 0
         cuerpo = b""
+        recibidas: dict[str, str] = {}
         iterador = iter(trozos)
         alcance = {
             "type": "http",
@@ -220,7 +258,7 @@ class ClienteMatriz:
             "root_path": "",
             "scheme": "http",
             "server": ("testserver", 80),
-            "client": ("testclient", 1),
+            "client": (origen, 50001),
             "headers": [
                 (nombre.lower().encode(), valor.encode())
                 for nombre, valor in cabeceras.items()
@@ -254,6 +292,10 @@ class ClienteMatriz:
                 nonlocal estado, cuerpo
                 if mensaje["type"] == "http.response.start":
                     estado = mensaje["status"]
+                    for nombre, valor in mensaje.get("headers", []):
+                        recibidas[nombre.decode("latin-1").lower()] = valor.decode(
+                            "latin-1"
+                        )
                 elif mensaje["type"] == "http.response.body":
                     cuerpo += mensaje.get("body", b"")
                     if not mensaje.get("more_body", False):
@@ -264,7 +306,7 @@ class ClienteMatriz:
 
         assert self._http.portal is not None
         self._http.portal.call(_llamar)
-        return RespuestaAsgi(estado, cuerpo, leidos, excedio)
+        return RespuestaAsgi(estado, cuerpo, leidos, excedio, recibidas)
 
 
 @dataclass
@@ -277,6 +319,8 @@ class Banco:
     app_a: KeySembrada = field(repr=False)
     app_b: KeySembrada = field(repr=False)
     motor: Engine = field(repr=False)
+    # K59: el Redis desechable de la sesión. Lleva la contraseña.
+    url_redis: str | None = field(default=None, repr=False)
 
     @property
     def datos(self) -> Path:
@@ -290,19 +334,36 @@ class Banco:
     def clean_store(self) -> Path:
         return self.datos / "clean_store"
 
-    def ajustes(self, **costura: Any) -> Ajustes:
-        faltan = set(costura) - {campo.name for campo in dataclasses.fields(Ajustes)}
+    def ajustes(self, reloj_real: bool = False, **costura: Any) -> Ajustes:
+        """``Ajustes`` de esta base; ``costura`` puede cambiar cualquier campo (``url_bd`` incluido).
+
+        Sin ``reloj_limite`` en ``costura`` y sin ``reloj_real``, el del rate limit es un
+        ``RelojQueCorre`` (ver el docstring del módulo).
+        """
+        campos = {campo.name for campo in dataclasses.fields(Ajustes)}
+        faltan = set(costura) - campos
         if faltan:
             pytest.fail(
                 f"control ausente: falta la costura de prueba {sorted(faltan)} en Ajustes "
                 "(ver soporte_matriz.py)"
             )
-        return Ajustes(url_bd=self.url, pepper=self.pepper, datos=self.datos, **costura)
+        base: dict[str, Any] = {
+            "url_bd": self.url,
+            "pepper": self.pepper,
+            "datos": self.datos,
+        }
+        if "url_redis" in campos and self.url_redis is not None:
+            base["url_redis"] = self.url_redis
+        if "reloj_limite" in campos and not reloj_real:
+            base["reloj_limite"] = RelojQueCorre()
+        return Ajustes(**{**base, **costura})
 
     @contextmanager
-    def api(self, **costura: Any) -> Iterator[ClienteMatriz]:
-        app = crear_app(self.ajustes(**costura))
-        with TestClient(app, raise_server_exceptions=False) as http:
+    def api(self, reloj_real: bool = False, **costura: Any) -> Iterator[ClienteMatriz]:
+        app = crear_app(self.ajustes(reloj_real, **costura))
+        with TestClient(
+            app, raise_server_exceptions=False, client=(IP_CLIENTE, 50000)
+        ) as http:
             yield ClienteMatriz(http, app, self)
 
     # ------------------------------------------------------------------------ lecturas de la BD
@@ -335,6 +396,16 @@ class Banco:
     def contar_archivos(self) -> int:
         with self.motor.connect() as con:
             return con.execute(text("SELECT count(*) FROM archivo")).scalar_one()
+
+    def pendientes(self, app: KeySembrada) -> int:
+        with self.motor.connect() as con:
+            return con.execute(
+                text(
+                    "SELECT count(*) FROM archivo"
+                    " WHERE aplicacion_id = :app AND estado = 'pendiente'"
+                ),
+                {"app": app.aplicacion_id},
+            ).scalar_one()
 
     def revocar(self, prefijo: str) -> None:
         with self.motor.begin() as con:
@@ -436,7 +507,7 @@ class Banco:
 
 
 @contextmanager
-def abrir_banco(url: URL, raiz: Path) -> Iterator[Banco]:
+def abrir_banco(url: URL, raiz: Path, url_redis: str | None = None) -> Iterator[Banco]:
     pepper = secrets.token_hex(32).encode()
     motor = create_engine(url)
     try:
@@ -447,6 +518,7 @@ def abrir_banco(url: URL, raiz: Path) -> Iterator[Banco]:
             app_a=sembrar_key(url, pepper, "app_a"),
             app_b=sembrar_key(url, pepper, "app_b"),
             motor=motor,
+            url_redis=url_redis,
         )
     finally:
         motor.dispose()

@@ -2,20 +2,23 @@
 # deploy/instalar.sh y le pasa /etc/gatekeeper/compose.env y /var/lib/gatekeeper/imagen.env.
 #
 # Servicios: nginx (443, TLS y la API), nginx-http (80: solo el desafío de Let's Encrypt y la redirección,
-# con su propio pool de conexiones), api, postgres, migrate (perfil `migrar`, una sola ejecución), sonda
-# (perfil `sonda`, sin red ni secretos) y certbot (perfil `certbot`, lo lanza un timer de systemd).
-# Solo los dos nginx publican puertos.
+# con su propio pool de conexiones), api, postgres, redis-main (contadores del rate limit, K59), migrate
+# (perfil `migrar`, una sola ejecución), sonda (perfil `sonda`, sin red ni secretos) y certbot (perfil
+# `certbot`, lo lanza un timer de systemd). Solo los dos nginx publican puertos.
 #
-# Redes: `publica` (los puertos), `frontend` (nginx y api, interna), `backend` (api, postgres y migrate,
-# interna) y `acme` (solo certbot, con salida a Let's Encrypt). La API no tiene salida a internet.
+# Redes: `publica` (los puertos), `frontend` (nginx y api, interna, con subred fija: la API solo confía
+# en el X-Forwarded-For de la IP fija de nginx), `backend` (api, postgres, redis-main y migrate, interna)
+# y `acme` (solo certbot, con salida a Let's Encrypt). La API no tiene salida a internet.
 #
 # Memoria (t3.small, 2 GiB): api 1 GiB (uvicorn ~100 MiB + 2 hijos del CDR; RLIMIT_AS de 1 GiB por hijo,
-# K31, pero un JPEG o PNG de 40 MP pesa ~330 MiB de RSS medidos), postgres 256 MiB, nginx 64 MiB,
-# nginx-http 32 MiB y certbot 192 MiB solo mientras renueva. Queda ~0.5 GiB para el sistema y Docker.
+# K31, pero un JPEG o PNG de 40 MP pesa ~330 MiB de RSS medidos), postgres 256 MiB, redis-main 64 MiB,
+# nginx 64 MiB, nginx-http 32 MiB y certbot 192 MiB solo mientras renueva. Queda ~0.45 GiB para el
+# sistema y Docker.
 # Si un hijo se pasa, el OOM del cgroup mata al proceso más grande (un hijo) y el archivo queda en
 # `error` (INV-09).
 #
-# Sin secretos aquí: llegan por env_file desde /etc/gatekeeper/ (modo 0600, fuera del repo).
+# Sin secretos aquí: llegan por env_file y por la configuración de redis-main desde /etc/gatekeeper/
+# (fuera del repo, legibles solo por root o por el usuario del contenedor que los usa).
 
 name: gatekeeper
 
@@ -45,7 +48,12 @@ services:
     # Solo 443: el puerto 80, abierto a todo internet, va en nginx-http y no comparte sus conexiones.
     ports:
       - "443:443"
-    networks: [publica, frontend]
+    networks:
+      publica: {}
+      frontend:
+        # Fija y fuera del rango dinámico de la red: es la única IP de la que la API acepta
+        # X-Forwarded-For (ver `api`). nginx lo reescribe siempre con $remote_addr (proxy.conf).
+        ipv4_address: 172.29.80.2
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/gatekeeper:/etc/nginx/gatekeeper:ro
@@ -89,10 +97,29 @@ services:
     <<: *endurecido
     image: ${GATEKEEPER_IMAGEN:?Define GATEKEEPER_IMAGEN (lo hace gk-compose)}
     user: "10001:10001"
-    # Sin `init: true`: tini sería el padre de uvicorn con el pepper y la URL de la BD en su entorno,
-    # y la API se negaría a arrancar (K52). uvicorn es el PID 1 (CMD de la imagen).
+    # Sin `init: true`: tini sería el padre de uvicorn con el pepper y las URL de la BD y de Redis en
+    # su entorno, y la API se negaría a arrancar (K52). uvicorn es el PID 1, en forma exec: el mismo
+    # comando que el CMD de la imagen, más la IP del cliente desde nginx. --proxy-headers solo vale
+    # para conexiones de 172.29.80.2 (nginx); de cualquier otra, la API usa la IP de la conexión.
+    # Un solo proceso, sin --workers (K51).
+    command:
+      - /app/.venv/bin/uvicorn
+      - --factory
+      - api.app.principal:crear_app
+      - --no-server-header
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --proxy-headers
+      - --forwarded-allow-ips=172.29.80.2
+    # api.env: el pepper y GATEKEEPER_REDIS_URL. api-bd.env: GATEKEEPER_DATABASE_URL, que escribe
+    # actualizar.sh antes de cada arranque: el rol gk_app (permisos mínimos) o, solo con un esquema
+    # anterior a la migración 0002, el dueño. La URL del dueño la usan solo `migrate` y el respaldo.
+    # api-bd.env está en el directorio de estado (0700, root): el timer no puede escribir en /etc.
     env_file:
       - ${GATEKEEPER_ETC:-/etc/gatekeeper}/api.env
+      - ${GATEKEEPER_ESTADO:-/var/lib/gatekeeper}/api-bd.env
     environment:
       GATEKEEPER_DATOS: /datos
     volumes:
@@ -102,6 +129,8 @@ services:
     networks: [frontend, backend]
     depends_on:
       postgres:
+        condition: service_healthy
+      redis-main:
         condition: service_healthy
     # Sin swap: un hijo que se pasa muere y su archivo termina en `error`, en vez de arrastrar al resto.
     mem_limit: 1g
@@ -141,14 +170,70 @@ services:
     pids_limit: 100
     stop_grace_period: 30s
 
+  # Contadores del rate limit (K10, K58, K59). Es el redis-main de K02: solo en `backend`, sin puertos,
+  # sin persistencia y sin acceso sin contraseña. El worker nunca llega aquí (K02, INV-04).
+  redis-main:
+    <<: *endurecido
+    image: redis:8.10.3-alpine3.23@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3
+    # Sin el entrypoint de la imagen: arranca como root para cambiar dueños y permisos y puede cargar
+    # módulos. redis-server directo, ya como usuario sin privilegios (UID reservado en el host).
+    entrypoint: ["redis-server"]
+    user: "10002:10002"
+    # El primer argumento es la configuración con los usuarios (ACL), que genera instalar.sh: dueño
+    # 10002 y modo 0400. Guarda solo el SHA-256 de la contraseña, que no aparece en `docker inspect`
+    # ni en la línea de comandos. `default` queda desactivado: sin AUTH no se ejecuta ningún comando.
+    #
+    # maxmemory 32mb con noeviction: los contadores son exactos o no hay respuesta. Con una política
+    # que desaloja (volatile-ttl, allkeys-*), llenar la memoria con claves de muchas IP borraría los
+    # contadores de otros y les dejaría pasar más de lo permitido. Con noeviction, al llegar al tope
+    # Redis rechaza las escrituras y la API responde 503 (falla cerrado); las claves llevan TTL de un
+    # minuto, así que la memoria se libera sola. 32 MiB caben del orden de 10^5 contadores.
+    command:
+      - /etc/redis/gatekeeper.conf
+      - --port
+      - "6379"
+      - --dir
+      - /data
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 32mb
+      - --maxmemory-policy
+      - noeviction
+      - --protected-mode
+      - "yes"
+      - --enable-debug-command
+      - "no"
+      - --enable-module-command
+      - "no"
+      - --enable-protected-configs
+      - "no"
+    volumes:
+      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/redis.conf:/etc/redis/gatekeeper.conf:ro
+    tmpfs:
+      # Directorio de trabajo vacío: no se escribe nada (sin RDB ni AOF).
+      - /data:size=1m,uid=10002,gid=10002,mode=0700
+      - /tmp:size=1m
+    networks: [backend]
+    # Usuario `salud` sin contraseña que solo puede hacer PING: el healthcheck no necesita el secreto.
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning --user salud --pass salud ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 64m
+    memswap_limit: 64m
+    pids_limit: 32
+
   migrate:
     <<: *endurecido
     image: ${GATEKEEPER_IMAGEN:?Define GATEKEEPER_IMAGEN (lo hace gk-compose)}
     profiles: [migrar]
     restart: "no"
     user: "10001:10001"
-    # Solo la URL de migración (rol dueño del esquema). Mientras no exista gk_app (migración 0002), la
-    # API usa el mismo rol: ver README, "Limitaciones de esta etapa".
+    # Solo la URL de migración (rol dueño del esquema). La API usa gk_app (api-bd.env).
     env_file:
       - ${GATEKEEPER_ETC:-/etc/gatekeeper}/migrate.env
     command: ["/app/.venv/bin/alembic", "-c", "api/migrations/alembic.ini", "upgrade", "head"]
@@ -203,9 +288,17 @@ services:
 networks:
   # Con salida a internet solo `publica` (los puertos publicados de los dos nginx) y `acme` (certbot).
   publica: {}
-  # Internas, sin salida a internet: nginx con api, y api con postgres y migrate.
+  # Internas, sin salida a internet: nginx con api, y api con postgres, redis-main y migrate.
+  # `frontend` con subred fija: nginx tiene 172.29.80.2, fuera de `ip_range`, que es de donde Docker
+  # da las direcciones dinámicas (la API). No se cruza con la VPC por defecto de AWS (172.31.0.0/16), y
+  # las redes que Docker numera solo van en orden desde 172.17.0.0/16: con las de este proyecto no llegan
+  # a 172.29. Si otra red ya la ocupara, el compose no arranca y lo dice.
   frontend:
     internal: true
+    ipam:
+      config:
+        - subnet: 172.29.80.0/28
+          ip_range: 172.29.80.8/29
   backend:
     internal: true
   acme: {}

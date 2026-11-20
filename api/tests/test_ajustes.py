@@ -1,11 +1,13 @@
 """Configuración de la API (diseño §2): falla al arrancar y nunca muestra un valor."""
 
+import dataclasses
 import math
 import os
 import secrets
 import stat
 import string
 import sys
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -16,12 +18,14 @@ from api.app.ajustes import (
     UPLOADS_TMP,
     VARIABLE_DATOS,
     VARIABLE_HMAC,
+    VARIABLE_REDIS,
     Ajustes,
     ConfiguracionError,
     leer_ajustes,
     leer_pepper,
     preparar_directorios,
 )
+from api.app.arranque import VARIABLES_SECRETAS
 from api.db.config import VARIABLE_URL_BD, ConfiguracionBDError
 from api.tests.soporte_api import url_sin_servidor
 
@@ -31,10 +35,13 @@ URL_FALSA = url_sin_servidor(CONTRASENA_BD)
 PEPPER_VALIDO = secrets.token_hex(16).encode()
 PEPPER_CORTO = secrets.token_hex(15)
 RUTA_SECRETA = secrets.token_hex(11)
+CONTRASENA_REDIS = secrets.token_hex(16)
+# En el puerto 1 no escucha nadie; aquí solo se construyen ajustes.
+URL_REDIS_FALSA = f"redis://gatekeeper:{CONTRASENA_REDIS}@127.0.0.1:1/0"
 
 
 def _ajustes(pepper: object = PEPPER_VALIDO, datos: Path = Path("/x/d")) -> Ajustes:
-    return Ajustes(url_bd=URL_FALSA, pepper=pepper, datos=datos)  # type: ignore[arg-type]
+    return Ajustes(url_bd=URL_FALSA, pepper=pepper, datos=datos, url_redis=URL_REDIS_FALSA)  # type: ignore[arg-type]
 
 
 def _multibyte(caracteres: int) -> str:
@@ -57,6 +64,7 @@ def entorno(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> pytest.MonkeyPat
     monkeypatch.setenv(VARIABLE_URL_BD, URL_FALSA)
     monkeypatch.setenv(VARIABLE_HMAC, PEPPER_VALIDO.decode())
     monkeypatch.setenv(VARIABLE_DATOS, str(tmp_path / "datos"))
+    monkeypatch.setenv(VARIABLE_REDIS, URL_REDIS_FALSA)
     return monkeypatch
 
 
@@ -113,13 +121,13 @@ def test_pepper_con_bordes_en_blanco_se_rechaza(antes: bytes, despues: bytes) ->
 @pytest.mark.parametrize("url", ["", None])
 def test_url_faltante_se_rechaza(url: object) -> None:
     with pytest.raises(ConfiguracionError):
-        Ajustes(url_bd=url, pepper=PEPPER_VALIDO, datos=Path("/x/d"))  # type: ignore[arg-type]
+        Ajustes(url_bd=url, pepper=PEPPER_VALIDO, datos=Path("/x/d"), url_redis=URL_REDIS_FALSA)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("datos", ["", "/x/d", None])
 def test_datos_que_no_es_path_se_rechaza(datos: object) -> None:
     with pytest.raises(ConfiguracionError):
-        Ajustes(url_bd=URL_FALSA, pepper=PEPPER_VALIDO, datos=datos)  # type: ignore[arg-type]
+        Ajustes(url_bd=URL_FALSA, pepper=PEPPER_VALIDO, datos=datos, url_redis=URL_REDIS_FALSA)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("relativa", ["datos", "./datos", "../datos", "~/datos", ""])
@@ -139,9 +147,10 @@ def test_leer_ajustes_toma_los_tres_valores(
     assert ajustes.url_bd == URL_FALSA
     assert ajustes.pepper == PEPPER_VALIDO
     assert ajustes.datos == tmp_path / "datos"
+    assert ajustes.url_redis == URL_REDIS_FALSA
 
 
-@pytest.mark.parametrize("variable", [VARIABLE_HMAC, VARIABLE_DATOS])
+@pytest.mark.parametrize("variable", [VARIABLE_HMAC, VARIABLE_DATOS, VARIABLE_REDIS])
 @pytest.mark.parametrize("valor", [None, "", "   "])
 def test_dato_faltante_nombra_la_variable(
     entorno: pytest.MonkeyPatch, variable: str, valor: str | None
@@ -360,6 +369,7 @@ def test_un_comando_invalido_no_crea_ajustes(comando: object) -> None:
             url_bd=URL_FALSA,
             pepper=PEPPER_VALIDO,
             datos=Path("/x/d"),
+            url_redis=URL_REDIS_FALSA,
             comando_cdr=comando,  # type: ignore[arg-type]
         )
 
@@ -376,5 +386,69 @@ def test_un_timeout_invalido_no_crea_ajustes(timeout: object, campo: str) -> Non
             url_bd=URL_FALSA,
             pepper=PEPPER_VALIDO,
             datos=Path("/x/d"),
+            url_redis=URL_REDIS_FALSA,
             **{campo: timeout},  # type: ignore[arg-type]
         )
+
+
+# ------------------------------------------------------------------ Redis (K59, K52)
+
+
+def test_la_url_de_redis_es_obligatoria_y_no_sale_en_el_repr() -> None:
+    campos = {campo.name: campo for campo in dataclasses.fields(Ajustes)}
+    assert campos["url_redis"].repr is False
+    assert campos["url_redis"].default is dataclasses.MISSING
+    texto = repr(_ajustes())
+    assert CONTRASENA_REDIS not in texto
+    assert CONTRASENA_REDIS not in str(_ajustes())
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["", None, b"redis://x", f" {URL_REDIS_FALSA}", f"{URL_REDIS_FALSA}\n"],
+    ids=["vacia", "nada", "bytes", "espacio_inicial", "salto_final"],
+)
+def test_una_url_de_redis_invalida_no_crea_ajustes_ni_se_muestra(url: object) -> None:
+    with pytest.raises(ConfiguracionError, match=VARIABLE_REDIS) as error:
+        Ajustes(
+            url_bd=URL_FALSA,
+            pepper=PEPPER_VALIDO,
+            datos=Path("/x/d"),
+            url_redis=url,  # type: ignore[arg-type]
+        )
+    assert CONTRASENA_REDIS not in _texto_completo(error.value)
+
+
+@pytest.mark.parametrize("valor", [f" {URL_REDIS_FALSA}", f"{URL_REDIS_FALSA}\n"])
+def test_la_url_de_redis_del_entorno_no_se_recorta_ni_se_muestra(
+    entorno: pytest.MonkeyPatch, valor: str
+) -> None:
+    entorno.setenv(VARIABLE_REDIS, valor)
+    with pytest.raises(ConfiguracionError, match=VARIABLE_REDIS) as error:
+        leer_ajustes()
+    assert CONTRASENA_REDIS not in _texto_completo(error.value)
+
+
+def test_el_reloj_del_limite_es_time_time_y_no_se_lee_del_entorno(
+    entorno: pytest.MonkeyPatch,
+) -> None:
+    entorno.setenv("GATEKEEPER_RELOJ_LIMITE", "0")
+    assert _ajustes().reloj_limite is time.time
+    assert leer_ajustes().reloj_limite is time.time
+
+
+@pytest.mark.parametrize("reloj", [None, 0, "time.time"], ids=["nada", "numero", "texto"])
+def test_un_reloj_que_no_se_puede_llamar_no_crea_ajustes(reloj: object) -> None:
+    with pytest.raises(ConfiguracionError):
+        Ajustes(
+            url_bd=URL_FALSA,
+            pepper=PEPPER_VALIDO,
+            datos=Path("/x/d"),
+            url_redis=URL_REDIS_FALSA,
+            reloj_limite=reloj,  # type: ignore[arg-type]
+        )
+
+
+def test_k52_la_url_de_redis_es_un_secreto_de_los_ancestros() -> None:
+    assert VARIABLE_REDIS == "GATEKEEPER_REDIS_URL"
+    assert VARIABLE_REDIS in VARIABLES_SECRETAS

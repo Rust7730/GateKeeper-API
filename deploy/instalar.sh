@@ -350,11 +350,15 @@ done <"$ETC/api.env"
 [[ $(printf '%s\n' "${lineas_api[@]}" | grep -c '^GATEKEEPER_PEPPER=') == 1 ]] ||
     fallar "$ETC/api.env debe tener exactamente un GATEKEEPER_PEPPER; no se toca."
 clave_redis=$(<"$ETC/redis.clave")
-lineas_api+=("GATEKEEPER_REDIS_URL=redis://gatekeeper:${clave_redis}@redis-main:6379/0")
+url_redis_main="redis://gatekeeper:${clave_redis}@redis-main:6379/0"
+lineas_api+=("GATEKEEPER_REDIS_URL=${url_redis_main}")
 if [[ $(printf '%s\n' "${lineas_api[@]}") != "$(<"$ETC/api.env")" ]]; then
     escribir_secreto "$ETC/api.env" "${lineas_api[@]}"
     echo "api.env actualizado (no se muestra)."
 fi
+# H-05: coordinator y reputation solo reciben GATEKEEPER_REDIS_URL, nunca GATEKEEPER_PEPPER.
+escribir_secreto "$ETC/redis-main.env" "GATEKEEPER_REDIS_URL=${url_redis_main}"
+unset url_redis_main
 
 # redis.conf: los usuarios de redis-main. Lleva el SHA-256 de la contraseña, no la contraseña, y es del
 # usuario del contenedor (10002) con modo 0400: el compose la monta en solo lectura.

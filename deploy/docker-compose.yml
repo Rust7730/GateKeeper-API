@@ -147,7 +147,7 @@ services:
     user: "10001:10010"
     command: ["/app/.venv/bin/python", "-m", "api.app.coordinador"]
     env_file:
-      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/api.env
+      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/redis-main.env
       - ${GATEKEEPER_ESTADO:-/var/lib/gatekeeper}/api-bd.env
       - ${GATEKEEPER_ETC:-/etc/gatekeeper}/cola.env
     environment:
@@ -258,7 +258,7 @@ services:
     user: "10001:10010"
     command: ["/app/.venv/bin/python", "-m", "reputation.principal"]
     env_file:
-      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/api.env
+      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/redis-main.env
       - ${GATEKEEPER_ETC:-/etc/gatekeeper}/reputation.env
     tmpfs:
       - /tmp:size=16m

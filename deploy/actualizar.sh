@@ -292,7 +292,7 @@ levantar() {
     GATEKEEPER_IMAGEN="$1" "$COMPOSE" up -d --wait --wait-timeout 120 postgres || return 1
     escribir_url_bd || return 1
     GATEKEEPER_IMAGEN="$1" "$COMPOSE" up -d --wait --wait-timeout 120 \
-        postgres redis-main api nginx nginx-http
+        postgres redis-main redis-queue api coordinator worker nginx nginx-http
 }
 
 # Vuelve a `imagen`, que espera el esquema en `revision`. Antes deja el esquema en esa revisión con
@@ -436,7 +436,8 @@ reaplicar() {
         echo "No hay ninguna imagen desplegada." >&2
         return 1
     fi
-    if GATEKEEPER_IMAGEN="$imagen" "$COMPOSE" up -d --wait --wait-timeout 120 --force-recreate redis-main &&
+    if GATEKEEPER_IMAGEN="$imagen" "$COMPOSE" up -d --wait --wait-timeout 120 --force-recreate \
+        redis-main redis-queue &&
         levantar "$imagen" && salud; then
         registrar "configuración reaplicada imagen=$imagen"
         return 0

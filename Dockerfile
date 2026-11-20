@@ -29,20 +29,25 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && python -m pip uninstall -y pip \
     && groupadd --system --gid 10001 gatekeeper \
-    && useradd --system --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent \
+    && groupadd --system --gid 10010 gatekeeper-datos \
+    && useradd --system --uid 10001 --gid 10010 --no-create-home --home-dir /nonexistent \
         --shell /usr/sbin/nologin gatekeeper \
-    && install -d -o 10001 -g 10001 -m 0700 /datos
+    && useradd --system --uid 10003 --gid 10010 --no-create-home --home-dir /nonexistent \
+        --shell /usr/sbin/nologin gatekeeper-worker \
+    && install -d -o 10001 -g 10010 -m 0750 /datos /datos/uploads_tmp \
+    && install -d -o 10003 -g 10010 -m 0750 /datos/clean_store /datos/quarantine
 
 WORKDIR /app
-# El código y el entorno son de root: la API los lee pero no puede modificarlos.
+# El código y el entorno son de root: ni la API ni el worker pueden modificarlos.
 COPY --from=dependencias /app/.venv /app/.venv
 COPY api ./api
+COPY worker ./worker
 
 ENV PATH=/app/.venv/bin:/usr/local/bin:/usr/bin:/bin \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-USER 10001:10001
+USER 10001:10010
 EXPOSE 8000
 
 # env -i: el proceso del healthcheck no conserva el pepper ni la URL de la BD en su entorno (K52).

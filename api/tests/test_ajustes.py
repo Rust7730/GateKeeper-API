@@ -269,30 +269,30 @@ def umask_abierta() -> Iterator[None]:
 
 
 @pytest.mark.usefixtures("umask_abierta")
-def test_crea_los_directorios_con_0700_aunque_la_umask_sea_0(tmp_path: Path) -> None:
+def test_crea_los_directorios_con_0750_aunque_la_umask_sea_0(tmp_path: Path) -> None:
     datos = tmp_path / "base" / "datos"
     preparar_directorios(datos)
-    assert _modo(datos / UPLOADS_TMP) == 0o700
-    assert _modo(datos / CLEAN_STORE) == 0o700
+    assert _modo(datos / UPLOADS_TMP) == 0o750
+    assert _modo(datos / CLEAN_STORE) == 0o750
 
 
-def test_el_directorio_base_nuevo_nace_0700(tmp_path: Path) -> None:
+def test_el_directorio_base_nuevo_nace_0750(tmp_path: Path) -> None:
     preparar_directorios(tmp_path / "datos")
-    assert _modo(tmp_path / "datos") == 0o700
+    assert _modo(tmp_path / "datos") == 0o750
 
 
 def test_no_cambia_el_modo_de_una_base_que_ya_existe(tmp_path: Path) -> None:
-    tmp_path.chmod(0o750)
+    tmp_path.chmod(0o700)
     preparar_directorios(tmp_path)
-    assert _modo(tmp_path) == 0o750
+    assert _modo(tmp_path) == 0o700
 
 
 def test_corrige_el_modo_de_directorios_que_ya_existian(tmp_path: Path) -> None:
     (tmp_path / UPLOADS_TMP).mkdir(mode=0o755)
     (tmp_path / CLEAN_STORE).mkdir(mode=0o777)
     preparar_directorios(tmp_path)
-    assert _modo(tmp_path / UPLOADS_TMP) == 0o700
-    assert _modo(tmp_path / CLEAN_STORE) == 0o700
+    assert _modo(tmp_path / UPLOADS_TMP) == 0o750
+    assert _modo(tmp_path / CLEAN_STORE) == 0o750
 
 
 def test_conserva_lo_que_ya_habia_en_los_directorios(tmp_path: Path) -> None:
@@ -305,7 +305,7 @@ def test_conserva_lo_que_ya_habia_en_los_directorios(tmp_path: Path) -> None:
 def test_es_idempotente(tmp_path: Path) -> None:
     preparar_directorios(tmp_path)
     preparar_directorios(tmp_path)
-    assert _modo(tmp_path / UPLOADS_TMP) == 0o700
+    assert _modo(tmp_path / UPLOADS_TMP) == 0o750
 
 
 def test_un_enlace_simbolico_se_rechaza_y_no_toca_su_destino(tmp_path: Path) -> None:

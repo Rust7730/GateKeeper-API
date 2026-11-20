@@ -96,12 +96,11 @@ services:
   api:
     <<: *endurecido
     image: ${GATEKEEPER_IMAGEN:?Define GATEKEEPER_IMAGEN (lo hace gk-compose)}
-    user: "10001:10001"
+    user: "10001:10010"
     # Sin `init: true`: tini sería el padre de uvicorn con el pepper y las URL de la BD y de Redis en
     # su entorno, y la API se negaría a arrancar (K52). uvicorn es el PID 1, en forma exec: el mismo
     # comando que el CMD de la imagen, más la IP del cliente desde nginx. --proxy-headers solo vale
     # para conexiones de 172.29.80.2 (nginx); de cualquier otra, la API usa la IP de la conexión.
-    # Un solo proceso, sin --workers (K51).
     command:
       - /app/.venv/bin/uvicorn
       - --factory
@@ -123,7 +122,9 @@ services:
     environment:
       GATEKEEPER_DATOS: /datos
     volumes:
-      - datos:/datos
+      # K64 / F1.04: la API escribe uploads_tmp y solo lee clean_store (nunca escribe en clean_store).
+      - uploads_tmp:/datos/uploads_tmp
+      - clean_store:/datos/clean_store:ro
     tmpfs:
       - /tmp:size=64m
     networks: [frontend, backend]
@@ -132,12 +133,72 @@ services:
         condition: service_healthy
       redis-main:
         condition: service_healthy
+    mem_limit: 256m
+    memswap_limit: 256m
+    pids_limit: 64
+    stop_grace_period: 20s
+
+  # Orquestador de análisis (K01, K08, F1.05): consume `orquestar` de redis-main, encola `analizar`
+  # en redis-queue hacia el worker, valida el resultado y escribe en PostgreSQL como `gk_app`.
+  coordinator:
+    <<: *endurecido
+    image: ${GATEKEEPER_IMAGEN:?Define GATEKEEPER_IMAGEN (lo hace gk-compose)}
+    user: "10001:10010"
+    command: ["/app/.venv/bin/python", "-m", "api.app.coordinador"]
+    env_file:
+      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/api.env
+      - ${GATEKEEPER_ESTADO:-/var/lib/gatekeeper}/api-bd.env
+      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/cola.env
+    environment:
+      GATEKEEPER_DATOS: /datos
+    volumes:
+      - uploads_tmp:/datos/uploads_tmp
+      - clean_store:/datos/clean_store
+    tmpfs:
+      - /tmp:size=16m
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-main:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    mem_limit: 192m
+    memswap_limit: 192m
+    pids_limit: 64
+    stop_grace_period: 20s
+
+  # Worker aislado de CDR (INV-04, F1.03, K09, K64): único contenedor que abre archivos no
+  # confiables. Sin internet, sin acceso a PostgreSQL ni a redis-main, UID propio (10003),
+  # uploads_tmp en solo lectura y proceso hijo con RLIMIT_AS, RLIMIT_CPU, Landlock y seccomp.
+  worker:
+    <<: *endurecido
+    image: ${GATEKEEPER_IMAGEN:?Define GATEKEEPER_IMAGEN (lo hace gk-compose)}
+    user: "10003:10010"
+    command: ["/app/.venv/bin/python", "-m", "worker.principal"]
+    env_file:
+      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/worker.env
+    environment:
+      GATEKEEPER_DATOS: /datos
+    volumes:
+      - uploads_tmp:/datos/uploads_tmp:ro
+      - clean_store:/datos/clean_store
+      - quarantine:/datos/quarantine
+    tmpfs:
+      - /tmp:size=64m
+    networks: [isolated]
+    depends_on:
+      redis-queue:
+        condition: service_healthy
+    healthcheck:
+      disable: true
     # Sin swap: un hijo que se pasa muere y su archivo termina en `error`, en vez de arrastrar al resto.
     mem_limit: 1g
     memswap_limit: 1g
-    # uvicorn y sus hilos + 2 hijos del CDR (uno por núcleo, K09) con los hilos de Pillow.
     pids_limit: 128
-    # Da tiempo a cancelar los análisis en curso (matan su grupo de procesos) al apagar.
     stop_grace_period: 20s
 
   postgres:
@@ -227,6 +288,50 @@ services:
     memswap_limit: 64m
     pids_limit: 32
 
+  # Cola aislada entre coordinator y worker (K02, F1.02): solo lleva los jobs `analizar`.
+  # Un worker comprometido nunca ve los contadores del rate limit ni la caché de VT (redis-main).
+  redis-queue:
+    <<: *endurecido
+    image: redis:8.10.3-alpine3.23@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3
+    entrypoint: ["redis-server"]
+    user: "10002:10002"
+    command:
+      - /etc/redis/gatekeeper-queue.conf
+      - --port
+      - "6379"
+      - --dir
+      - /data
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 32mb
+      - --maxmemory-policy
+      - noeviction
+      - --protected-mode
+      - "yes"
+      - --enable-debug-command
+      - "no"
+      - --enable-module-command
+      - "no"
+      - --enable-protected-configs
+      - "no"
+    volumes:
+      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/redis-queue.conf:/etc/redis/gatekeeper-queue.conf:ro
+    tmpfs:
+      - /data:size=1m,uid=10002,gid=10002,mode=0700
+      - /tmp:size=1m
+    networks: [backend, isolated]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning --user salud --pass salud ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 64m
+    memswap_limit: 64m
+    pids_limit: 32
+
   migrate:
     <<: *endurecido
     image: ${GATEKEEPER_IMAGEN:?Define GATEKEEPER_IMAGEN (lo hace gk-compose)}
@@ -301,10 +406,14 @@ networks:
           ip_range: 172.29.80.8/29
   backend:
     internal: true
+  isolated:
+    internal: true
   acme: {}
 
 volumes:
-  datos: {}
+  uploads_tmp: {}
+  clean_store: {}
+  quarantine: {}
   pgdata: {}
   letsencrypt: {}
   certbot_www: {}

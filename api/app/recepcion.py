@@ -42,7 +42,8 @@ NOMBRE_VACIO = "sin_nombre"
 TIPO_MULTIPART = b"multipart/form-data"
 CAMPO_ARCHIVO = b"file"
 _CABECERA_DISPOSICION = b"content-disposition"
-_MODO_TEMPORAL = 0o600
+# K64: 0640 permite que worker (UID 10003, GID 10010) lea el original en uploads_tmp (:ro).
+_MODO_TEMPORAL = 0o640
 # C0, U+007F y C1 (K25, K30). Un UTF-8 inválido ya viene como U+FFFD: decodificar no deja
 # surrogates, que PostgreSQL no podría guardar.
 _NO_GUARDABLES = re.compile("[\x00-\x1f\x7f-\x9f]")

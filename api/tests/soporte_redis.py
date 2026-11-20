@@ -33,7 +33,7 @@ IMAGEN_REDIS = (
 )
 PUERTO_REDIS = 6379
 USUARIO_API = "gatekeeper"
-ACL_API = "~* +@all -@dangerous"  # deploy/instalar.sh
+ACL_API = "~* &gk:eventos:* +@all -@dangerous"  # deploy/instalar.sh
 TIMEOUT_ADMIN_S = 5
 
 SECRETOS: list[str] = []

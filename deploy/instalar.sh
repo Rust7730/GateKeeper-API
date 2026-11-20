@@ -397,6 +397,11 @@ chmod 0400 "$temporal"
 mv -f "$temporal" "$ETC/redis-queue.conf"
 unset huella_q_coord huella_q_worker
 
+# reputation.env (F4.03, K65): opcional; si VIRUSTOTAL_API_KEY queda vacía, D3 marca VT no_evaluada.
+if [[ ! -f $ETC/reputation.env ]]; then
+    escribir_secreto "$ETC/reputation.env" "VIRUSTOTAL_API_KEY="
+fi
+
 escribir_secreto "$ETC/compose.env" "GATEKEEPER_DOMINIO=${dominio}"
 if [[ ! -f $VAR/imagen.env ]]; then
     printf 'GATEKEEPER_IMAGEN=%s\n' "$IMAGEN_INICIAL" >"$VAR/imagen.env"

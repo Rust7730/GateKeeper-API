@@ -107,6 +107,11 @@ class Ajustes:
     reloj_limite: Callable[[], float] = field(
         default=time.time, repr=False, compare=False
     )
+    # Costuras de pruebas para F4 (nunca leídas del entorno en leer_ajustes()).
+    clamav_host: str | None = None
+    clamav_puerto: int = 3310
+    vt_base_url: str | None = None
+    vt_api_key: str | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if not self.url_bd:

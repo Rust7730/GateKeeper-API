@@ -1,13 +1,14 @@
-"""Servicio ``coordinator``: orquesta el análisis y consolida el veredicto (K01, K08, F1.05).
+"""Servicio ``coordinator``: orquesta worker + reputation y consolida el veredicto (K01, K08, F4.07).
 
 Corre en la red interna ``backend`` (sin contacto con archivos hostiles, sin salida a internet):
-1. Consume ``orquestar(aplicacion_id, archivo_id)`` desde ``redis-main``.
-2. Encola ``analizar(archivo_id)`` en ``redis-queue`` hacia ``worker`` y espera el resultado
-   con ``poll_delay=0.05`` (K08).
-3. Valida estrictamente la respuesta del ``worker`` (desconfiando de un worker comprometido, K02)
-   y verifica en disco ``clean_store/<uuid>`` (``lstat``, archivo regular, ``<= 32 MiB`` K46).
-4. Escribe los resultados y la transición en PostgreSQL como ``gk_app`` (K16, INV-09).
-5. Borra ``uploads_tmp/<uuid>`` (F3.09) y publica el cambio de estado en ``redis-main``.
+1. Consume ``orquestar(aplicacion_id, archivo_id, sha256)`` desde ``redis-main``.
+2. Encola en paralelo:
+   - ``analizar(archivo_id)`` en ``redis-queue`` hacia ``worker`` (ClamAV ∥ firma + CDR, D1);
+   - ``consultar_hash(sha256)`` en ``redis-main`` hacia ``reputation`` (VirusTotal solo hash, INV-05).
+3. Espera al ``worker`` y, a partir de ahí, como máximo 1 s más a ``reputation`` (K07, D3).
+4. Aplica la prioridad estricta ``en_cuarentena > rechazado > error > limpio`` (F4.07, INV-09),
+   mueve el original a ``quarantine/`` si VT detectó malware, registra las capas en PostgreSQL
+   como ``gk_app`` (K16), borra ``uploads_tmp/<uuid>`` (F3.09) y publica el evento en ``redis-main``.
 """
 
 import asyncio
@@ -16,6 +17,7 @@ import json
 import logging
 import math
 import os
+import shutil
 import stat
 import sys
 import time
@@ -44,7 +46,9 @@ from api.app.cola import (
     CANAL_EVENTOS,
     COLA_ANALIZAR,
     COLA_ORQUESTAR,
+    COLA_REPUTACION,
     POLL_DELAY_S,
+    PRESUPUESTO_VT_S,
     TIMEOUT_JOB_COORDINATOR_S,
     TIMEOUT_JOB_WORKER_S,
     WorkerSinInfo,
@@ -56,18 +60,23 @@ from api.app.cola import (
 from api.app.estados import Estado
 from api.app.tipos import TIPOS_PERMITIDOS
 from api.db.config import url_bd
+from api.db.repositorios import cambiar_estado, registrar_resultado
 from api.db.sesion import fabrica_sesiones
-from worker.ajustes import VARIABLE_REDIS_QUEUE
+from worker.ajustes import QUARANTINE, VARIABLE_REDIS_QUEUE
 from worker.ejecutor import LIMPIO, RECHAZADO, Veredicto
 
 logger = logging.getLogger("gatekeeper.coordinator")
 
-_CLAVES_RESULTADO_WORKER = {"veredicto", "tipo", "motivo", "duracion_ms"}
+_CLAVES_BASE_WORKER = {"veredicto", "tipo", "motivo", "duracion_ms"}
 _VEREDICTOS_WORKER = {LIMPIO, RECHAZADO, _ERROR}
+_VEREDICTOS_ANTIMALWARE = {LIMPIO, "malicioso", _ERROR, "no_evaluada"}
 _MOTIVO_TIMEOUT_WORKER = "timeout_worker"
 _MOTIVO_RESPUESTA_INVALIDA = "respuesta_worker_invalida"
 _MOTIVO_SIN_SALIDA = "sin_salida"
 _MOTIVO_SALIDA_GRANDE = "salida_grande"
+_MALICIOSO = "malicioso"
+_NO_EVALUADA = "no_evaluada"
+_MODO_CUARENTENA = 0o600
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +89,8 @@ class AjustesCoordinador:
     datos: Path
     timeout_worker_s: float = float(TIMEOUT_JOB_WORKER_S)
     poll_delay_s: float = POLL_DELAY_S
+    presupuesto_vt_s: float = PRESUPUESTO_VT_S
+    consultar_reputacion: bool = True
     max_jobs: int = field(default_factory=lambda: max(4, (os.cpu_count() or 1) * 2))
 
     def __post_init__(self) -> None:
@@ -114,6 +125,10 @@ class AjustesCoordinador:
     def clean_store(self) -> Path:
         return self.datos / CLEAN_STORE
 
+    @property
+    def quarantine(self) -> Path:
+        return self.datos / QUARANTINE
+
 
 def leer_ajustes_coordinador() -> AjustesCoordinador:
     """Lee la configuración del ``coordinator`` desde el entorno."""
@@ -143,14 +158,41 @@ def leer_ajustes_coordinador() -> AjustesCoordinador:
     )
 
 
+def _validar_capa_antimalware(bruto: Any) -> dict[str, Any]:
+    if type(bruto) is not dict:
+        return {"veredicto": _NO_EVALUADA, "motivo": "sin_datos", "duracion_ms": 0}
+    veredicto = bruto.get("veredicto")
+    if type(veredicto) is not str or veredicto not in _VEREDICTOS_ANTIMALWARE:
+        return {
+            "veredicto": _ERROR,
+            "motivo": _MOTIVO_RESPUESTA_INVALIDA,
+            "duracion_ms": 0,
+        }
+    duracion = bruto.get("duracion_ms", 0)
+    if type(duracion) is not int or duracion < 0:
+        duracion = 0
+    detalle: dict[str, Any] = {
+        "veredicto": veredicto,
+        "motivo": str(bruto.get("motivo", ""))[:200],
+        "duracion_ms": duracion,
+    }
+    if "firma" in bruto and type(bruto["firma"]) is str:
+        detalle["firma"] = bruto["firma"][:200]
+    if "motores_maliciosos" in bruto and type(bruto["motores_maliciosos"]) is int:
+        detalle["motores_maliciosos"] = bruto["motores_maliciosos"]
+    if "desconocido" in bruto and type(bruto["desconocido"]) is bool:
+        detalle["desconocido"] = bruto["desconocido"]
+    return detalle
+
+
 def validar_resultado_worker(
     bruto: Any,
 ) -> tuple[str, Veredicto | None, int, str]:
-    """Valida el dict devuelto por el worker, sin confiar en él (K02, INV-09).
-
-    Devuelve ``(estado_str, Veredicto | None, duracion_ms, motivo_error)``.
-    """
-    if type(bruto) is not dict or set(bruto) != _CLAVES_RESULTADO_WORKER:
+    """Valida el dict devuelto por el worker, sin confiar en él (K02, INV-09)."""
+    if type(bruto) is not dict:
+        return _ERROR, None, 0, _MOTIVO_RESPUESTA_INVALIDA
+    claves = set(bruto)
+    if not (_CLAVES_BASE_WORKER <= claves <= (_CLAVES_BASE_WORKER | {"clamav"})):
         return _ERROR, None, 0, _MOTIVO_RESPUESTA_INVALIDA
     veredicto = bruto["veredicto"]
     tipo = bruto["tipo"]
@@ -178,11 +220,25 @@ def validar_resultado_worker(
     )
 
 
-def _verificar_salida_limpia(final: Path) -> str | None:
-    """Comprueba en disco que ``clean_store/<uuid>`` es un archivo regular y cabe en K46.
+def decidir(veredicto_cdr: str, veredicto_clamav: str, veredicto_vt: str) -> Estado:
+    """Prioridad estricta F4.07: ``en_cuarentena > rechazado > error > limpio`` (INV-09)."""
+    if veredicto_clamav == _MALICIOSO or veredicto_vt == _MALICIOSO:
+        return Estado.EN_CUARENTENA
+    if veredicto_cdr == RECHAZADO:
+        return Estado.RECHAZADO
+    if veredicto_clamav == _ERROR or veredicto_cdr == _ERROR:
+        return Estado.ERROR
+    if (
+        veredicto_cdr == LIMPIO
+        and veredicto_clamav in (LIMPIO, _NO_EVALUADA)
+        and veredicto_vt in (LIMPIO, _NO_EVALUADA)
+    ):
+        return Estado.LIMPIO
+    return Estado.ERROR
 
-    Devuelve ``None`` si es válida, o el motivo de fallo/rechazo.
-    """
+
+def _verificar_salida_limpia(final: Path) -> str | None:
+    """Comprueba en disco que ``clean_store/<uuid>`` es un archivo regular y cabe en K46."""
     info = None
     with contextlib.suppress(FileNotFoundError):
         info = os.lstat(final)
@@ -191,6 +247,22 @@ def _verificar_salida_limpia(final: Path) -> str | None:
     if info.st_size > TOPE_SALIDA:
         return _MOTIVO_SALIDA_GRANDE
     return None
+
+
+def _asegurar_en_cuarentena(origen: Path, destino: Path) -> None:
+    """Copia el original a ``quarantine/<uuid>`` (0600) si aún no lo copió el worker (F4.09)."""
+    if destino.exists() or not origen.exists():
+        return
+    destino.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
+    fd = os.open(
+        destino, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, _MODO_CUARENTENA
+    )
+    try:
+        with os.fdopen(fd, "wb") as salida, origen.open("rb") as entrada:
+            shutil.copyfileobj(entrada, salida)
+    except BaseException:
+        _borrar(destino)
+        raise
 
 
 def _borrar(ruta: Path) -> None:
@@ -217,11 +289,7 @@ async def _publicar_evento(cola_main: Any, archivo_id: uuid.UUID, estado: str) -
 async def _esperar_resultado(
     trabajo: Job, timeout_s: float, poll_delay_s: float
 ) -> Any:
-    """Espera el resultado del worker sin la carrera de ``Job.result()`` en ARQ 0.25.
-
-    En ARQ 0.25 ``Job.result()`` lee ``result`` y ``zscore`` en dos llamadas separadas: si el
-    worker termina justo entre ambas, lanza ``ResultNotFound`` aunque el resultado ya exista.
-    """
+    """Espera el resultado del job sin la carrera de ``Job.result()`` en ARQ 0.25."""
     limite = time.monotonic() + timeout_s
     while True:
         info = await trabajo.result_info()
@@ -234,10 +302,93 @@ async def _esperar_resultado(
         await asyncio.sleep(poll_delay_s)
 
 
+async def _registrar_capas_antimalware(
+    sesiones: Any,
+    aplicacion_id: uuid.UUID,
+    archivo_id: uuid.UUID,
+    clamav: dict[str, Any],
+    vt: dict[str, Any],
+    destino: Estado,
+    tipo_detectado: str | None,
+    veredicto_cdr: Veredicto | None,
+    duracion_cdr_ms: int,
+) -> None:
+    """Registra resultados de todas las capas y aplica la transición en una transacción."""
+    async with sesiones.begin() as sesion:
+        if veredicto_cdr is not None:
+            firma_valida = veredicto_cdr.tipo in TIPOS_PERMITIDOS
+            await registrar_resultado(
+                sesion,
+                aplicacion_id,
+                archivo_id,
+                "firma",
+                LIMPIO if firma_valida else RECHAZADO,
+                {"tipo": veredicto_cdr.tipo},
+                None,
+            )
+            ver_cdr = (
+                LIMPIO
+                if veredicto_cdr.veredicto == LIMPIO
+                else (RECHAZADO if firma_valida else _NO_EVALUADA)
+            )
+            await registrar_resultado(
+                sesion,
+                aplicacion_id,
+                archivo_id,
+                "cdr",
+                ver_cdr,
+                {"motivo": veredicto_cdr.motivo},
+                duracion_cdr_ms,
+            )
+        if clamav["veredicto"] != _NO_EVALUADA or destino is Estado.EN_CUARENTENA:
+            detalle_clam = {
+                k: v for k, v in clamav.items() if k not in ("veredicto", "duracion_ms")
+            }
+            await registrar_resultado(
+                sesion,
+                aplicacion_id,
+                archivo_id,
+                "clamav",
+                clamav["veredicto"],
+                detalle_clam,
+                clamav["duracion_ms"],
+            )
+        if (
+            vt["veredicto"] != _NO_EVALUADA
+            or destino is Estado.EN_CUARENTENA
+            or vt.get("motivo")
+            in ("presupuesto_vt", "sin_cuota", "sin_api_key", "vt_no_disponible")
+        ):
+            detalle_vt = {
+                k: v for k, v in vt.items() if k not in ("veredicto", "duracion_ms")
+            }
+            await registrar_resultado(
+                sesion,
+                aplicacion_id,
+                archivo_id,
+                "virustotal",
+                vt["veredicto"],
+                detalle_vt,
+                vt["duracion_ms"],
+            )
+        await cambiar_estado(
+            sesion,
+            aplicacion_id,
+            archivo_id,
+            Estado.PENDIENTE,
+            destino,
+            tipo_detectado=tipo_detectado or None,
+            tipo_error="final" if destino is Estado.ERROR else None,
+        )
+
+
 async def orquestar(
-    ctx: dict[str, Any], aplicacion_id_str: str, archivo_id_str: str
+    ctx: dict[str, Any],
+    aplicacion_id_str: str,
+    archivo_id_str: str,
+    sha256: str = "",
 ) -> str:
-    """Orquesta el análisis de un archivo y registra el veredicto en PostgreSQL (K01, K08)."""
+    """Orquesta worker + reputation y consolida el veredicto en PostgreSQL (K01, K07, F4.07)."""
     ajustes: AjustesCoordinador = ctx["ajustes"]
     sesiones = ctx["sesiones"]
     cola_queue = ctx["cola_queue"]
@@ -247,6 +398,7 @@ async def orquestar(
     archivo_id = uuid.UUID(archivo_id_str)
     entrada = ajustes.uploads_tmp / str(archivo_id)
     final = ajustes.clean_store / str(archivo_id)
+    cuarentena = ajustes.quarantine / str(archivo_id)
     inicio = time.perf_counter()
 
     def _duracion_ms() -> int:
@@ -255,17 +407,29 @@ async def orquestar(
     confirmado = False
     estado_final = Estado.ERROR.value
     try:
-        trabajo = await cola_queue.enqueue_job(
+        # Encolar worker y reputation en paralelo (D1, K01).
+        trabajo_worker = await cola_queue.enqueue_job(
             "analizar",
             str(archivo_id),
             _job_id=f"analizar:{archivo_id}",
             _queue_name=COLA_ANALIZAR,
         )
-        if trabajo is None:
+        if trabajo_worker is None:
             raise RuntimeError("job duplicado en redis-queue")
+
+        trabajo_vt: Job | None = None
+        if ajustes.consultar_reputacion and sha256:
+            with contextlib.suppress(Exception):
+                trabajo_vt = await cola_main.enqueue_job(
+                    "consultar_hash",
+                    sha256,
+                    _job_id=f"vt:{archivo_id}",
+                    _queue_name=COLA_REPUTACION,
+                )
+
         try:
             bruto = await _esperar_resultado(
-                trabajo,
+                trabajo_worker,
                 ajustes.timeout_worker_s,
                 ajustes.poll_delay_s,
             )
@@ -280,25 +444,79 @@ async def orquestar(
             )
             return Estado.ERROR.value
 
+        # K07: presupuesto máximo de 1 s tras terminar el worker para VirusTotal.
+        res_vt: dict[str, Any] = {
+            "veredicto": _NO_EVALUADA,
+            "motivo": "no_solicitada",
+            "duracion_ms": 0,
+        }
+        if trabajo_vt is not None:
+            try:
+                bruto_vt = await _esperar_resultado(
+                    trabajo_vt,
+                    ajustes.presupuesto_vt_s,
+                    ajustes.poll_delay_s,
+                )
+                res_vt = _validar_capa_antimalware(bruto_vt)
+            except (TimeoutError, Exception):  # noqa: BLE001
+                res_vt = {
+                    "veredicto": _NO_EVALUADA,
+                    "motivo": "presupuesto_vt",
+                    "duracion_ms": round(ajustes.presupuesto_vt_s * 1000),
+                }
+
+        res_clamav = (
+            _validar_capa_antimalware(bruto.get("clamav"))
+            if isinstance(bruto, dict) and "clamav" in bruto
+            else {"veredicto": _NO_EVALUADA, "motivo": "no_evaluada", "duracion_ms": 0}
+        )
         categoria, veredicto, duracion_ms, motivo_error = validar_resultado_worker(
             bruto
         )
-        if categoria == _ERROR or veredicto is None:
+
+        # Prioridad F4.07: en_cuarentena > rechazado > error > limpio.
+        destino = decidir(categoria, res_clamav["veredicto"], res_vt["veredicto"])
+
+        if destino is Estado.EN_CUARENTENA:
             _borrar(final)
+            _asegurar_en_cuarentena(entrada, cuarentena)
+            await _registrar_capas_antimalware(
+                sesiones,
+                aplicacion_id,
+                archivo_id,
+                res_clamav,
+                res_vt,
+                Estado.EN_CUARENTENA,
+                veredicto.tipo if veredicto else None,
+                veredicto,
+                duracion_ms or _duracion_ms(),
+            )
+            confirmado = True
+            estado_final = Estado.EN_CUARENTENA.value
+            return estado_final
+
+        if destino is Estado.ERROR or veredicto is None:
+            _borrar(final)
+            motivo = (
+                res_clamav["motivo"]
+                if res_clamav["veredicto"] == _ERROR
+                else (motivo_error or _MOTIVO_INTERNO)
+            )
             await analisis._registrar_error(
                 sesiones,
                 aplicacion_id,
                 archivo_id,
-                motivo_error or _MOTIVO_INTERNO,
+                motivo,
                 duracion_ms or _duracion_ms(),
             )
             return Estado.ERROR.value
 
-        if veredicto.veredicto == LIMPIO:
+        if destino is Estado.LIMPIO:
             problema = _verificar_salida_limpia(final)
             if problema == _MOTIVO_SALIDA_GRANDE:
                 _borrar(final)
                 veredicto = Veredicto(RECHAZADO, veredicto.tipo, _MOTIVO_SALIDA_GRANDE)
+                destino = Estado.RECHAZADO
             elif problema is not None:
                 _borrar(final)
                 await analisis._registrar_error(
@@ -306,15 +524,29 @@ async def orquestar(
                 )
                 return Estado.ERROR.value
 
-        await analisis._registrar_veredicto(
-            sesiones, aplicacion_id, archivo_id, veredicto, duracion_ms
+        hay_antimalware = (
+            res_clamav["veredicto"] != _NO_EVALUADA
+            or res_vt["veredicto"] != _NO_EVALUADA
+            or trabajo_vt is not None
         )
+        if hay_antimalware:
+            await _registrar_capas_antimalware(
+                sesiones,
+                aplicacion_id,
+                archivo_id,
+                res_clamav,
+                res_vt,
+                destino,
+                veredicto.tipo,
+                veredicto,
+                duracion_ms,
+            )
+        else:
+            await analisis._registrar_veredicto(
+                sesiones, aplicacion_id, archivo_id, veredicto, duracion_ms
+            )
         confirmado = True
-        estado_final = (
-            Estado.LIMPIO.value
-            if veredicto.veredicto == LIMPIO
-            else Estado.RECHAZADO.value
-        )
+        estado_final = destino.value
         return estado_final
     except Exception as error:  # noqa: BLE001
         logger.warning(

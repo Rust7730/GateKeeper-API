@@ -42,6 +42,7 @@ WORKDIR /app
 COPY --from=dependencias /app/.venv /app/.venv
 COPY api ./api
 COPY worker ./worker
+COPY reputation ./reputation
 
 ENV PATH=/app/.venv/bin:/usr/local/bin:/usr/bin:/bin \
     PYTHONDONTWRITEBYTECODE=1 \

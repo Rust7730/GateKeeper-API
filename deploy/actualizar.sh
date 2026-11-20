@@ -291,8 +291,8 @@ salud() {
 levantar() {
     GATEKEEPER_IMAGEN="$1" "$COMPOSE" up -d --wait --wait-timeout 120 postgres || return 1
     escribir_url_bd || return 1
-    GATEKEEPER_IMAGEN="$1" "$COMPOSE" up -d --wait --wait-timeout 120 \
-        postgres redis-main redis-queue api coordinator worker nginx nginx-http
+    GATEKEEPER_IMAGEN="$1" "$COMPOSE" up -d --wait --wait-timeout 180 \
+        postgres redis-main redis-queue freshclam clamav reputation api coordinator worker nginx nginx-http
 }
 
 # Vuelve a `imagen`, que espera el esquema en `revision`. Antes deja el esquema en esa revisión con

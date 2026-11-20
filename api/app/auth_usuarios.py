@@ -1,5 +1,6 @@
 """Autenticación de usuarios del dashboard, TOTP cifrado, JWT, CSRF y RBAC (F5.01–F5.05)."""
 
+import asyncio
 import hashlib
 import hmac
 import http
@@ -13,15 +14,19 @@ from typing import Annotated
 import jwt
 import pyotp
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+from argon2.exceptions import VerificationError, VerifyMismatchError
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from fastapi import Depends, HTTPException, Request, status
 
+from api.app.limite import RedisNoDisponible, demasiadas_peticiones, no_disponible
 from api.db.repositorios_admin import DatosUsuario, obtener_usuario_por_id
 
-_HASHER = PasswordHasher()
+# H-06: 32 MiB de memoria (compatible con OWASP Argon2id y mem_limit=256m del contenedor api)
+# y concurrencia acotada para no saturar el event loop ni provocar OOM.
+_HASHER = PasswordHasher(memory_cost=32_768, time_cost=3, parallelism=1)
+_SEMAFORO_ARGON2 = asyncio.Semaphore(2)
 # Hash dummy precalculado para igualar el tiempo cuando el correo no existe.
 _HASH_DUMMY = _HASHER.hash("gatekeeper-dummy-password-timing-pad")
 
@@ -40,6 +45,7 @@ class UsuarioActual:
     correo: str
     rol: str
     mfa_activo: bool
+    exp: int = 0
 
 
 def _derivar_clave(pepper: bytes, info: bytes, largo: int = 32) -> bytes:
@@ -58,15 +64,26 @@ def hashear_contrasena(contrasena: str) -> str:
 def verificar_contrasena(hash_guardado: str, contrasena: str) -> bool:
     try:
         return _HASHER.verify(hash_guardado, contrasena)
-    except VerifyMismatchError:
+    except (VerifyMismatchError, VerificationError):
         return False
 
 
 def verificar_dummy(contrasena: str) -> None:
     try:
         _HASHER.verify(_HASH_DUMMY, contrasena)
-    except VerifyMismatchError:
+    except (VerifyMismatchError, VerificationError):
         pass
+
+
+async def verificar_contrasena_async(hash_guardado: str, contrasena: str) -> bool:
+    """Ejecuta Argon2id en hilo separado acotado por semáforo (H-06)."""
+    async with _SEMAFORO_ARGON2:
+        return await asyncio.to_thread(verificar_contrasena, hash_guardado, contrasena)
+
+
+async def verificar_dummy_async(contrasena: str) -> None:
+    async with _SEMAFORO_ARGON2:
+        await asyncio.to_thread(verificar_dummy, contrasena)
 
 
 def cifrar_totp(pepper: bytes, secreto_base32: str) -> bytes:
@@ -168,28 +185,46 @@ def _no_autorizado() -> HTTPException:
     )
 
 
+async def _rechazo_jwt(request: Request) -> HTTPException:
+    host = request.client.host if request.client is not None else None
+    try:
+        veredicto = await request.app.state.limitador.contar_sin_autenticar(host)
+    except RedisNoDisponible:
+        return no_disponible()
+    if not veredicto.permitido:
+        return demasiadas_peticiones(veredicto.reintentar_en_s)
+    return _no_autorizado()
+
+
 async def autenticar_usuario(request: Request) -> UsuarioActual:
     """Valida JWT Bearer (F5.02) y comprueba que el usuario sigue activo en BD."""
     cabeceras = request.headers.getlist("authorization")
     if len(cabeceras) != 1 or not cabeceras[0].startswith("Bearer "):
-        raise _no_autorizado()
+        raise await _rechazo_jwt(request)
     token = cabeceras[0].removeprefix("Bearer ")
     clave = _derivar_clave(request.app.state.ajustes.pepper, b"gatekeeper-jwt-v1")
     try:
-        datos = jwt.decode(token, clave, algorithms=[JWT_ALGORITMO])
+        datos = jwt.decode(
+            token,
+            clave,
+            algorithms=[JWT_ALGORITMO],
+            options={"require": ["exp", "sub", "iat", "jti"]},
+        )
         usuario_id = uuid.UUID(datos["sub"])
-    except (jwt.PyJWTError, KeyError, ValueError):
-        raise _no_autorizado() from None
+        exp = int(datos["exp"])
+    except (jwt.PyJWTError, KeyError, ValueError, TypeError):
+        raise await _rechazo_jwt(request) from None
 
     async with request.app.state.sesiones() as sesion:
         usuario = await obtener_usuario_por_id(sesion, usuario_id)
     if usuario is None or not usuario.activo:
-        raise _no_autorizado()
+        raise await _rechazo_jwt(request)
     return UsuarioActual(
         id=usuario.id,
         correo=usuario.email,
         rol=usuario.rol,
         mfa_activo=usuario.totp_secreto_cifrado is not None,
+        exp=exp,
     )
 
 

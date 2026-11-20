@@ -233,7 +233,7 @@ else
 fi
 
 paso "Directorios y archivos del despliegue"
-install -d -o root -g root -m 0755 "$OPT"
+install -d -o root -g root -m 0755 "$OPT" "$OPT/dashboard"
 install -d -o root -g root -m 0700 "$ETC" "$VAR" "$VAR/docker" "$VAR/sigstore" "$VAR/respaldos"
 install -d -o root -g root -m 0750 "$LOG"
 install -o root -g root -m 0644 "$ORIGEN/docker-compose.yml" "$OPT/docker-compose.yml"

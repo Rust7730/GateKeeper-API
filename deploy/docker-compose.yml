@@ -58,6 +58,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/gatekeeper:/etc/nginx/gatekeeper:ro
       - ./nginx/sitios/produccion.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./dashboard:/usr/share/nginx/html:ro
       - letsencrypt:/etc/letsencrypt:ro
     tmpfs:
       - /var/cache/nginx:size=16m

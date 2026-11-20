@@ -140,6 +140,7 @@ def crear_router_v1() -> APIRouter:
                     "orquestar",
                     str(aplicacion_id),
                     str(recibido.id),
+                    recibido.sha256,
                     _job_id=f"orquestar:{recibido.id}",
                     _queue_name=COLA_ORQUESTAR,
                 )

@@ -31,6 +31,7 @@ from api.app.cola import (
     serializar_json,
 )
 from worker.ajustes import VARIABLE_REDIS_QUEUE, AjustesWorker, leer_ajustes_worker
+from worker.clamav import ResultadoClamav, escanear_clamav
 from worker.ejecutor import (
     LIMPIO,
     RECHAZADO,
@@ -83,8 +84,35 @@ def _proteger_proceso() -> None:
         raise OSError(numero, os.strerror(numero))
 
 
+_NO_EVALUADA = "no_evaluada"
+_MALICIOSO = "malicioso"
+_MODO_CUARENTENA = 0o600
+
+
+def _copiar_a_cuarentena(origen: Path, destino: Path) -> None:
+    """Copia el original a ``quarantine/<uuid>`` (0600) sin borrar ``uploads_tmp`` (:ro)."""
+    destino.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
+    fd = os.open(
+        destino, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, _MODO_CUARENTENA
+    )
+    try:
+        with os.fdopen(fd, "wb") as salida, origen.open("rb") as entrada:
+            shutil.copyfileobj(entrada, salida)
+    except BaseException:
+        _borrar(destino)
+        raise
+
+
+async def _escanear_clamav_si_activo(
+    ajustes: AjustesWorker, entrada: Path
+) -> ResultadoClamav:
+    if ajustes.clamav_host is None:
+        return ResultadoClamav(_NO_EVALUADA, None, "clamav_no_configurado", 0)
+    return await escanear_clamav(entrada, ajustes.clamav_host, ajustes.clamav_puerto)
+
+
 async def analizar(ctx: dict[str, Any], archivo_id: str) -> dict[str, Any]:
-    """Ejecuta el CDR sobre ``uploads_tmp/<archivo_id>`` y devuelve el veredicto en JSON."""
+    """Ejecuta ClamAV (D1, sobre el ORIGINAL) en paralelo con firma+CDR y devuelve JSON."""
     inicio = time.perf_counter()
 
     def _duracion_ms() -> int:
@@ -97,6 +125,9 @@ async def analizar(ctx: dict[str, Any], archivo_id: str) -> dict[str, Any]:
             "tipo": "",
             "motivo": _MOTIVO_ID_INVALIDO,
             "duracion_ms": _duracion_ms(),
+            "clamav": ResultadoClamav(
+                _NO_EVALUADA, None, _MOTIVO_ID_INVALIDO, 0
+            ).como_dict(),
         }
 
     ajustes: AjustesWorker = ctx["ajustes"]
@@ -104,31 +135,69 @@ async def analizar(ctx: dict[str, Any], archivo_id: str) -> dict[str, Any]:
     trabajo = ajustes.clean_store / f"{identificador}{_SUFIJO_PARCIAL}"
     parcial = trabajo / str(identificador)
     final = ajustes.clean_store / str(identificador)
+    cuarentena = ajustes.quarantine / str(identificador)
 
     publicado = False
+    res_clamav = ResultadoClamav(_NO_EVALUADA, None, "no_ejecutada", 0)
     try:
         trabajo.mkdir(mode=_MODO_TRABAJO)
-        resultado = await correr_hijo(
-            (*ajustes.comando_cdr, str(entrada), str(parcial)),
-            ajustes.timeout_cdr_s,
+        # D1: ClamAV sobre el ORIGINAL en paralelo con firma+CDR.
+        res_clamav, resultado_cdr = await asyncio.gather(
+            _escanear_clamav_si_activo(ajustes, entrada),
+            correr_hijo(
+                (*ajustes.comando_cdr, str(entrada), str(parcial)),
+                ajustes.timeout_cdr_s,
+            ),
+            return_exceptions=True,
         )
+        if isinstance(res_clamav, BaseException):
+            if isinstance(res_clamav, asyncio.CancelledError):
+                raise res_clamav
+            res_clamav = ResultadoClamav(_ERROR, None, _MOTIVO_INTERNO, _duracion_ms())
+
+        if res_clamav.veredicto == _MALICIOSO:
+            # INV-07 / F4.09: original a cuarentena, nunca se publica salida en clean_store.
+            _copiar_a_cuarentena(entrada, cuarentena)
+            _borrar(final)
+
+        if isinstance(resultado_cdr, BaseException):
+            if isinstance(resultado_cdr, asyncio.CancelledError):
+                raise resultado_cdr
+            motivo_cdr = (
+                resultado_cdr.motivo
+                if isinstance(resultado_cdr, FalloDelHijo)
+                else _MOTIVO_INTERNO
+            )
+            return {
+                "veredicto": _ERROR,
+                "tipo": "",
+                "motivo": motivo_cdr,
+                "duracion_ms": _duracion_ms(),
+                "clamav": res_clamav.como_dict(),
+            }
+
         duracion_ms = _duracion_ms()
-        if resultado.veredicto == LIMPIO:
+        if resultado_cdr.veredicto == LIMPIO and res_clamav.veredicto not in (
+            _MALICIOSO,
+            _ERROR,
+        ):
             try:
                 publicar_salida(parcial, final)
                 publicado = True
             except SalidaDemasiadoGrande:
                 return {
                     "veredicto": RECHAZADO,
-                    "tipo": resultado.tipo,
+                    "tipo": resultado_cdr.tipo,
                     "motivo": _MOTIVO_SALIDA_GRANDE,
                     "duracion_ms": duracion_ms,
+                    "clamav": res_clamav.como_dict(),
                 }
         return {
-            "veredicto": resultado.veredicto,
-            "tipo": resultado.tipo,
-            "motivo": resultado.motivo,
+            "veredicto": resultado_cdr.veredicto,
+            "tipo": resultado_cdr.tipo,
+            "motivo": resultado_cdr.motivo,
             "duracion_ms": duracion_ms,
+            "clamav": res_clamav.como_dict(),
         }
     except Exception as error:  # noqa: BLE001
         motivo = error.motivo if isinstance(error, FalloDelHijo) else _MOTIVO_INTERNO
@@ -144,6 +213,7 @@ async def analizar(ctx: dict[str, Any], archivo_id: str) -> dict[str, Any]:
             "tipo": "",
             "motivo": motivo,
             "duracion_ms": _duracion_ms(),
+            "clamav": res_clamav.como_dict(),
         }
     finally:
         if not publicado:

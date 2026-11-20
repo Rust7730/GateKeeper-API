@@ -25,11 +25,16 @@ from redis.retry import Retry
 
 COLA_ORQUESTAR = "gk:cola:orquestar"
 COLA_ANALIZAR = "gk:cola:analizar"
+COLA_REPUTACION = "gk:cola:reputacion"
 CANAL_EVENTOS = "gk:eventos:archivo"
 
 POLL_DELAY_S = 0.05  # K08: polling de 50 ms en workers y en Job.result()
 TIMEOUT_JOB_WORKER_S = 35  # K64: cubre los 30 s del CDR + margen de proceso hijo
-TIMEOUT_JOB_COORDINATOR_S = 45  # K64: cubre worker + futura gracia de VT
+TIMEOUT_JOB_COORDINATOR_S = 45  # K64: cubre worker + gracia de VT (K07)
+TIMEOUT_JOB_REPUTATION_S = 15  # F4.03: consulta GET por hash a VirusTotal
+PRESUPUESTO_VT_S = (
+    1.0  # K07: gracia máxima tras terminar el worker antes de no_evaluada
+)
 MAX_REINTENTOS = 2  # K11: solo errores transitorios
 TOPE_MENSAJE_COLA = 65_536  # 64 KiB por mensaje JSON en Redis
 TIMEOUT_COLA_S = 1.0  # K61: una operación de cola no retiene más de 1 s

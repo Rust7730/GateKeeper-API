@@ -67,7 +67,7 @@ jobs:
         run: uv run pytest -q
 
       - name: Bandit
-        run: uv run bandit -r api/ worker/ -q -ll
+        run: uv run bandit -r api/ worker/ reputation/ -q -ll
 
   imagen:
     needs: pruebas

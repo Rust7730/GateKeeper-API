@@ -5,11 +5,13 @@
 !uv.lock
 !api/
 !worker/
+!reputation/
 
-# Dentro de api/ y worker/: ni pruebas ni cachés.
+# Dentro de api/, worker/ y reputation/: ni pruebas ni cachés.
 api/tests/
 api/db/tests/
 worker/tests/
+reputation/tests/
 **/__pycache__/
 **/*.pyc
 **/.pytest_cache/

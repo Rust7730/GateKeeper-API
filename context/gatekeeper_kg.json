@@ -31,8 +31,8 @@
    ]
   },
   "conteos": {
-   "nodos": 450,
-   "aristas": 1065,
+   "nodos": 451,
+   "aristas": 1071,
    "por_tipo": {
     "Actor": 4,
     "CWE": 6,
@@ -58,7 +58,7 @@
     "MetodoAuth": 5,
     "Metrica": 5,
     "Objetivo": 7,
-    "Observacion": 64,
+    "Observacion": 65,
     "Parametro": 16,
     "Paso": 66,
     "PasoFlujo": 10,
@@ -76,7 +76,7 @@
     "Volumen": 4
    },
    "por_relacion": {
-    "afecta": 258,
+    "afecta": 264,
     "almacenada_como": 1,
     "bloquea": 6,
     "cita": 6,
@@ -3416,7 +3416,7 @@
    "props": {
     "meta": "El archivo EICAR termina en 'en_cuarentena', detectado por ClamAV y por VirusTotal, sin subir ningún archivo a VirusTotal.",
     "criterio_salida": "El vector 11 pasa con detección en ambas capas y la prueba de no envío también.",
-    "estado": "pendiente"
+    "estado": "en_progreso"
    }
   },
   {
@@ -3424,8 +3424,16 @@
    "tipo": "Paso",
    "label": "Levantar clamd y el actualizador de firmas según D2, con las firmas en un volumen persistente para no descargarlas en cada reinicio.",
    "props": {
-    "estado": "pendiente",
-    "orden": 1
+    "estado": "en_progreso",
+    "orden": 1,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "ClamAV (INSTREAM paralelo D1), freshclam (D2), reputation (VT solo hash INV-05, caché 24h, cuota 4/min 500/día, presupuesto 1s K07) y prioridad F4.07 implementados y probados (vec:11 y vecx:reputacion_solo_get en verde)"
+     }
+    ]
    }
   },
   {
@@ -3433,8 +3441,16 @@
    "tipo": "Paso",
    "label": "Enviar el ORIGINAL desde el worker a clamd por INSTREAM, antes de la validación de firma de F2.09.",
    "props": {
-    "estado": "pendiente",
-    "orden": 2
+    "estado": "en_progreso",
+    "orden": 2,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "ClamAV (INSTREAM paralelo D1), freshclam (D2), reputation (VT solo hash INV-05, caché 24h, cuota 4/min 500/día, presupuesto 1s K07) y prioridad F4.07 implementados y probados (vec:11 y vecx:reputacion_solo_get en verde)"
+     }
+    ]
    }
   },
   {
@@ -3442,8 +3458,16 @@
    "tipo": "Paso",
    "label": "Servicio de reputación con httpx asíncrono y timeouts: GET /api/v3/files/{sha256}. Una respuesta 404 significa hash desconocido, no malicioso.",
    "props": {
-    "estado": "pendiente",
-    "orden": 3
+    "estado": "en_progreso",
+    "orden": 3,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "ClamAV (INSTREAM paralelo D1), freshclam (D2), reputation (VT solo hash INV-05, caché 24h, cuota 4/min 500/día, presupuesto 1s K07) y prioridad F4.07 implementados y probados (vec:11 y vecx:reputacion_solo_get en verde)"
+     }
+    ]
    }
   },
   {
@@ -3451,8 +3475,16 @@
    "tipo": "Paso",
    "label": "Guardar los veredictos en caché de Redis con el TTL definido en D5.",
    "props": {
-    "estado": "pendiente",
-    "orden": 4
+    "estado": "en_progreso",
+    "orden": 4,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "ClamAV (INSTREAM paralelo D1), freshclam (D2), reputation (VT solo hash INV-05, caché 24h, cuota 4/min 500/día, presupuesto 1s K07) y prioridad F4.07 implementados y probados (vec:11 y vecx:reputacion_solo_get en verde)"
+     }
+    ]
    }
   },
   {
@@ -3460,8 +3492,16 @@
    "tipo": "Paso",
    "label": "Encolar las consultas para respetar la cuota pública: 4 por minuto y 500 por día.",
    "props": {
-    "estado": "pendiente",
-    "orden": 5
+    "estado": "en_progreso",
+    "orden": 5,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "ClamAV (INSTREAM paralelo D1), freshclam (D2), reputation (VT solo hash INV-05, caché 24h, cuota 4/min 500/día, presupuesto 1s K07) y prioridad F4.07 implementados y probados (vec:11 y vecx:reputacion_solo_get en verde)"
+     }
+    ]
    }
   },
   {
@@ -3469,8 +3509,16 @@
    "tipo": "Paso",
    "label": "Aplicar la regla de D3 cuando no haya cuota o respuesta, marcando la capa como 'no_evaluada'.",
    "props": {
-    "estado": "pendiente",
-    "orden": 6
+    "estado": "en_progreso",
+    "orden": 6,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "ClamAV (INSTREAM paralelo D1), freshclam (D2), reputation (VT solo hash INV-05, caché 24h, cuota 4/min 500/día, presupuesto 1s K07) y prioridad F4.07 implementados y probados (vec:11 y vecx:reputacion_solo_get en verde)"
+     }
+    ]
    }
   },
   {
@@ -3478,8 +3526,16 @@
    "tipo": "Paso",
    "label": "Implementar la prioridad de decisión: en_cuarentena > rechazado > error > limpio.",
    "props": {
-    "estado": "pendiente",
-    "orden": 7
+    "estado": "en_progreso",
+    "orden": 7,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "ClamAV (INSTREAM paralelo D1), freshclam (D2), reputation (VT solo hash INV-05, caché 24h, cuota 4/min 500/día, presupuesto 1s K07) y prioridad F4.07 implementados y probados (vec:11 y vecx:reputacion_solo_get en verde)"
+     }
+    ]
    }
   },
   {
@@ -3487,8 +3543,16 @@
    "tipo": "Paso",
    "label": "Aplicar el umbral de motores de VirusTotal definido en D5.",
    "props": {
-    "estado": "pendiente",
-    "orden": 8
+    "estado": "en_progreso",
+    "orden": 8,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "ClamAV (INSTREAM paralelo D1), freshclam (D2), reputation (VT solo hash INV-05, caché 24h, cuota 4/min 500/día, presupuesto 1s K07) y prioridad F4.07 implementados y probados (vec:11 y vecx:reputacion_solo_get en verde)"
+     }
+    ]
    }
   },
   {
@@ -3496,8 +3560,16 @@
    "tipo": "Paso",
    "label": "Mover el original sospechoso al volumen quarantine y programar su borrado a los 30 días.",
    "props": {
-    "estado": "pendiente",
-    "orden": 9
+    "estado": "en_progreso",
+    "orden": 9,
+    "historial": [
+     {
+      "fecha": "2026-11-19",
+      "de": "pendiente",
+      "a": "en_progreso",
+      "nota": "ClamAV (INSTREAM paralelo D1), freshclam (D2), reputation (VT solo hash INV-05, caché 24h, cuota 4/min 500/día, presupuesto 1s K07) y prioridad F4.07 implementados y probados (vec:11 y vecx:reputacion_solo_get en verde)"
+     }
+    ]
    }
   },
   {
@@ -5029,6 +5101,20 @@
     "fecha_propuesta": "2026-11-19",
     "origen": "gatekeeper-guardian",
     "eleccion": "Flujo único ARQ (API -> coordinator -> worker) en producción y pruebas; worker con UID 10003 y GID compartido 10010 (uploads_tmp :ro en worker, clean_store :ro en api); job_timeout explícito de 35 s en worker y 45 s en coordinator",
+    "fecha_decision": "2026-11-19"
+   }
+  },
+  {
+   "id": "K65",
+   "tipo": "Observacion",
+   "label": "Servicios de antimalware activos en despliegue EC2 (F4)",
+   "props": {
+    "propuesta": "clamav, freshclam y reputation activos por defecto en deploy/docker-compose.yml (EC2 se sube a t3.medium de 4 GiB); VIRUSTOTAL_API_KEY opcional en reputation.env (si falta o no hay cuota, D3 marca virustotal como no_evaluada)",
+    "hallazgo": "El usuario optó por activar las dos capas de antimalware en producción subiendo la instancia a t3.medium (4 GiB) y mantener D3 para la cuota/key de VirusTotal",
+    "decision": "confirmada",
+    "fecha_propuesta": "2026-11-19",
+    "origen": "gatekeeper-guardian",
+    "eleccion": "clamav, freshclam y reputation activos por defecto en deploy/docker-compose.yml (EC2 se sube a t3.medium de 4 GiB); VIRUSTOTAL_API_KEY opcional en reputation.env (si falta o no hay cuota, D3 marca virustotal como no_evaluada)",
     "fecha_decision": "2026-11-19"
    }
   }
@@ -10456,6 +10542,36 @@
    "de": "K64",
    "rel": "afecta",
    "a": "K28"
+  },
+  {
+   "de": "K65",
+   "rel": "afecta",
+   "a": "F4.01"
+  },
+  {
+   "de": "K65",
+   "rel": "afecta",
+   "a": "F4.03"
+  },
+  {
+   "de": "K65",
+   "rel": "afecta",
+   "a": "F4.06"
+  },
+  {
+   "de": "K65",
+   "rel": "afecta",
+   "a": "D2"
+  },
+  {
+   "de": "K65",
+   "rel": "afecta",
+   "a": "D3"
+  },
+  {
+   "de": "K65",
+   "rel": "afecta",
+   "a": "K55"
   }
  ]
 }

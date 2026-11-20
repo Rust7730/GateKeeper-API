@@ -168,15 +168,15 @@ def test_vecx_refresh_reutilizado_revoca_toda_la_familia_y_exige_csrf(banco) -> 
 
 def test_vecx_analista_endpoint_admin_responde_403(banco) -> None:
     """vecx:analista_endpoint_admin (F5.05, K06): analista -> 403 en ruta de admin; admin -> 200."""
+    correo_ana = f"ana-{secrets.token_hex(4)}@gatekeeper.test"
+    correo_adm = f"adm-{secrets.token_hex(4)}@gatekeeper.test"
     pw_analista = f"Ana-{secrets.token_hex(8)}!"
     pw_admin = f"Adm-{secrets.token_hex(8)}!"
     secreto = pyotp.random_base32()
-    _sembrar_usuario(
-        banco, correo="ana@gatekeeper.test", contrasena=pw_analista, rol="analista"
-    )
+    _sembrar_usuario(banco, correo=correo_ana, contrasena=pw_analista, rol="analista")
     _sembrar_usuario(
         banco,
-        correo="adm@gatekeeper.test",
+        correo=correo_adm,
         contrasena=pw_admin,
         rol="admin",
         secreto_totp=secreto,
@@ -185,7 +185,7 @@ def test_vecx_analista_endpoint_admin_responde_403(banco) -> None:
     with banco.api() as cliente:
         tok_ana = cliente._http.post(
             "/v1/auth/login",
-            json={"correo": "ana@gatekeeper.test", "contrasena": pw_analista},
+            json={"correo": correo_ana, "contrasena": pw_analista},
         ).json()["token_acceso"]
 
         # Analista puede consultar su propia sesión (/v1/auth/me) pero NO una ruta de admin.
@@ -205,7 +205,7 @@ def test_vecx_analista_endpoint_admin_responde_403(banco) -> None:
         # Admin (con TOTP) accede tanto a /v1/auth/me (K06: admin ⊇ analista) como a admin-check.
         desafio = cliente._http.post(
             "/v1/auth/login",
-            json={"correo": "adm@gatekeeper.test", "contrasena": pw_admin},
+            json={"correo": correo_adm, "contrasena": pw_admin},
         ).json()["desafio_id"]
         tok_adm = cliente._http.post(
             "/v1/auth/totp",

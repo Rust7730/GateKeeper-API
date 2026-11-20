@@ -230,6 +230,7 @@ services:
     pids_limit: 64
 
   # Actualizador separado de firmas de ClamAV (D2, F4.01): único servicio ClamAV con salida a internet.
+  # Desactiva el healthcheck heredado de la imagen (clamdcheck.sh), porque aquí no corre clamd.
   freshclam:
     image: clamav/clamav:1.4.2_base
     restart: unless-stopped
@@ -239,6 +240,8 @@ services:
     volumes:
       - clamav_db:/var/lib/clamav
     networks: [egress]
+    healthcheck:
+      disable: true
     mem_limit: 256m
     memswap_limit: 256m
     pids_limit: 32

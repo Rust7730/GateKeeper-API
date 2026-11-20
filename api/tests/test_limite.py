@@ -568,15 +568,15 @@ def test_decision_3_por_http(
 ) -> None:
     for _ in range(LIMITE_IP):
         assert _asgi(cliente, "POST", "/v1/files", {}, origen=agotar_desde)[0] == 401
-    estado, cabeceras, cuerpo, _ = _asgi(cliente, "POST", "/v1/files", {}, origen=comparte)
+    estado, cabeceras, cuerpo, _ = _asgi(
+        cliente, "POST", "/v1/files", {}, origen=comparte
+    )
     _exigir_429(estado, cabeceras, cuerpo)
     assert _asgi(cliente, "POST", "/v1/files", {}, origen=no_comparte)[0] == 401
 
 
 @pytest.fixture
-def colgada(
-    bd_limpia: URL, pepper: bytes, tmp_path: Path
-) -> Iterator[TestClient]:
+def colgada(bd_limpia: URL, pepper: bytes, tmp_path: Path) -> Iterator[TestClient]:
     with redis_colgado() as url:
         app = _app(bd_limpia, pepper, tmp_path, url)
         with TestClient(app, raise_server_exceptions=False) as http:

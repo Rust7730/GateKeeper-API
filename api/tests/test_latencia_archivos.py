@@ -39,6 +39,7 @@ from api.db.tests.latencia import (
     factor_latencia,
 )
 from api.tests.soporte_api import sembrar_key
+from api.tests.soporte_redis import RelojQueCorre
 
 MUESTRAS_M1 = 200
 MUESTRAS_M2 = 20
@@ -118,10 +119,20 @@ def _pdf_de_200_paginas() -> bytes:
 
 
 @pytest.fixture
-def api(bd_limpia: URL, tmp_path: Path) -> Any:
+def api(bd_limpia: URL, tmp_path: Path, url_redis: str) -> Any:
     pepper = secrets.token_hex(32).encode()
     sembrada = sembrar_key(bd_limpia, pepper)
-    app = crear_app(Ajustes(url_bd=bd_limpia, pepper=pepper, datos=tmp_path / "datos"))
+    # M1 incluye la ida a Redis del rate limit; el reloj que corre evita que el ritmo de 200
+    # subidas seguidas termine en 429 (K58): aquí se mide el 202.
+    app = crear_app(
+        Ajustes(
+            url_bd=bd_limpia,
+            pepper=pepper,
+            datos=tmp_path / "datos",
+            url_redis=url_redis,
+            reloj_limite=RelojQueCorre(time.time()),
+        )
+    )
     with TestClient(app, raise_server_exceptions=False) as cliente:
         cliente.headers["Authorization"] = f"Bearer {sembrada.key}"
         yield cliente, app, sembrada.key

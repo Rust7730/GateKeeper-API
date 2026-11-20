@@ -91,17 +91,21 @@ return {permitido, espera}
 
 # KEYS[1]: zset de instantes. ARGV: ahora, ventana, límite, miembro único, ttl_ms.
 # Lo que no pasa no se anota: la ventana nunca guarda más de `límite` miembros.
+# ZCOUNT va antes que cualquier escritura: en Redis, una escritura sin `denyoom`
+# (ZREMRANGEBYSCORE) dejaría que el ZADD siguiente saltara `maxmemory` con `noeviction`.
 _SCRIPT_VENTANA = """
 local ahora = tonumber(ARGV[1])
 local ventana = tonumber(ARGV[2])
 local limite = tonumber(ARGV[3])
-redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', string.format('%.17g', ahora - ventana))
-if redis.call('ZCARD', KEYS[1]) < limite then
+local inicio = string.format('%.17g', ahora - ventana)
+local borde = '(' .. inicio
+if redis.call('ZCOUNT', KEYS[1], borde, '+inf') < limite then
   redis.call('ZADD', KEYS[1], string.format('%.17g', ahora), ARGV[4])
+  redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', inicio)
   redis.call('PEXPIRE', KEYS[1], ARGV[5])
   return {1, 0}
 end
-local primero = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+local primero = redis.call('ZRANGE', KEYS[1], borde, '+inf', 'BYSCORE', 'LIMIT', 0, 1, 'WITHSCORES')
 local espera = math.ceil(tonumber(primero[2]) + ventana - ahora)
 if espera < 1 then
   espera = 1
@@ -165,7 +169,9 @@ class Limitador:
         self._cliente = cliente
         self._reloj = reloj
 
-    async def _ejecutar(self, script: _Script, clave: str, *argumentos: object) -> Veredicto:
+    async def _ejecutar(
+        self, script: _Script, clave: str, *argumentos: object
+    ) -> Veredicto:
         fallo = None
         try:
             async with asyncio.timeout(TIMEOUT_REDIS_S):

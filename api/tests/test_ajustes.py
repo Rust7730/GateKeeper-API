@@ -41,7 +41,9 @@ URL_REDIS_FALSA = f"redis://gatekeeper:{CONTRASENA_REDIS}@127.0.0.1:1/0"
 
 
 def _ajustes(pepper: object = PEPPER_VALIDO, datos: Path = Path("/x/d")) -> Ajustes:
-    return Ajustes(url_bd=URL_FALSA, pepper=pepper, datos=datos, url_redis=URL_REDIS_FALSA)  # type: ignore[arg-type]
+    return Ajustes(
+        url_bd=URL_FALSA, pepper=pepper, datos=datos, url_redis=URL_REDIS_FALSA
+    )  # type: ignore[arg-type]
 
 
 def _multibyte(caracteres: int) -> str:
@@ -121,13 +123,23 @@ def test_pepper_con_bordes_en_blanco_se_rechaza(antes: bytes, despues: bytes) ->
 @pytest.mark.parametrize("url", ["", None])
 def test_url_faltante_se_rechaza(url: object) -> None:
     with pytest.raises(ConfiguracionError):
-        Ajustes(url_bd=url, pepper=PEPPER_VALIDO, datos=Path("/x/d"), url_redis=URL_REDIS_FALSA)  # type: ignore[arg-type]
+        Ajustes(
+            url_bd=url,
+            pepper=PEPPER_VALIDO,
+            datos=Path("/x/d"),
+            url_redis=URL_REDIS_FALSA,
+        )  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("datos", ["", "/x/d", None])
 def test_datos_que_no_es_path_se_rechaza(datos: object) -> None:
     with pytest.raises(ConfiguracionError):
-        Ajustes(url_bd=URL_FALSA, pepper=PEPPER_VALIDO, datos=datos, url_redis=URL_REDIS_FALSA)  # type: ignore[arg-type]
+        Ajustes(
+            url_bd=URL_FALSA,
+            pepper=PEPPER_VALIDO,
+            datos=datos,
+            url_redis=URL_REDIS_FALSA,
+        )  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("relativa", ["datos", "./datos", "../datos", "~/datos", ""])
@@ -437,7 +449,9 @@ def test_el_reloj_del_limite_es_time_time_y_no_se_lee_del_entorno(
     assert leer_ajustes().reloj_limite is time.time
 
 
-@pytest.mark.parametrize("reloj", [None, 0, "time.time"], ids=["nada", "numero", "texto"])
+@pytest.mark.parametrize(
+    "reloj", [None, 0, "time.time"], ids=["nada", "numero", "texto"]
+)
 def test_un_reloj_que_no_se_puede_llamar_no_crea_ajustes(reloj: object) -> None:
     with pytest.raises(ConfiguracionError):
         Ajustes(

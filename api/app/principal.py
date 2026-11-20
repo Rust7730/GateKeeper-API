@@ -11,6 +11,7 @@ from starlette.middleware import Middleware
 from api.app.ajustes import Ajustes, abrir_motor, leer_ajustes, preparar_directorios
 from api.app.analisis import cancelar_analisis
 from api.app.arranque import barrer_restos, comprobar_ancestros, proteger_proceso
+from api.app.limite import abrir_limitador
 from api.app.seguridad import HeadersSeguridad
 from api.app.v1 import crear_router_v1
 from api.db.sesion import fabrica_sesiones
@@ -38,15 +39,23 @@ def crear_app(ajustes: Ajustes | None = None) -> FastAPI:
         comprobar_ancestros()
         vigentes = leer_ajustes() if ajustes is None else ajustes
         preparar_directorios(vigentes.datos)
-        motor = abrir_motor(vigentes.url_bd)
+        # Sin conectar: si Redis no responde, la API arranca y /health contesta (K60).
+        limitador = abrir_limitador(vigentes.url_redis, vigentes.reloj_limite)
+        try:
+            motor = abrir_motor(vigentes.url_bd)
+        except BaseException:
+            await limitador.cerrar()
+            raise
         app.state.ajustes = vigentes
         app.state.motor = motor
         app.state.sesiones = fabrica_sesiones(motor)
+        app.state.limitador = limitador
         try:
             # Antes de aceptar peticiones: después cerraría análisis que sí están en curso.
             await barrer_restos(vigentes, app.state.sesiones)
         except BaseException:
             await motor.dispose()
+            await limitador.cerrar()
             raise
         # K09: un proceso hijo por archivo, y como mucho uno por núcleo a la vez.
         app.state.cupos = asyncio.Semaphore(os.cpu_count() or 1)
@@ -56,6 +65,7 @@ def crear_app(ajustes: Ajustes | None = None) -> FastAPI:
         finally:
             await cancelar_analisis(app.state)
             await motor.dispose()
+            await limitador.cerrar()
 
     app = FastAPI(
         title="Gatekeeper",
@@ -76,7 +86,7 @@ def crear_app(ajustes: Ajustes | None = None) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict[str, str]:
-        # Solo indica que el proceso responde: no consulta la BD ni otros servicios.
+        # Solo indica que el proceso responde: no consulta la BD, Redis (K60) ni otros servicios.
         return {"estado": "ok"}
 
     @app.head("/health", include_in_schema=False)

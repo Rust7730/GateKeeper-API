@@ -60,7 +60,11 @@ from api.app.cola import (
 from api.app.estados import Estado
 from api.app.tipos import TIPOS_PERMITIDOS
 from api.db.config import url_bd
-from api.db.repositorios import cambiar_estado, registrar_resultado
+from api.db.repositorios import (
+    ConflictoDeEstado,
+    cambiar_estado,
+    registrar_resultado,
+)
 from api.db.repositorios_admin import liberar_estado_archivo, obtener_metadatos_evento
 from api.db.sesion import fabrica_sesiones
 from worker.ajustes import QUARANTINE, VARIABLE_REDIS_QUEUE
@@ -94,6 +98,7 @@ class AjustesCoordinador:
     poll_delay_s: float = POLL_DELAY_S
     presupuesto_vt_s: float = PRESUPUESTO_VT_S
     consultar_reputacion: bool = True
+    exigir_clamav: bool = False
     max_jobs: int = field(default_factory=lambda: max(4, (os.cpu_count() or 1) * 2))
 
     def __post_init__(self) -> None:
@@ -158,11 +163,20 @@ def leer_ajustes_coordinador() -> AjustesCoordinador:
         url_redis=url_redis,
         url_redis_queue=url_queue,
         datos=Path(datos),
+        exigir_clamav=True,
     )
 
 
-def _validar_capa_antimalware(bruto: Any) -> dict[str, Any]:
+def _validar_capa_antimalware(
+    bruto: Any, *, fallo_cerrado: bool = False
+) -> dict[str, Any]:
     if type(bruto) is not dict:
+        if fallo_cerrado:
+            return {
+                "veredicto": _ERROR,
+                "motivo": _MOTIVO_RESPUESTA_INVALIDA,
+                "duracion_ms": 0,
+            }
         return {"veredicto": _NO_EVALUADA, "motivo": "sin_datos", "duracion_ms": 0}
     veredicto = bruto.get("veredicto")
     if type(veredicto) is not str or veredicto not in _VEREDICTOS_ANTIMALWARE:
@@ -223,13 +237,21 @@ def validar_resultado_worker(
     )
 
 
-def decidir(veredicto_cdr: str, veredicto_clamav: str, veredicto_vt: str) -> Estado:
+def decidir(
+    veredicto_cdr: str,
+    veredicto_clamav: str,
+    veredicto_vt: str,
+    *,
+    exigir_clamav: bool = False,
+) -> Estado:
     """Prioridad estricta F4.07: ``en_cuarentena > rechazado > error > limpio`` (INV-09)."""
     if veredicto_clamav == _MALICIOSO or veredicto_vt == _MALICIOSO:
         return Estado.EN_CUARENTENA
     if veredicto_cdr == RECHAZADO:
         return Estado.RECHAZADO
     if veredicto_clamav == _ERROR or veredicto_cdr == _ERROR:
+        return Estado.ERROR
+    if exigir_clamav and veredicto_clamav != LIMPIO:
         return Estado.ERROR
     if (
         veredicto_cdr == LIMPIO
@@ -685,17 +707,33 @@ async def orquestar(
                     "duracion_ms": round(ajustes.presupuesto_vt_s * 1000),
                 }
 
-        res_clamav = (
-            _validar_capa_antimalware(bruto.get("clamav"))
-            if isinstance(bruto, dict) and "clamav" in bruto
-            else {"veredicto": _NO_EVALUADA, "motivo": "no_evaluada", "duracion_ms": 0}
-        )
+        if isinstance(bruto, dict) and "clamav" in bruto:
+            res_clamav = _validar_capa_antimalware(
+                bruto.get("clamav"), fallo_cerrado=True
+            )
+        elif ajustes.exigir_clamav:
+            res_clamav = {
+                "veredicto": _ERROR,
+                "motivo": _MOTIVO_RESPUESTA_INVALIDA,
+                "duracion_ms": 0,
+            }
+        else:
+            res_clamav = {
+                "veredicto": _NO_EVALUADA,
+                "motivo": "no_evaluada",
+                "duracion_ms": 0,
+            }
         categoria, veredicto, duracion_ms, motivo_error = validar_resultado_worker(
             bruto
         )
 
         # Prioridad F4.07: en_cuarentena > rechazado > error > limpio.
-        destino = decidir(categoria, res_clamav["veredicto"], res_vt["veredicto"])
+        destino = decidir(
+            categoria,
+            res_clamav["veredicto"],
+            res_vt["veredicto"],
+            exigir_clamav=ajustes.exigir_clamav,
+        )
 
         if destino is Estado.EN_CUARENTENA:
             _borrar(final)
@@ -768,6 +806,11 @@ async def orquestar(
         confirmado = True
         estado_final = destino.value
         return estado_final
+    except ConflictoDeEstado:
+        # Otra ejecución ya cerró o liberó este archivo: no tocar clean_store/<uuid>.
+        confirmado = True
+        logger.warning("Conflicto de estado al orquestar %s", archivo_id)
+        return estado_final
     except Exception as error:  # noqa: BLE001
         logger.warning(
             "Orquestación de %s terminó en error (%s)",
@@ -775,9 +818,22 @@ async def orquestar(
             type(error).__name__,
         )
         _borrar(final)
-        await analisis._registrar_error(
-            sesiones, aplicacion_id, archivo_id, _MOTIVO_INTERNO, _duracion_ms()
-        )
+        if liberacion:
+            with contextlib.suppress(Exception):
+                await _registrar_liberacion(
+                    sesiones,
+                    aplicacion_id,
+                    archivo_id,
+                    Estado.ERROR,
+                    None,
+                    _duracion_ms(),
+                    usuario=usuario_liberacion,
+                    motivo=motivo_liberacion,
+                )
+        else:
+            await analisis._registrar_error(
+                sesiones, aplicacion_id, archivo_id, _MOTIVO_INTERNO, _duracion_ms()
+            )
         return Estado.ERROR.value
     finally:
         if not confirmado:

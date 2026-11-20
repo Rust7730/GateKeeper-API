@@ -45,6 +45,7 @@ from api.db.repositorios_admin import (
 )
 
 _CLAVE_MFA = "gk:mfa:"
+_CLAVE_ENROLL = "gk:mfa:enroll:"
 _CLAVE_TOTP_USADO = "gk:totp:usado:"
 _CLAVE_LIMITE_CUENTA = "gk:auth:cuenta:"
 _MAX_INTENTOS_MFA = 5
@@ -118,6 +119,10 @@ class InicioSesionEntrada(BaseModel):
 
 class VerificacionTotpEntrada(BaseModel):
     desafio_id: str = Field(min_length=16, max_length=128)
+    codigo: str = Field(min_length=6, max_length=6)
+
+
+class ConfirmarTotpEntrada(BaseModel):
     codigo: str = Field(min_length=6, max_length=6)
 
 
@@ -334,14 +339,61 @@ def crear_router_auth() -> APIRouter:
     async def enroll_totp(
         request: Request, actual: UsuarioAutenticado
     ) -> dict[str, str]:
+        # H-08: nunca sobrescribir un TOTP ya activo desde autoservicio (impide MFA takeover).
+        if actual.mfa_activo:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=http.HTTPStatus.FORBIDDEN.phrase,
+            )
         secreto = pyotp.random_base32()
         cifrado = cifrar_totp(request.app.state.ajustes.pepper, secreto)
-        async with request.app.state.sesiones.begin() as sesion:
-            await actualizar_totp_usuario(sesion, actual.id, cifrado)
+        # Fase 1: guardar secreto cifrado temporal en Redis hasta confirmar un código válido.
+        await request.app.state.cola_orquestar.set(
+            f"{_CLAVE_ENROLL}{actual.id}",
+            cifrado,
+            ex=DESAFIO_TOTP_TTL_S,
+        )
         uri = pyotp.TOTP(secreto).provisioning_uri(
             name=actual.correo, issuer_name="Gatekeeper"
         )
         return {"secreto": secreto, "otpauth_uri": uri}
+
+    @router.post("/totp/confirm")
+    async def confirmar_totp(
+        datos: ConfirmarTotpEntrada, request: Request, actual: UsuarioAutenticado
+    ) -> dict[str, bool]:
+        """Fase 2 de enrolamiento TOTP (H-08): verifica el código antes de persistir en BD."""
+        if actual.mfa_activo:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=http.HTTPStatus.FORBIDDEN.phrase,
+            )
+        redis = request.app.state.cola_orquestar
+        clave = f"{_CLAVE_ENROLL}{actual.id}"
+        cifrado = await redis.get(clave)
+        if not isinstance(cifrado, bytes) or len(cifrado) <= 12:
+            raise _no_autorizado()
+        paso = verificar_codigo_totp_con_paso(
+            request.app.state.ajustes.pepper, cifrado, datos.codigo
+        )
+        if paso is None:
+            raise _no_autorizado()
+        async with request.app.state.sesiones.begin() as sesion:
+            await actualizar_totp_usuario(sesion, actual.id, cifrado)
+            await registrar_evento_auditoria(
+                sesion,
+                usuario_id=actual.id,
+                accion="activar_totp",
+                ip=huella_ip(request),
+            )
+        await redis.delete(clave)
+        await redis.set(
+            f"{_CLAVE_TOTP_USADO}{actual.id}:{paso}",
+            b"1",
+            nx=True,
+            ex=_TTL_TOTP_USADO_S,
+        )
+        return {"mfa_activo": True}
 
     @router.post("/refresh", response_model=None)
     async def refresh(

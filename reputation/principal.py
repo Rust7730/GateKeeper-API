@@ -80,8 +80,12 @@ def crear_reputation(
 def main() -> int:
     _proteger_proceso()
     ajustes = leer_ajustes_reputacion()
-    servicio = crear_reputation(ajustes, handle_signals=True)
-    asyncio.run(servicio.async_run())
+
+    async def _correr() -> None:
+        servicio = crear_reputation(ajustes, handle_signals=True)
+        await servicio.async_run()
+
+    asyncio.run(_correr())
     return 0
 
 

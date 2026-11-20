@@ -626,8 +626,12 @@ def main() -> int:
     proteger_proceso()
     comprobar_ancestros()
     ajustes = leer_ajustes_coordinador()
-    coordinador = crear_coordinador(ajustes, handle_signals=True)
-    asyncio.run(coordinador.async_run())
+
+    async def _correr() -> None:
+        coordinador = crear_coordinador(ajustes, handle_signals=True)
+        await coordinador.async_run()
+
+    asyncio.run(_correr())
     return 0
 
 

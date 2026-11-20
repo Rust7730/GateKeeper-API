@@ -259,8 +259,12 @@ def crear_worker(
 def main() -> int:
     _proteger_proceso()
     ajustes = leer_ajustes_worker()
-    worker = crear_worker(ajustes, handle_signals=True)
-    asyncio.run(worker.async_run())
+
+    async def _correr() -> None:
+        worker = crear_worker(ajustes, handle_signals=True)
+        await worker.async_run()
+
+    asyncio.run(_correr())
     return 0
 
 

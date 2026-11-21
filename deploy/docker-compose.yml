@@ -219,6 +219,7 @@ services:
       - clamav_db:/var/lib/clamav:ro
     tmpfs:
       - /run/clamav:size=8m,uid=100,gid=101,mode=0755
+      - /var/log/clamav:size=16m,uid=100,gid=101,mode=0755
       - /tmp:size=64m
     networks: [isolated]
     healthcheck:
@@ -242,6 +243,7 @@ services:
       - clamav_db:/var/lib/clamav
     tmpfs:
       - /run/clamav:size=8m,uid=100,gid=101,mode=0755
+      - /var/log/clamav:size=16m,uid=100,gid=101,mode=0755
       - /tmp:size=16m
     networks: [egress]
     healthcheck:

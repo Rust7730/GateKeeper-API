@@ -3839,8 +3839,15 @@
    "tipo": "Paso",
    "label": "Correr OWASP ZAP contra la API importando la especificación OpenAPI.",
    "props": {
-    "estado": "pendiente",
-    "orden": 2
+    "estado": "en_progreso",
+    "orden": 2,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {

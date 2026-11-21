@@ -1,0 +1,984 @@
+{
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InicioSesionEntrada": {
+        "properties": {
+          "contrasena": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Contrasena",
+            "type": "string"
+          },
+          "correo": {
+            "maxLength": 254,
+            "minLength": 3,
+            "title": "Correo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "correo",
+          "contrasena"
+        ],
+        "title": "InicioSesionEntrada",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VerificacionTotpEntrada": {
+        "properties": {
+          "codigo": {
+            "maxLength": 6,
+            "minLength": 6,
+            "title": "Codigo",
+            "type": "string"
+          },
+          "desafio_id": {
+            "maxLength": 128,
+            "minLength": 16,
+            "title": "Desafio Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "desafio_id",
+          "codigo"
+        ],
+        "title": "VerificacionTotpEntrada",
+        "type": "object"
+      },
+      "_LiberacionPeticion": {
+        "properties": {
+          "motivo": {
+            "maxLength": 500,
+            "minLength": 20,
+            "title": "Motivo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "motivo"
+        ],
+        "title": "_LiberacionPeticion",
+        "type": "object"
+      },
+      "_NuevaApiKeyPeticion": {
+        "properties": {
+          "aplicacion_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aplicacion Id"
+          },
+          "aplicacion_nombre": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aplicacion Nombre"
+          }
+        },
+        "title": "_NuevaApiKeyPeticion",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Gatekeeper",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/v1/admin/api-keys": {
+      "get": {
+        "operationId": "listar_api_keys_v1_admin_api_keys_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Listar Api Keys V1 Admin Api Keys Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Listar Api Keys",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "crear_api_key_admin_v1_admin_api_keys_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_NuevaApiKeyPeticion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Crear Api Key Admin V1 Admin Api Keys Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Crear Api Key Admin",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/api-keys/{key_id}": {
+      "delete": {
+        "operationId": "eliminar_api_key_admin_v1_admin_api_keys__key_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Key Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Eliminar Api Key Admin",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/applications": {
+      "get": {
+        "operationId": "listar_aplicaciones_v1_admin_applications_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Listar Aplicaciones V1 Admin Applications Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Listar Aplicaciones",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/audit": {
+      "get": {
+        "operationId": "listar_auditoria_v1_admin_audit_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "pagina",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Pagina",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tamano_pagina",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Tamano Pagina",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Listar Auditoria V1 Admin Audit Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listar Auditoria",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/events": {
+      "get": {
+        "description": "Flujo SSE en tiempo real suscrito a ``gk:eventos:archivo`` (F5.11, K20).",
+        "operationId": "stream_eventos_v1_admin_events_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Stream Eventos",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/files": {
+      "get": {
+        "operationId": "listar_archivos_v1_admin_files_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "estado",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aplicacion_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Aplicacion Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "desde",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Desde"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hasta",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hasta"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "orden",
+            "required": false,
+            "schema": {
+              "default": "creado_en",
+              "enum": [
+                "creado_en",
+                "tamano_bytes",
+                "estado"
+              ],
+              "title": "Orden",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dir",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "title": "Dir",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pagina",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Pagina",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tamano_pagina",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Tamano Pagina",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Listar Archivos V1 Admin Files Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listar Archivos",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/files/{archivo_id}": {
+      "get": {
+        "operationId": "detalle_archivo_v1_admin_files__archivo_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "archivo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Archivo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Detalle Archivo V1 Admin Files  Archivo Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detalle Archivo",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/files/{archivo_id}/release": {
+      "post": {
+        "operationId": "liberar_archivo_v1_admin_files__archivo_id__release_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "archivo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Archivo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_LiberacionPeticion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Liberar Archivo V1 Admin Files  Archivo Id  Release Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Liberar Archivo",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/metrics": {
+      "get": {
+        "operationId": "obtener_metricas_v1_admin_metrics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "periodo",
+            "required": false,
+            "schema": {
+              "default": "7d",
+              "enum": [
+                "24h",
+                "7d",
+                "30d"
+              ],
+              "title": "Periodo",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Obtener Metricas V1 Admin Metrics Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Obtener Metricas",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/auth/admin-check": {
+      "get": {
+        "operationId": "admin_check_v1_auth_admin_check_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Admin Check V1 Auth Admin Check Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Admin Check"
+      }
+    },
+    "/v1/auth/login": {
+      "post": {
+        "operationId": "login_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InicioSesionEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Login V1 Auth Login Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login"
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "operationId": "logout_v1_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout"
+      }
+    },
+    "/v1/auth/me": {
+      "get": {
+        "operationId": "me_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Me V1 Auth Me Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Me"
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "operationId": "refresh_v1_auth_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Refresh V1 Auth Refresh Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Refresh"
+      }
+    },
+    "/v1/auth/totp": {
+      "post": {
+        "operationId": "verificar_totp_v1_auth_totp_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificacionTotpEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Verificar Totp V1 Auth Totp Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verificar Totp"
+      }
+    },
+    "/v1/auth/totp/enroll": {
+      "post": {
+        "operationId": "enroll_totp_v1_auth_totp_enroll_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Enroll Totp V1 Auth Totp Enroll Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Enroll Totp"
+      }
+    },
+    "/v1/files": {
+      "post": {
+        "description": "Antes del 202 solo hay streaming a disco, SHA-256 e ``INSERT`` (M1), y antes de\nleer el cuerpo, una ida a Redis por el rate limit (``limitar_subida``).\n\nK48: como mucho ``TOPE_PENDIENTES`` archivos en ``pendiente`` por aplicación; el\nsiguiente recibe 429, sin temporal ni fila. Lo garantiza ``crear_archivo_con_cupo``,\nque cuenta e inserta en el mismo turno. La lectura previa solo evita recibir el\ncuerpo cuando ya se sabe que no cabe; su 429 cierra la conexión, como todo rechazo\nque no lee el cuerpo. La transacción del alta es corta y no hace E/S: bloquea la\nfila de la aplicación hasta el ``COMMIT``.",
+        "operationId": "subir_archivo_v1_files_post",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Subir Archivo V1 Files Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Subir Archivo"
+      }
+    },
+    "/v1/files/{archivo_id}": {
+      "get": {
+        "operationId": "ver_archivo_v1_files__archivo_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "archivo_id",
+            "required": true,
+            "schema": {
+              "title": "Archivo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ver Archivo V1 Files  Archivo Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ver Archivo"
+      }
+    },
+    "/v1/files/{archivo_id}/content": {
+      "get": {
+        "description": "Solo la reconstrucción y solo en ``limpio`` (INV-01, INV-06).\n\nSi falta, nunca se recurre al original. ``lstat`` para no seguir un enlace.",
+        "operationId": "descargar_archivo_v1_files__archivo_id__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "archivo_id",
+            "required": true,
+            "schema": {
+              "title": "Archivo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Descargar Archivo"
+      }
+    }
+  }
+}

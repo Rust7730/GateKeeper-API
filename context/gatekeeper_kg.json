@@ -2901,8 +2901,15 @@
    "tipo": "Paso",
    "label": "Escribir los esquemas Pydantic de los endpoints de api.endpoints (más los de api.endpoints_sugeridos que se adopten) y generar la especificación OpenAPI desde FastAPI.",
    "props": {
-    "estado": "pendiente",
-    "orden": 6
+    "estado": "en_progreso",
+    "orden": 6,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {

@@ -83,7 +83,7 @@ paso "Comprobando el sistema"
 # Sin Landlock, el hijo del CDR no se aísla y todos los archivos terminan en `error` (K53).
 grep -qw landlock /sys/kernel/security/lsm ||
     fallar "Landlock no está activo en este kernel (/sys/kernel/security/lsm)."
-for archivo in docker-compose.yml actualizar.sh cortafuegos.sh gk-compose sonda_aislamiento.py \
+for archivo in docker-compose.yml actualizar.sh actualizar_dashboard.sh cortafuegos.sh gk-compose sonda_aislamiento.py \
     nginx/nginx.conf nginx/http.conf; do
     [[ -f $ORIGEN/$archivo ]] || fallar "falta $ORIGEN/$archivo: corre el script desde el clon."
 done
@@ -239,6 +239,7 @@ install -d -o root -g root -m 0750 "$LOG"
 install -o root -g root -m 0644 "$ORIGEN/docker-compose.yml" "$OPT/docker-compose.yml"
 install -o root -g root -m 0644 "$ORIGEN/sonda_aislamiento.py" "$OPT/sonda_aislamiento.py"
 install -o root -g root -m 0755 "$ORIGEN/actualizar.sh" "$OPT/actualizar.sh"
+install -o root -g root -m 0755 "$ORIGEN/actualizar_dashboard.sh" "$OPT/actualizar_dashboard.sh"
 install -o root -g root -m 0755 "$ORIGEN/cortafuegos.sh" "$OPT/cortafuegos.sh"
 install -o root -g root -m 0755 "$ORIGEN/gk-compose" /usr/local/sbin/gk-compose
 # En el sitio y no borrando antes: nginx monta estos archivos y directorios; uno borrado y vuelto a
@@ -493,6 +494,7 @@ if ! "$OPT/actualizar.sh" --reaplicar; then
     fallar "la API no quedó en servicio con la configuración nueva; revisa $LOG/despliegues.log y 'gk-compose logs api'."
 fi
 gk-compose up -d --wait --wait-timeout 120 --force-recreate nginx nginx-http
+"$OPT/actualizar_dashboard.sh" || true
 
 paso "Timers de systemd"
 systemctl enable --now gatekeeper-actualizar.timer gatekeeper-certificados.timer

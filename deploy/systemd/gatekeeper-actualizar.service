@@ -8,6 +8,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/opt/gatekeeper/actualizar.sh
+ExecStart=-/opt/gatekeeper/actualizar_dashboard.sh
 TimeoutStartSec=15min
 # Como root: hablar con Docker equivale a ser root, y un usuario en el grupo docker lo sería igual.
 # Lo de abajo acota lo que el propio script puede tocar del sistema.
@@ -16,7 +17,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectHome=yes
 ProtectSystem=full
-ReadWritePaths=/var/lib/gatekeeper /var/log/gatekeeper
+ReadWritePaths=/var/lib/gatekeeper /var/log/gatekeeper /opt/gatekeeper/dashboard
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes

@@ -1,6 +1,21 @@
 {
   "components": {
     "schemas": {
+      "ConfirmarTotpEntrada": {
+        "properties": {
+          "codigo": {
+            "maxLength": 6,
+            "minLength": 6,
+            "title": "Codigo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo"
+        ],
+        "title": "ConfirmarTotpEntrada",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -363,7 +378,7 @@
     },
     "/v1/admin/events": {
       "get": {
-        "description": "Flujo SSE en tiempo real suscrito a ``gk:eventos:archivo`` (F5.11, K20).",
+        "description": "Flujo SSE en tiempo real sobre ``HubEventosSSE`` dedicado (H-07, M-7, F5.11, K20).",
         "operationId": "stream_eventos_v1_admin_events_get",
         "responses": {
           "200": {
@@ -803,11 +818,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Refresh V1 Auth Refresh Post",
-                  "type": "object"
-                }
+                "schema": {}
               }
             },
             "description": "Successful Response"
@@ -854,6 +865,49 @@
           }
         },
         "summary": "Verificar Totp"
+      }
+    },
+    "/v1/auth/totp/confirm": {
+      "post": {
+        "description": "Fase 2 de enrolamiento TOTP (H-08): verifica el código antes de persistir en BD.",
+        "operationId": "confirmar_totp_v1_auth_totp_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmarTotpEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Confirmar Totp V1 Auth Totp Confirm Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirmar Totp"
       }
     },
     "/v1/auth/totp/enroll": {

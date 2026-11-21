@@ -50,12 +50,12 @@ class AjustesReputacion:
 
 
 def leer_ajustes_reputacion() -> AjustesReputacion:
-    url = os.environ.get(VARIABLE_REDIS)
+    url = os.environ.pop(VARIABLE_REDIS, None)
     if url is None or not url.strip():
         raise ConfiguracionReputacionError(
             f"Falta la variable de entorno {VARIABLE_REDIS} o está vacía."
         )
-    key_raw = os.environ.get(VARIABLE_VT_API_KEY)
+    key_raw = os.environ.pop(VARIABLE_VT_API_KEY, None)
     vt_api_key = key_raw.strip() if key_raw and key_raw.strip() else None
     base_raw = os.environ.get(VARIABLE_VT_BASE_URL)
     vt_base_url = (

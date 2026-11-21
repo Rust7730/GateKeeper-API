@@ -3822,7 +3822,7 @@
    "props": {
     "meta": "15 de 15 vectores bloqueados y cero hallazgos de severidad alta sin corregir.",
     "criterio_salida": "15/15 en CI y ningún hallazgo alto abierto en el informe.",
-    "estado": "pendiente"
+    "estado": "en_progreso"
    }
   },
   {
@@ -3830,8 +3830,15 @@
    "tipo": "Paso",
    "label": "Ejecutar la suite completa tests/attack-matrix/ y guardar la evidencia de cada vector: petición, respuesta y estado final.",
    "props": {
-    "estado": "pendiente",
-    "orden": 1
+    "estado": "en_progreso",
+    "orden": 1,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {
@@ -3839,8 +3846,15 @@
    "tipo": "Paso",
    "label": "Correr OWASP ZAP contra la API importando la especificación OpenAPI.",
    "props": {
-    "estado": "pendiente",
-    "orden": 2
+    "estado": "en_progreso",
+    "orden": 2,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {
@@ -3848,8 +3862,15 @@
    "tipo": "Paso",
    "label": "Correr Trivy sobre imágenes y dependencias, Bandit sobre el código Python y supply-chain-risk-auditor sobre PyPI y npm.",
    "props": {
-    "estado": "pendiente",
-    "orden": 3
+    "estado": "en_progreso",
+    "orden": 3,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {
@@ -3857,8 +3878,15 @@
    "tipo": "Paso",
    "label": "Correr el plugin Claude Security por áreas: primero el worker y después la autenticación.",
    "props": {
-    "estado": "pendiente",
-    "orden": 4
+    "estado": "en_progreso",
+    "orden": 4,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {
@@ -3875,8 +3903,15 @@
    "tipo": "Paso",
    "label": "Ciclo de corrección: cada hallazgo alto en su propio commit, y volver a escanear hasta que ya no aparezca.",
    "props": {
-    "estado": "pendiente",
-    "orden": 6
+    "estado": "en_progreso",
+    "orden": 6,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {
@@ -3884,8 +3919,15 @@
    "tipo": "Paso",
    "label": "Redactar el informe: matriz de 15 vectores con evidencia y la capa que detuvo cada uno; reportes de ZAP, Trivy, Bandit y Claude Security con hallazgos y correcciones; limitaciones declaradas.",
    "props": {
-    "estado": "pendiente",
-    "orden": 7
+    "estado": "en_progreso",
+    "orden": 7,
+    "historial": [
+     {
+      "fecha": "2026-11-20",
+      "de": "pendiente",
+      "a": "en_progreso"
+     }
+    ]
    }
   },
   {

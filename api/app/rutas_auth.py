@@ -1,7 +1,7 @@
 """Router ``/v1/auth``: login Argon2+TOTP, refresh rotativo con CSRF, logout y RBAC (F5.01–F5.05)."""
 
+import hashlib
 import http
-import json
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -9,6 +9,7 @@ from typing import Any
 
 import pyotp
 from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from api.app.auth_usuarios import (
@@ -26,10 +27,11 @@ from api.app.auth_usuarios import (
     exigir_csrf,
     generar_csrf,
     huella_ip,
-    verificar_codigo_totp,
-    verificar_contrasena,
-    verificar_dummy,
+    verificar_codigo_totp_con_paso,
+    verificar_contrasena_async,
+    verificar_dummy_async,
 )
+from api.app.limite import RedisNoDisponible, demasiadas_peticiones, no_disponible
 from api.db.repositorios_admin import (
     DatosUsuario,
     actualizar_totp_usuario,
@@ -43,6 +45,71 @@ from api.db.repositorios_admin import (
 )
 
 _CLAVE_MFA = "gk:mfa:"
+_CLAVE_ENROLL = "gk:mfa:enroll:"
+_CLAVE_TOTP_USADO = "gk:totp:usado:"
+_CLAVE_LIMITE_CUENTA = "gk:auth:cuenta:"
+_MAX_INTENTOS_MFA = 5
+_TTL_TOTP_USADO_S = 120
+_MAX_INTENTOS_CUENTA_MIN = 10
+# H-09: incremento atómico de intentos de desafío MFA en Redis (sin TOCTOU).
+_SCRIPT_CONSUMIR_INTENTO_MFA = """
+local val = redis.call('GET', KEYS[1])
+if not val then
+    return nil
+end
+local sep = string.find(val, '|', 1, true)
+if not sep then
+    redis.call('DEL', KEYS[1])
+    return nil
+end
+local uid = string.sub(val, 1, sep - 1)
+local intentos = tonumber(string.sub(val, sep + 1)) or 0
+local max_intentos = tonumber(ARGV[1])
+if intentos >= max_intentos then
+    redis.call('DEL', KEYS[1])
+    return nil
+end
+local pttl = redis.call('PTTL', KEYS[1])
+if pttl <= 0 then
+    redis.call('DEL', KEYS[1])
+    return nil
+end
+redis.call('SET', KEYS[1], uid .. '|' .. tostring(intentos + 1), 'PX', pttl)
+return uid
+"""
+_SCRIPT_LIMITE_CUENTA = """
+local c = redis.call('INCR', KEYS[1])
+if c == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+local ttl = redis.call('TTL', KEYS[1])
+return {c, ttl}
+"""
+
+
+async def _exigir_cupo_ip_auth(request: Request) -> None:
+    """Aplica el limitador por IP a intentos de autenticación (H-06)."""
+    host = request.client.host if request.client is not None else None
+    try:
+        veredicto = await request.app.state.limitador.contar_sin_autenticar(host)
+    except RedisNoDisponible:
+        raise no_disponible() from None
+    if not veredicto.permitido:
+        raise demasiadas_peticiones(veredicto.reintentar_en_s)
+
+
+async def _exigir_cupo_cuenta(request: Request, correo_norm: str) -> None:
+    """Limita intentos por cuenta en /v1/auth/login (10/min) para frenar brute-force y llenado de Redis."""
+    huella = hashlib.sha256(correo_norm.encode("utf-8")).hexdigest()[:32]
+    clave = f"{_CLAVE_LIMITE_CUENTA}{huella}"
+    try:
+        cuenta, ttl = await request.app.state.cola_orquestar.eval(
+            _SCRIPT_LIMITE_CUENTA, 1, clave, 60
+        )
+    except Exception:  # noqa: BLE001
+        raise no_disponible() from None
+    if int(cuenta) > _MAX_INTENTOS_CUENTA_MIN:
+        raise demasiadas_peticiones(max(1, int(ttl)))
 
 
 class InicioSesionEntrada(BaseModel):
@@ -52,6 +119,10 @@ class InicioSesionEntrada(BaseModel):
 
 class VerificacionTotpEntrada(BaseModel):
     desafio_id: str = Field(min_length=16, max_length=128)
+    codigo: str = Field(min_length=6, max_length=6)
+
+
+class ConfirmarTotpEntrada(BaseModel):
     codigo: str = Field(min_length=6, max_length=6)
 
 
@@ -154,24 +225,33 @@ def crear_router_auth() -> APIRouter:
     async def login(
         datos: InicioSesionEntrada, request: Request, response: Response
     ) -> dict[str, Any]:
+        correo_norm = datos.correo.strip().lower()
+        await _exigir_cupo_ip_auth(request)
+        await _exigir_cupo_cuenta(request, correo_norm)
         ip = huella_ip(request)
         async with request.app.state.sesiones() as sesion:
-            usuario = await obtener_usuario_por_email(sesion, datos.correo.strip())
+            usuario = await obtener_usuario_por_email(sesion, correo_norm)
         if usuario is None:
-            verificar_dummy(datos.contrasena)
+            await verificar_dummy_async(datos.contrasena)
             async with request.app.state.sesiones.begin() as sesion:
                 await registrar_evento_auditoria(
                     sesion, usuario_id=None, accion="inicio_fallido", ip=ip
                 )
             raise _no_autorizado()
 
-        if not usuario.activo or not verificar_contrasena(
+        # M-6: evaluar Argon2id siempre antes de comprobar usuario.activo (sin timing oracle).
+        contrasena_ok = await verificar_contrasena_async(
             usuario.hash_password, datos.contrasena
-        ):
+        )
+        if not usuario.activo or not contrasena_ok:
             async with request.app.state.sesiones.begin() as sesion:
                 await registrar_evento_auditoria(
                     sesion, usuario_id=usuario.id, accion="inicio_fallido", ip=ip
                 )
+            raise _no_autorizado()
+
+        # F5.01: admin sin TOTP configurado no puede abrir sesión (fail-closed).
+        if usuario.rol == "admin" and usuario.totp_secreto_cifrado is None:
             raise _no_autorizado()
 
         # F5.01: si el usuario tiene TOTP activo (obligatorio para admin), paso 2 requerido.
@@ -180,9 +260,7 @@ def crear_router_auth() -> APIRouter:
             redis = request.app.state.cola_orquestar
             await redis.set(
                 f"{_CLAVE_MFA}{desafio_id}",
-                json.dumps({"usuario_id": str(usuario.id), "intentos": 0}).encode(
-                    "utf-8"
-                ),
+                f"{usuario.id}|0".encode("ascii"),
                 ex=DESAFIO_TOTP_TTL_S,
             )
             return {"mfa_requerido": True, "desafio_id": desafio_id}
@@ -193,17 +271,20 @@ def crear_router_auth() -> APIRouter:
     async def verificar_totp(
         datos: VerificacionTotpEntrada, request: Request, response: Response
     ) -> dict[str, Any]:
+        await _exigir_cupo_ip_auth(request)
         redis = request.app.state.cola_orquestar
         clave = f"{_CLAVE_MFA}{datos.desafio_id}"
-        bruto = await redis.get(clave)
-        if not bruto:
+        uid_bruto = await redis.eval(
+            _SCRIPT_CONSUMIR_INTENTO_MFA, 1, clave, _MAX_INTENTOS_MFA
+        )
+        if not uid_bruto:
             raise _no_autorizado()
-        carga = json.loads(bruto.decode("utf-8"))
-        usuario_id = uuid.UUID(carga["usuario_id"])
-        intentos = int(carga.get("intentos", 0))
-        if intentos >= 5:
-            await redis.delete(clave)
-            raise _no_autorizado()
+        uid_texto = (
+            uid_bruto.decode("ascii")
+            if isinstance(uid_bruto, bytes)
+            else str(uid_bruto)
+        )
+        usuario_id = uuid.UUID(uid_texto)
 
         async with request.app.state.sesiones() as sesion:
             usuario = await obtener_usuario_por_id(sesion, usuario_id)
@@ -216,22 +297,34 @@ def crear_router_auth() -> APIRouter:
             raise _no_autorizado()
 
         pepper = request.app.state.ajustes.pepper
-        if not verificar_codigo_totp(
+        paso = verificar_codigo_totp_con_paso(
             pepper, usuario.totp_secreto_cifrado, datos.codigo
-        ):
-            await redis.set(
-                clave,
-                json.dumps(
-                    {"usuario_id": str(usuario_id), "intentos": intentos + 1}
-                ).encode("utf-8"),
-                keepttl=True,
-            )
+        )
+        if paso is None:
             async with request.app.state.sesiones.begin() as sesion:
                 await registrar_evento_auditoria(
                     sesion,
                     usuario_id=usuario.id,
                     accion="inicio_fallido",
                     motivo="totp_invalido",
+                    ip=huella_ip(request),
+                )
+            raise _no_autorizado()
+
+        # H-09 (RFC 6238 §5.2): impedir reutilización del mismo código en la ventana de 90 s.
+        aceptado = await redis.set(
+            f"{_CLAVE_TOTP_USADO}{usuario.id}:{paso}",
+            b"1",
+            nx=True,
+            ex=_TTL_TOTP_USADO_S,
+        )
+        if not aceptado:
+            async with request.app.state.sesiones.begin() as sesion:
+                await registrar_evento_auditoria(
+                    sesion,
+                    usuario_id=usuario.id,
+                    accion="inicio_fallido",
+                    motivo="totp_reutilizado",
                     ip=huella_ip(request),
                 )
             raise _no_autorizado()
@@ -246,17 +339,66 @@ def crear_router_auth() -> APIRouter:
     async def enroll_totp(
         request: Request, actual: UsuarioAutenticado
     ) -> dict[str, str]:
+        # H-08: nunca sobrescribir un TOTP ya activo desde autoservicio (impide MFA takeover).
+        if actual.mfa_activo:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=http.HTTPStatus.FORBIDDEN.phrase,
+            )
         secreto = pyotp.random_base32()
         cifrado = cifrar_totp(request.app.state.ajustes.pepper, secreto)
-        async with request.app.state.sesiones.begin() as sesion:
-            await actualizar_totp_usuario(sesion, actual.id, cifrado)
+        # Fase 1: guardar secreto cifrado temporal en Redis hasta confirmar un código válido.
+        await request.app.state.cola_orquestar.set(
+            f"{_CLAVE_ENROLL}{actual.id}",
+            cifrado,
+            ex=DESAFIO_TOTP_TTL_S,
+        )
         uri = pyotp.TOTP(secreto).provisioning_uri(
             name=actual.correo, issuer_name="Gatekeeper"
         )
         return {"secreto": secreto, "otpauth_uri": uri}
 
-    @router.post("/refresh")
-    async def refresh(request: Request, response: Response) -> dict[str, Any]:
+    @router.post("/totp/confirm")
+    async def confirmar_totp(
+        datos: ConfirmarTotpEntrada, request: Request, actual: UsuarioAutenticado
+    ) -> dict[str, bool]:
+        """Fase 2 de enrolamiento TOTP (H-08): verifica el código antes de persistir en BD."""
+        if actual.mfa_activo:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=http.HTTPStatus.FORBIDDEN.phrase,
+            )
+        redis = request.app.state.cola_orquestar
+        clave = f"{_CLAVE_ENROLL}{actual.id}"
+        cifrado = await redis.get(clave)
+        if not isinstance(cifrado, bytes) or len(cifrado) <= 12:
+            raise _no_autorizado()
+        paso = verificar_codigo_totp_con_paso(
+            request.app.state.ajustes.pepper, cifrado, datos.codigo
+        )
+        if paso is None:
+            raise _no_autorizado()
+        async with request.app.state.sesiones.begin() as sesion:
+            await actualizar_totp_usuario(sesion, actual.id, cifrado)
+            await registrar_evento_auditoria(
+                sesion,
+                usuario_id=actual.id,
+                accion="activar_totp",
+                ip=huella_ip(request),
+            )
+        await redis.delete(clave)
+        await redis.set(
+            f"{_CLAVE_TOTP_USADO}{actual.id}:{paso}",
+            b"1",
+            nx=True,
+            ex=_TTL_TOTP_USADO_S,
+        )
+        return {"mfa_activo": True}
+
+    @router.post("/refresh", response_model=None)
+    async def refresh(
+        request: Request, response: Response
+    ) -> Response | dict[str, Any]:
         exigir_csrf(request)
         cookie_token = request.cookies.get(COOKIE_REFRESH)
         if not cookie_token:
@@ -264,8 +406,12 @@ def crear_router_auth() -> APIRouter:
         pepper = request.app.state.ajustes.pepper
         decodificado = decodificar_refresh_jwt(pepper, cookie_token)
         if decodificado is None:
-            _borrar_cookies_sesion(response, request)
-            raise _no_autorizado()
+            resp_err = JSONResponse(
+                {"detail": http.HTTPStatus.UNAUTHORIZED.phrase},
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+            _borrar_cookies_sesion(resp_err, request)
+            return resp_err
         jti, usuario_id = decodificado
 
         ahora = datetime.now(UTC)
@@ -278,9 +424,15 @@ def crear_router_auth() -> APIRouter:
             if fila is None or fila.usuario_id != usuario_id:
                 pass
             elif fila.revocado:
-                # F5.03 / vecx:refresh_reutilizado: confirmar la revocación de toda la familia
-                # ANTES de lanzar 401 (un raise dentro de begin() haría ROLLBACK).
+                # F5.03 / vecx:refresh_reutilizado: revocar toda la familia y auditar (M-8).
                 await revocar_familia_refresh(sesion, fila.familia)
+                await registrar_evento_auditoria(
+                    sesion,
+                    usuario_id=usuario_id,
+                    accion="inicio_fallido",
+                    motivo="refresh_reutilizado",
+                    ip=huella_ip(request),
+                )
             elif fila.expira_en <= ahora:
                 await marcar_refresh_revocado(sesion, jti)
             else:
@@ -299,8 +451,12 @@ def crear_router_auth() -> APIRouter:
                     usuario = encontrado
 
         if usuario is None:
-            _borrar_cookies_sesion(response, request)
-            raise _no_autorizado()
+            resp_err = JSONResponse(
+                {"detail": http.HTTPStatus.UNAUTHORIZED.phrase},
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+            _borrar_cookies_sesion(resp_err, request)
+            return resp_err
 
         token_acceso = emitir_jwt(pepper, usuario)
         nuevo_refresh = emitir_refresh_jwt(

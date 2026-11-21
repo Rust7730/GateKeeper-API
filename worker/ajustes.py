@@ -123,6 +123,11 @@ def leer_ajustes_worker() -> AjustesWorker:
         )
     host_raw = os.environ.get(VARIABLE_CLAMAV_HOST)
     clamav_host = host_raw.strip() if host_raw and host_raw.strip() else None
+    if clamav_host is None and os.environ.get("GATEKEEPER_CLAMAV_OPCIONAL") != "1":
+        raise ConfiguracionWorkerError(
+            f"Falta la variable de entorno {VARIABLE_CLAMAV_HOST}; "
+            "ClamAV es obligatorio en producción (INV-09)."
+        )
     puerto_raw = os.environ.get(VARIABLE_CLAMAV_PORT)
     clamav_puerto = PUERTO_CLAMAV_DEFECTO
     if puerto_raw and puerto_raw.strip():

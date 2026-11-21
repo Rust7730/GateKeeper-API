@@ -147,7 +147,7 @@ services:
     user: "10001:10010"
     command: ["/app/.venv/bin/python", "-m", "api.app.coordinador"]
     env_file:
-      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/api.env
+      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/redis-main.env
       - ${GATEKEEPER_ESTADO:-/var/lib/gatekeeper}/api-bd.env
       - ${GATEKEEPER_ETC:-/etc/gatekeeper}/cola.env
     environment:
@@ -211,13 +211,14 @@ services:
   # freshclam en clamav_db (:ro) y escanea originales por INSTREAM en el puerto 3310.
   # Sin /init de la imagen: /init corre como root e intenta `chown /var/lib/clamav`, que falla con :ro.
   clamav:
-    image: clamav/clamav:1.4.2_base
-    restart: unless-stopped
-    user: "clamav"
+    <<: *endurecido
+    image: clamav/clamav:1.4.2_base@sha256:26a576bbed25fe1de510891ff54697c161124050a03e1c5d59b5b9bdf21c3366
+    user: "100:101"
     entrypoint: ["clamd", "--foreground"]
     volumes:
       - clamav_db:/var/lib/clamav:ro
     tmpfs:
+      - /run/clamav:size=8m,uid=100,gid=101,mode=0755
       - /tmp:size=64m
     networks: [isolated]
     healthcheck:
@@ -231,15 +232,17 @@ services:
     pids_limit: 64
 
   # Actualizador separado de firmas de ClamAV (D2, F4.01): único servicio ClamAV con salida a internet.
-  # Desactiva el healthcheck heredado de la imagen (clamdcheck.sh), porque aquí no corre clamd.
+  # Corre como usuario no-root `clamav` (100:101) con rootfs read_only y sin capacidades.
   freshclam:
-    image: clamav/clamav:1.4.2_base
-    restart: unless-stopped
-    environment:
-      CLAMAV_NO_CLAMD: "true"
-      CLAMAV_NO_MILTERD: "true"
+    <<: *endurecido
+    image: clamav/clamav:1.4.2_base@sha256:26a576bbed25fe1de510891ff54697c161124050a03e1c5d59b5b9bdf21c3366
+    user: "100:101"
+    entrypoint: ["freshclam", "--daemon", "--foreground", "--stdout"]
     volumes:
       - clamav_db:/var/lib/clamav
+    tmpfs:
+      - /run/clamav:size=8m,uid=100,gid=101,mode=0755
+      - /tmp:size=16m
     networks: [egress]
     healthcheck:
       disable: true
@@ -255,7 +258,7 @@ services:
     user: "10001:10010"
     command: ["/app/.venv/bin/python", "-m", "reputation.principal"]
     env_file:
-      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/api.env
+      - ${GATEKEEPER_ETC:-/etc/gatekeeper}/redis-main.env
       - ${GATEKEEPER_ETC:-/etc/gatekeeper}/reputation.env
     tmpfs:
       - /tmp:size=16m

@@ -21,6 +21,7 @@ from api.app.arranque import (
     proteger_proceso,
 )
 from api.app.cola import COLA_ORQUESTAR, abrir_cola, cerrar_cola
+from api.app.eventos_sse import HubEventosSSE
 from api.app.limite import abrir_limitador
 from api.app.rutas_admin import crear_router_admin
 from api.app.rutas_auth import crear_router_auth
@@ -73,6 +74,7 @@ def crear_app(ajustes: Ajustes | None = None) -> FastAPI:
         app.state.sesiones = fabrica_sesiones(motor)
         app.state.limitador = limitador
         app.state.cola_orquestar = cola_orquestar
+        app.state.hub_sse = HubEventosSSE(vigentes.url_redis)
         try:
             # Con clean_store montado :ro (K64), el barrido de restos lo hace coordinator;
             # la API solo comprueba que PostgreSQL responde.
@@ -81,6 +83,7 @@ def crear_app(ajustes: Ajustes | None = None) -> FastAPI:
             else:
                 await comprobar_bd(app.state.sesiones)
         except BaseException:
+            await app.state.hub_sse.cerrar()
             await motor.dispose()
             await cerrar_cola(cola_orquestar)
             await limitador.cerrar()
@@ -88,6 +91,7 @@ def crear_app(ajustes: Ajustes | None = None) -> FastAPI:
         try:
             yield
         finally:
+            await app.state.hub_sse.cerrar()
             await motor.dispose()
             await cerrar_cola(cola_orquestar)
             await limitador.cerrar()

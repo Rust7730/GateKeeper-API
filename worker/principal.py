@@ -12,6 +12,7 @@ import ctypes
 import logging
 import os
 import shutil
+import stat
 import sys
 import time
 import uuid
@@ -86,21 +87,41 @@ def _proteger_proceso() -> None:
 
 _NO_EVALUADA = "no_evaluada"
 _MALICIOSO = "malicioso"
-_MODO_CUARENTENA = 0o600
+_MODO_CUARENTENA = 0o640
+_TOPE_COPIA_BYTES = 10 * 1024 * 1024  # 10 MiB (K41 / CWE-400)
+_BLOQUE_COPIA = 65_536
 
 
 def _copiar_a_cuarentena(origen: Path, destino: Path) -> None:
-    """Copia el original a ``quarantine/<uuid>`` (0600) sin borrar ``uploads_tmp`` (:ro)."""
-    destino.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
-    fd = os.open(
-        destino, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, _MODO_CUARENTENA
-    )
+    """Copia el original regular a ``quarantine/<uuid>`` (0640, O_NOFOLLOW) sin borrar ``uploads_tmp``."""
+    fd_in = os.open(origen, os.O_RDONLY | os.O_NOFOLLOW)
     try:
-        with os.fdopen(fd, "wb") as salida, origen.open("rb") as entrada:
-            shutil.copyfileobj(entrada, salida)
-    except BaseException:
-        _borrar(destino)
-        raise
+        info = os.fstat(fd_in)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > _TOPE_COPIA_BYTES:
+            raise OSError("origen de cuarentena invalido")
+        destino.parent.mkdir(mode=0o770, parents=True, exist_ok=True)
+        fd_out = os.open(
+            destino,
+            os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+            _MODO_CUARENTENA,
+        )
+        try:
+            os.fchmod(fd_out, _MODO_CUARENTENA)
+            copiados = 0
+            with os.fdopen(fd_out, "wb") as salida:
+                while True:
+                    trozo = os.read(fd_in, _BLOQUE_COPIA)
+                    if not trozo:
+                        break
+                    copiados += len(trozo)
+                    if copiados > _TOPE_COPIA_BYTES:
+                        raise ValueError("archivo supera el tope de copia")
+                    salida.write(trozo)
+        except BaseException:
+            _borrar(destino)
+            raise
+    finally:
+        os.close(fd_in)
 
 
 async def _escanear_clamav_si_activo(

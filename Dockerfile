@@ -35,7 +35,7 @@ RUN apt-get update \
     && useradd --system --uid 10003 --gid 10010 --no-create-home --home-dir /nonexistent \
         --shell /usr/sbin/nologin gatekeeper-worker \
     && install -d -o 10001 -g 10010 -m 0750 /datos /datos/uploads_tmp \
-    && install -d -o 10003 -g 10010 -m 0750 /datos/clean_store /datos/quarantine
+    && install -d -o 10003 -g 10010 -m 0770 /datos/clean_store /datos/quarantine
 
 WORKDIR /app
 # El código y el entorno son de root: ni la API ni el worker pueden modificarlos.

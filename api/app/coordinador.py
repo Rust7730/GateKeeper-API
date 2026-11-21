@@ -17,7 +17,6 @@ import json
 import logging
 import math
 import os
-import shutil
 import stat
 import sys
 import time
@@ -61,7 +60,11 @@ from api.app.cola import (
 from api.app.estados import Estado
 from api.app.tipos import TIPOS_PERMITIDOS
 from api.db.config import url_bd
-from api.db.repositorios import cambiar_estado, registrar_resultado
+from api.db.repositorios import (
+    ConflictoDeEstado,
+    cambiar_estado,
+    registrar_resultado,
+)
 from api.db.repositorios_admin import liberar_estado_archivo, obtener_metadatos_evento
 from api.db.sesion import fabrica_sesiones
 from worker.ajustes import QUARANTINE, VARIABLE_REDIS_QUEUE
@@ -78,7 +81,9 @@ _MOTIVO_SIN_SALIDA = "sin_salida"
 _MOTIVO_SALIDA_GRANDE = "salida_grande"
 _MALICIOSO = "malicioso"
 _NO_EVALUADA = "no_evaluada"
-_MODO_CUARENTENA = 0o600
+_MODO_CUARENTENA = 0o640
+_TOPE_COPIA_BYTES = 10 * 1024 * 1024  # 10 MiB (K41 / CWE-400)
+_BLOQUE_COPIA = 65_536
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +98,7 @@ class AjustesCoordinador:
     poll_delay_s: float = POLL_DELAY_S
     presupuesto_vt_s: float = PRESUPUESTO_VT_S
     consultar_reputacion: bool = True
+    exigir_clamav: bool = False
     max_jobs: int = field(default_factory=lambda: max(4, (os.cpu_count() or 1) * 2))
 
     def __post_init__(self) -> None:
@@ -157,11 +163,20 @@ def leer_ajustes_coordinador() -> AjustesCoordinador:
         url_redis=url_redis,
         url_redis_queue=url_queue,
         datos=Path(datos),
+        exigir_clamav=True,
     )
 
 
-def _validar_capa_antimalware(bruto: Any) -> dict[str, Any]:
+def _validar_capa_antimalware(
+    bruto: Any, *, fallo_cerrado: bool = False
+) -> dict[str, Any]:
     if type(bruto) is not dict:
+        if fallo_cerrado:
+            return {
+                "veredicto": _ERROR,
+                "motivo": _MOTIVO_RESPUESTA_INVALIDA,
+                "duracion_ms": 0,
+            }
         return {"veredicto": _NO_EVALUADA, "motivo": "sin_datos", "duracion_ms": 0}
     veredicto = bruto.get("veredicto")
     if type(veredicto) is not str or veredicto not in _VEREDICTOS_ANTIMALWARE:
@@ -222,13 +237,21 @@ def validar_resultado_worker(
     )
 
 
-def decidir(veredicto_cdr: str, veredicto_clamav: str, veredicto_vt: str) -> Estado:
+def decidir(
+    veredicto_cdr: str,
+    veredicto_clamav: str,
+    veredicto_vt: str,
+    *,
+    exigir_clamav: bool = False,
+) -> Estado:
     """Prioridad estricta F4.07: ``en_cuarentena > rechazado > error > limpio`` (INV-09)."""
     if veredicto_clamav == _MALICIOSO or veredicto_vt == _MALICIOSO:
         return Estado.EN_CUARENTENA
     if veredicto_cdr == RECHAZADO:
         return Estado.RECHAZADO
     if veredicto_clamav == _ERROR or veredicto_cdr == _ERROR:
+        return Estado.ERROR
+    if exigir_clamav and veredicto_clamav != LIMPIO:
         return Estado.ERROR
     if (
         veredicto_cdr == LIMPIO
@@ -251,39 +274,62 @@ def _verificar_salida_limpia(final: Path) -> str | None:
     return None
 
 
-def _asegurar_en_cuarentena(origen: Path, destino: Path) -> None:
-    """Copia el original a ``quarantine/<uuid>`` (0600) si aún no lo copió el worker (F4.09)."""
-    if destino.exists() or not origen.exists():
-        return
-    destino.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
-    fd = os.open(
-        destino, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, _MODO_CUARENTENA
-    )
+def _copiar_regular_acotado(
+    origen: Path,
+    destino: Path,
+    *,
+    modo: int,
+    exclusivo: bool = False,
+) -> bool:
+    """Copia un archivo regular sin seguir symlinks y con tope de 10 MiB (CWE-59, CWE-400)."""
     try:
-        with os.fdopen(fd, "wb") as salida, origen.open("rb") as entrada:
-            shutil.copyfileobj(entrada, salida)
-    except BaseException:
-        _borrar(destino)
-        raise
+        fd_in = os.open(origen, os.O_RDONLY | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return False
+
+    try:
+        info = os.fstat(fd_in)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > _TOPE_COPIA_BYTES:
+            return False
+        destino.parent.mkdir(mode=0o770, parents=True, exist_ok=True)
+        flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
+        flags |= os.O_EXCL if exclusivo else os.O_TRUNC
+        try:
+            fd_out = os.open(destino, flags, modo)
+        except FileExistsError:
+            return True
+        try:
+            os.fchmod(fd_out, modo)
+            copiados = 0
+            with os.fdopen(fd_out, "wb") as salida:
+                while True:
+                    trozo = os.read(fd_in, _BLOQUE_COPIA)
+                    if not trozo:
+                        break
+                    copiados += len(trozo)
+                    if copiados > _TOPE_COPIA_BYTES:
+                        raise ValueError("archivo supera el tope de copia")
+                    salida.write(trozo)
+        except BaseException:
+            _borrar(destino)
+            raise
+        return True
+    finally:
+        os.close(fd_in)
+
+
+def _asegurar_en_cuarentena(origen: Path, destino: Path) -> None:
+    """Copia el original a ``quarantine/<uuid>`` (0640, sin symlinks) si aún no existe (F4.09)."""
+    _copiar_regular_acotado(origen, destino, modo=_MODO_CUARENTENA, exclusivo=True)
 
 
 def _copiar_desde_cuarentena(cuarentena: Path, destino_uploads: Path) -> bool:
-    """Copia ``quarantine/<uuid>`` a ``uploads_tmp/<uuid>`` (0640) para re-CDR en liberación (INV-07, D4)."""
-    if not cuarentena.exists():
-        return False
-    destino_uploads.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
-    fd = os.open(
-        destino_uploads,
-        os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
-        0o640,
+    """Copia ``quarantine/<uuid>`` a ``uploads_tmp/<uuid>`` (0640, O_NOFOLLOW) para re-CDR (INV-07, D4)."""
+    return _copiar_regular_acotado(
+        cuarentena, destino_uploads, modo=0o640, exclusivo=False
     )
-    try:
-        with os.fdopen(fd, "wb") as salida, cuarentena.open("rb") as entrada:
-            shutil.copyfileobj(entrada, salida)
-    except BaseException:
-        _borrar(destino_uploads)
-        raise
-    return True
 
 
 def _borrar(ruta: Path) -> None:
@@ -661,17 +707,33 @@ async def orquestar(
                     "duracion_ms": round(ajustes.presupuesto_vt_s * 1000),
                 }
 
-        res_clamav = (
-            _validar_capa_antimalware(bruto.get("clamav"))
-            if isinstance(bruto, dict) and "clamav" in bruto
-            else {"veredicto": _NO_EVALUADA, "motivo": "no_evaluada", "duracion_ms": 0}
-        )
+        if isinstance(bruto, dict) and "clamav" in bruto:
+            res_clamav = _validar_capa_antimalware(
+                bruto.get("clamav"), fallo_cerrado=True
+            )
+        elif ajustes.exigir_clamav:
+            res_clamav = {
+                "veredicto": _ERROR,
+                "motivo": _MOTIVO_RESPUESTA_INVALIDA,
+                "duracion_ms": 0,
+            }
+        else:
+            res_clamav = {
+                "veredicto": _NO_EVALUADA,
+                "motivo": "no_evaluada",
+                "duracion_ms": 0,
+            }
         categoria, veredicto, duracion_ms, motivo_error = validar_resultado_worker(
             bruto
         )
 
         # Prioridad F4.07: en_cuarentena > rechazado > error > limpio.
-        destino = decidir(categoria, res_clamav["veredicto"], res_vt["veredicto"])
+        destino = decidir(
+            categoria,
+            res_clamav["veredicto"],
+            res_vt["veredicto"],
+            exigir_clamav=ajustes.exigir_clamav,
+        )
 
         if destino is Estado.EN_CUARENTENA:
             _borrar(final)
@@ -744,6 +806,11 @@ async def orquestar(
         confirmado = True
         estado_final = destino.value
         return estado_final
+    except ConflictoDeEstado:
+        # Otra ejecución ya cerró o liberó este archivo: no tocar clean_store/<uuid>.
+        confirmado = True
+        logger.warning("Conflicto de estado al orquestar %s", archivo_id)
+        return estado_final
     except Exception as error:  # noqa: BLE001
         logger.warning(
             "Orquestación de %s terminó en error (%s)",
@@ -751,9 +818,22 @@ async def orquestar(
             type(error).__name__,
         )
         _borrar(final)
-        await analisis._registrar_error(
-            sesiones, aplicacion_id, archivo_id, _MOTIVO_INTERNO, _duracion_ms()
-        )
+        if liberacion:
+            with contextlib.suppress(Exception):
+                await _registrar_liberacion(
+                    sesiones,
+                    aplicacion_id,
+                    archivo_id,
+                    Estado.ERROR,
+                    None,
+                    _duracion_ms(),
+                    usuario=usuario_liberacion,
+                    motivo=motivo_liberacion,
+                )
+        else:
+            await analisis._registrar_error(
+                sesiones, aplicacion_id, archivo_id, _MOTIVO_INTERNO, _duracion_ms()
+            )
         return Estado.ERROR.value
     finally:
         if not confirmado:

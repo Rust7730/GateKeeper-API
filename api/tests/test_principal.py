@@ -23,6 +23,7 @@ RUTAS_V1 = {
     "/v1/auth/login",
     "/v1/auth/totp",
     "/v1/auth/totp/enroll",
+    "/v1/auth/totp/confirm",
     "/v1/auth/refresh",
     "/v1/auth/logout",
     "/v1/auth/me",

@@ -401,7 +401,7 @@ xychart-beta
 ```mermaid
 xychart-beta
     title "Vulnerabilidades Activas Post-Hardening (Fase F6)"
-    x-axis ["Bandit High/Med", "OWASP ZAP Fail", "Trivy Python", "Trivy Dockerfile", "Hallazgos Crit/Altos Abiertos"]
+    x-axis ["Bandit H/M", "ZAP Fail", "Trivy Py", "Trivy Docker", "Crit/Altos"]
     y-axis "Vulnerabilidades Pendientes" 0 --> 10
     bar [0, 0, 0, 0, 0]
 ```

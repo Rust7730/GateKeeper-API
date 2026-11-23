@@ -8,7 +8,7 @@ API intermediaria que valida, sanea y analiza los archivos que suben los usuario
 - **Carrera / Programa:** Ingeniería en Tecnologías de la Información e Innovación Digital
 - **Asignatura:** Seguridad Informática
 - **Profesor:** M.C. José Alonso Macías Montoya
-- **Fecha de Entrega:** 22/11/2026
+- **Fecha de Entrega:** 23/11/2026
 - **Nombre del Equipo / Grupo:** Grupo 7B
 - **Nombre del Proyecto:** Gatekeeper — API intermediaria de validación, desarme y reconstrucción (CDR), análisis antimalware multicapa y consola SecOps
 
@@ -31,7 +31,7 @@ API intermediaria que valida, sanea y analiza los archivos que suben los usuario
 | **Landing Page Pública (Despliegue Aislado)** | `https://34-231-193-98.sslip.io/` | AWS EC2 `t3.micro` aislada con HTTPS (ES: `/`, EN: `/en/`) |
 | **Aplicación Cliente Demo (Consumidor B2B "Lumina")** | `https://github.com/Rust7730/GateKeeper-API/tree/main/demo-client-app` | Monolito de gastos y reembolsos (`http://127.0.0.1:8090`) que consume `/v1/files` |
 | **Demostración Interactiva en Vivo** | `https://34-231-193-98.sslip.io/` y `https://35-168-228-65.sslip.io/` | Recorrido interactivo del pipeline CDR y consola SecOps en producción |
-| **Video Demostrativo (3-5 min)** | Pendiente | Se agregará el enlace al publicarlo. |
+| **Video Demostrativo (3-5 min)** | `https://drive.google.com/drive/folders/16Ys7HROi5H-qMxPC49XXrihD43gPpAxh?usp=drive_link` | Google Drive (acceso público) |
 
 ---
 

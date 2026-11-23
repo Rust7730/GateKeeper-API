@@ -17,7 +17,7 @@ import os
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -133,8 +133,14 @@ async def _procesar_en_segundo_plano(
                 )
                 if desc.status_code == 200:
                     sha_limpio = hashlib.sha256(desc.content).hexdigest()
-                    ext = "pdf" if datos.get("tipo_detectado") == "application/pdf" else (
-                        "png" if datos.get("tipo_detectado") == "image/png" else "jpg"
+                    ext = (
+                        "pdf"
+                        if datos.get("tipo_detectado") == "application/pdf"
+                        else (
+                            "png"
+                            if datos.get("tipo_detectado") == "image/png"
+                            else "jpg"
+                        )
                     )
                     nombre_limpio = f"{gasto_id}.{ext}"
                     ruta_boveda = BOVEDA_DIR / nombre_limpio
@@ -144,14 +150,18 @@ async def _procesar_en_segundo_plano(
                     gasto["sha256_boveda"] = sha_limpio
                     gasto["tamano_boveda"] = len(desc.content)
                     gasto["archivo_boveda"] = nombre_limpio
-                    gasto["media_type_boveda"] = datos.get("tipo_detectado") or "application/octet-stream"
+                    gasto["media_type_boveda"] = (
+                        datos.get("tipo_detectado") or "application/octet-stream"
+                    )
                     gasto["nota_auditoria"] = (
                         "Comprobante verificado y reconstruido en bóveda contable "
                         f"({len(desc.content):,} bytes)."
                     )
                 else:
                     gasto["estado_comprobante"] = "retenido"
-                    gasto["nota_auditoria"] = f"Error al recuperar comprobante limpio (HTTP {desc.status_code})."
+                    gasto["nota_auditoria"] = (
+                        f"Error al recuperar comprobante limpio (HTTP {desc.status_code})."
+                    )
             else:
                 gasto["estado_comprobante"] = "retenido"
                 motivo = (
@@ -159,19 +169,21 @@ async def _procesar_en_segundo_plano(
                     if estado_gk == "infectado"
                     else "Estructura activa o insegura bloqueada al reconstruir el documento"
                 )
-                gasto["nota_auditoria"] = f"Reembolso bloqueado: {motivo} ({estado_gk})."
+                gasto["nota_auditoria"] = (
+                    f"Reembolso bloqueado: {motivo} ({estado_gk})."
+                )
             return
 
 
 @app.post("/api/gastos")
 async def registrar_gasto(
+    comprobante: Annotated[UploadFile, File()],
     concepto: str = Form(...),
     categoria: str = Form(...),
     monto: float = Form(...),
     colaborador: str = Form(...),
     base_url: str = Form(...),
     api_key: str = Form(...),
-    comprobante: UploadFile = File(...),
 ) -> JSONResponse:
     url = _normalizar_url(base_url)
     cabeceras = _cabeceras_gk(api_key)

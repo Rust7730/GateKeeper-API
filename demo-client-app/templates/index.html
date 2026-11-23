@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lumina · Gastos y Reembolsos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --paper: #151720;
+      --surface: #1d2130;
+      --stage: #0a0d16;
+      --ink: #fcfcfd;
+      --muted: #c4c9d7;
+      --line: #454e65;
+      --signal: #9abfff;
+      --cobalt: #1a67fd;
+      --lime: #bfff5a;
+      --peach: #ffb59d;
+      --danger: #ff6b6b;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', system-ui, sans-serif;
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --paper: #fcfcfd;
+      --surface: #ebeef7;
+      --stage: #0a0d16;
+      --ink: #1d2130;
+      --muted: #474950;
+      --line: #d5d9e8;
+      --signal: #164fbd;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: var(--paper);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      width: min(100% - 2.5rem, 76rem);
+      margin-inline: auto;
+    }
+
+    /* Header */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--paper) 92%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    .nav-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 4.5rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: .65rem;
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -.035em;
+      text-decoration: none;
+      color: var(--ink);
+    }
+
+    .brand-mark {
+      width: 1.85rem;
+      height: 1.85rem;
+      border-radius: .5rem;
+      background: var(--lime);
+      color: #0a0d16;
+      display: inline-grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: .95rem;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      min-height: 2.55rem;
+      padding: .55rem 1.05rem;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: .88rem;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform .14s ease, border-color .14s ease;
+    }
+
+    .btn:hover:not(:disabled) {
+      border-color: var(--signal);
+      transform: translateY(-1px);
+    }
+
+    .btn:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--cobalt);
+      border-color: var(--cobalt);
+      color: #ffffff;
+    }
+
+    .btn-lime {
+      background: var(--lime);
+      border-color: var(--lime);
+      color: #0a0d16;
+    }
+
+    /* Config Drawer */
+    .config-drawer {
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+      padding: 1rem 0;
+    }
+
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr auto;
+      gap: .85rem;
+      align-items: end;
+    }
+
+    @media (max-width: 780px) {
+      .config-grid { grid-template-columns: 1fr; }
+    }
+
+    /* KPI Strip */
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+      padding: 1.75rem 0 1.25rem;
+    }
+
+    @media (max-width: 820px) {
+      .kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: .95rem;
+      padding: 1.15rem 1.25rem;
+      display: grid;
+      gap: .3rem;
+    }
+
+    .kpi-label {
+      font-family: var(--mono);
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+    }
+
+    .kpi-value {
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -.03em;
+    }
+
+    .kpi-value.lime { color: var(--lime); }
+    .kpi-value.peach { color: var(--peach); }
+
+    /* Main Layout */
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: 24.5rem 1fr;
+      gap: 1.5rem;
+      padding-bottom: 3.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 960px) {
+      .workspace-grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      padding: 1.35rem;
+      display: grid;
+      gap: 1.1rem;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: .75rem;
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 1.08rem;
+      font-weight: 700;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      padding: .24rem .68rem;
+      border-radius: 999px;
+      font-family: var(--mono);
+      font-size: .74rem;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--signal);
+    }
+
+    label {
+      display: grid;
+      gap: .38rem;
+      font-size: .83rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="password"],
+    input[type="url"],
+    select {
+      width: 100%;
+      padding: .68rem .85rem;
+      border-radius: .65rem;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--ink);
+      font: inherit;
+      font-size: .9rem;
+    }
+
+    .mono-input {
+      font-family: var(--mono) !important;
+      font-size: .83rem !important;
+    }
+
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .75rem;
+    }
+
+    .upload-box {
+      border: 1.5px dashed var(--line);
+      border-radius: .85rem;
+      padding: 1.2rem 1rem;
+      text-align: center;
+      background: var(--paper);
+      cursor: pointer;
+      transition: border-color .15s ease, background .15s ease;
+    }
+
+    .upload-box:hover,
+    .upload-box.dragover {
+      border-color: var(--cobalt);
+      background: color-mix(in srgb, var(--cobalt) 8%, var(--paper));
+    }
+
+    .upload-box input[type="file"] {
+      display: none;
+    }
+
+    .upload-title {
+      font-weight: 600;
+      font-size: .9rem;
+      color: var(--ink);
+      margin-bottom: .2rem;
+    }
+
+    .upload-hint {
+      font-family: var(--mono);
+      font-size: .75rem;
+      color: var(--muted);
+    }
+
+    /* Expense Cards */
+    .expense-list {
+      display: grid;
+      gap: .85rem;
+    }
+
+    .expense-card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: .9rem;
+      padding: 1.1rem 1.2rem;
+      display: grid;
+      gap: .75rem;
+    }
+
+    .expense-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .expense-title {
+      font-weight: 700;
+      font-size: 1.02rem;
+      margin-bottom: .2rem;
+    }
+
+    .expense-meta {
+      font-family: var(--mono);
+      font-size: .76rem;
+      color: var(--muted);
+    }
+
+    .expense-amount {
+      font-family: var(--mono);
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .expense-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: .75rem;
+      padding-top: .65rem;
+      border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+      flex-wrap: wrap;
+    }
+
+    .audit-note {
+      font-size: .81rem;
+      color: var(--muted);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .38rem;
+      font-family: var(--mono);
+      font-size: .72rem;
+      font-weight: 600;
+      padding: .22rem .62rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+    }
+
+    .badge-aprobado {
+      background: rgba(191, 255, 90, 0.14);
+      color: var(--lime);
+      border: 1px solid rgba(191, 255, 90, 0.45);
+    }
+
+    .badge-verificando {
+      background: rgba(26, 103, 253, 0.2);
+      color: var(--signal);
+      border: 1px solid rgba(154, 191, 255, 0.45);
+    }
+
+    .badge-retenido {
+      background: rgba(255, 107, 107, 0.15);
+      color: #ff9b9b;
+      border: 1px solid rgba(255, 107, 107, 0.45);
+    }
+
+    .hash-strip {
+      font-family: var(--mono);
+      font-size: .72rem;
+      background: var(--stage);
+      color: #d6deff;
+      padding: .55rem .75rem;
+      border-radius: .55rem;
+      border: 1px solid #283046;
+      display: grid;
+      gap: .2rem;
+      overflow-x: auto;
+    }
+
+    .hash-strip span.clean {
+      color: var(--lime);
+    }
+
+    .alert-banner {
+      padding: .75rem 1rem;
+      border-radius: .7rem;
+      background: rgba(255, 107, 107, 0.15);
+      border: 1px solid rgba(255, 107, 107, 0.45);
+      color: #ffb3b3;
+      font-size: .85rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap nav-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark">L</span>
+        <span>Lumina · Gastos y Reembolsos</span>
+      </a>
+      <div class="header-actions">
+        <button class="btn" type="button" id="toggleConfigBtn">Configurar API Key</button>
+        <button class="btn" type="button" id="themeBtn">Tema</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Panel desplegable para conectar la API Key de Gatekeeper -->
+  <section class="config-drawer" id="configDrawer">
+    <div class="wrap config-grid">
+      <label>
+        Endpoint del motor de archivos (Gatekeeper)
+        <input type="url" id="baseUrl" class="mono-input" value="{{ default_url }}" />
+      </label>
+      <label>
+        API Key de Lumina (creada en tu Dashboard de Gatekeeper)
+        <input type="password" id="apiKey" class="mono-input" value="{{ default_api_key }}" placeholder="gk_live_..." autocomplete="off" />
+      </label>
+      <button class="btn btn-lime" type="button" id="saveConfigBtn">Guardar conexión</button>
+    </div>
+  </section>
+
+  <!-- KPIs Financieros -->
+  <section class="wrap kpi-strip">
+    <div class="kpi-card">
+      <span class="kpi-label">Total Reembolsable</span>
+      <span class="kpi-value lime" id="kpiTotal">$0.00 MXN</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Comprobantes Aprobados</span>
+      <span class="kpi-value" id="kpiAprobados">0</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">En Verificación</span>
+      <span class="kpi-value" id="kpiRevision">0</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Comprobantes Retenidos</span>
+      <span class="kpi-value peach" id="kpiRetenidos">0</span>
+    </div>
+  </section>
+
+  <!-- Área principal: Formulario de nuevo gasto + Bandeja de reembolsos -->
+  <main class="wrap workspace-grid">
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">Registrar nuevo gasto</h2>
+        <span class="pill">Bóveda Contable</span>
+      </div>
+
+      <div class="alert-banner" id="errorBanner"></div>
+
+      <form id="expenseForm" style="display: grid; gap: .9rem;">
+        <label>
+          Concepto del gasto
+          <input type="text" id="concepto" required placeholder="Ej. Vuelo CDMX - Monterrey / Cena cliente" />
+        </label>
+
+        <div class="row-2">
+          <label>
+            Categoría
+            <select id="categoria">
+              <option value="Viáticos y Viajes">Viáticos y Viajes</option>
+              <option value="Software y Cloud">Software y Cloud</option>
+              <option value="Alimentación">Alimentación</option>
+              <option value="Equipo de Oficina">Equipo de Oficina</option>
+            </select>
+          </label>
+          <label>
+            Monto (MXN)
+            <input type="number" id="monto" step="0.01" min="1" required placeholder="1450.00" />
+          </label>
+        </div>
+
+        <label>
+          Colaborador que solicita
+          <input type="text" id="colaborador" required value="Valeria Mendoza · Finanzas" />
+        </label>
+
+        <label class="upload-box" id="dropzone">
+          <input type="file" id="comprobanteInput" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" required />
+          <div class="upload-title" id="fileLabel">Adjuntar factura PDF o foto del ticket (PNG / JPEG)</div>
+          <div class="upload-hint">Se almacenará copia sanitizada en la bóveda contable</div>
+        </label>
+
+        <button class="btn btn-primary" type="submit" id="submitBtn">
+          Solicitar reembolso
+        </button>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">Solicitudes de reembolso</h2>
+        <span class="pill" id="countPill">0 registros</span>
+      </div>
+
+      <div class="expense-list" id="expenseList">
+        <p style="margin: 0; color: var(--muted); font-size: .9rem;">
+          Aún no hay gastos registrados. Registra un gasto adjuntando una factura PDF o imagen de ticket a la izquierda.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const baseUrlInput = document.getElementById('baseUrl');
+    const apiKeyInput = document.getElementById('apiKey');
+    const configDrawer = document.getElementById('configDrawer');
+    const toggleConfigBtn = document.getElementById('toggleConfigBtn');
+    const saveConfigBtn = document.getElementById('saveConfigBtn');
+    const themeBtn = document.getElementById('themeBtn');
+
+    const expenseForm = document.getElementById('expenseForm');
+    const comprobanteInput = document.getElementById('comprobanteInput');
+    const dropzone = document.getElementById('dropzone');
+    const fileLabel = document.getElementById('fileLabel');
+    const submitBtn = document.getElementById('submitBtn');
+    const errorBanner = document.getElementById('errorBanner');
+
+    const expenseList = document.getElementById('expenseList');
+    const countPill = document.getElementById('countPill');
+    const kpiTotal = document.getElementById('kpiTotal');
+    const kpiAprobados = document.getElementById('kpiAprobados');
+    const kpiRevision = document.getElementById('kpiRevision');
+    const kpiRetenidos = document.getElementById('kpiRetenidos');
+
+    if (sessionStorage.getItem('lumina_gk_key') && !apiKeyInput.value) {
+      apiKeyInput.value = sessionStorage.getItem('lumina_gk_key');
+    }
+    if (sessionStorage.getItem('lumina_gk_url')) {
+      baseUrlInput.value = sessionStorage.getItem('lumina_gk_url');
+    }
+
+    saveConfigBtn.addEventListener('click', () => {
+      sessionStorage.setItem('lumina_gk_key', apiKeyInput.value.trim());
+      sessionStorage.setItem('lumina_gk_url', baseUrlInput.value.trim());
+      configDrawer.style.display = 'none';
+    });
+
+    toggleConfigBtn.addEventListener('click', () => {
+      configDrawer.style.display = configDrawer.style.display === 'none' ? 'block' : 'none';
+    });
+
+    themeBtn.addEventListener('click', () => {
+      const html = document.documentElement;
+      html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+    });
+
+    comprobanteInput.addEventListener('change', () => {
+      if (comprobanteInput.files.length > 0) {
+        const f = comprobanteInput.files[0];
+        fileLabel.textContent = `${f.name} (${(f.size / 1024).toFixed(1)} KiB)`;
+      }
+    });
+
+    ['dragenter', 'dragover'].forEach(ev => {
+      dropzone.addEventListener(ev, e => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach(ev => {
+      dropzone.addEventListener(ev, e => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+      });
+    });
+    dropzone.addEventListener('drop', e => {
+      if (e.dataTransfer.files.length > 0) {
+        comprobanteInput.files = e.dataTransfer.files;
+        const f = comprobanteInput.files[0];
+        fileLabel.textContent = `${f.name} (${(f.size / 1024).toFixed(1)} KiB)`;
+      }
+    });
+
+    function formatMXN(val) {
+      return new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: 'MXN',
+      }).format(val);
+    }
+
+    async function cargarGastos() {
+      const res = await fetch('/api/gastos');
+      const data = await res.json();
+
+      kpiTotal.textContent = `${formatMXN(data.resumen.total_reembolsable)} MXN`;
+      kpiAprobados.textContent = data.resumen.aprobados;
+      kpiRevision.textContent = data.resumen.en_revision;
+      kpiRetenidos.textContent = data.resumen.retenidos;
+      countPill.textContent = `${data.gastos.length} registros`;
+
+      if (data.gastos.length === 0) return;
+
+      expenseList.innerHTML = data.gastos.map(g => {
+        const badgeLabel =
+          g.estado_comprobante === 'aprobado' ? 'Aprobado · CDR Limpio' :
+          g.estado_comprobante === 'verificando' ? `Verificando (${g.estado_motor})` :
+          `Retenido (${g.estado_motor})`;
+
+        const hashInfo = g.sha256_boveda
+          ? `<div class="hash-strip">
+               <span>Original: ${g.sha256_original} (${g.tamano_original} B)</span>
+               <span class="clean">En bóveda (sanitizado): ${g.sha256_boveda} (${g.tamano_boveda} B)</span>
+             </div>`
+          : `<div class="hash-strip">
+               <span>Original: ${g.sha256_original} (${g.tamano_original} B)</span>
+             </div>`;
+
+        const actionBtn = g.archivo_boveda
+          ? `<a class="btn btn-lime" href="/api/gastos/${g.gasto_id}/comprobante" target="_blank" rel="noopener">
+               Abrir comprobante de bóveda ↗
+             </a>`
+          : '';
+
+        return `
+          <article class="expense-card">
+            <div class="expense-top">
+              <div>
+                <div class="expense-title">${g.concepto}</div>
+                <div class="expense-meta">${g.gasto_id} · ${g.categoria} · ${g.colaborador} · ${g.fecha}</div>
+              </div>
+              <div style="text-align: right; display: grid; gap: .35rem; justify-items: end;">
+                <div class="expense-amount">${formatMXN(g.monto)}</div>
+                <span class="badge badge-${g.estado_comprobante}">${badgeLabel}</span>
+              </div>
+            </div>
+            ${hashInfo}
+            <div class="expense-footer">
+              <span class="audit-note">${g.nota_auditoria}</span>
+              ${actionBtn}
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    expenseForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      errorBanner.style.display = 'none';
+
+      if (!apiKeyInput.value.trim()) {
+        errorBanner.textContent = 'Ingresa primero tu API Key (gk_live_...) en la barra superior.';
+        errorBanner.style.display = 'block';
+        configDrawer.style.display = 'block';
+        apiKeyInput.focus();
+        return;
+      }
+
+      if (!comprobanteInput.files.length) {
+        errorBanner.textContent = 'Adjunta una factura PDF o imagen de ticket.';
+        errorBanner.style.display = 'block';
+        return;
+      }
+
+      sessionStorage.setItem('lumina_gk_key', apiKeyInput.value.trim());
+      sessionStorage.setItem('lumina_gk_url', baseUrlInput.value.trim());
+
+      const fd = new FormData();
+      fd.append('concepto', document.getElementById('concepto').value);
+      fd.append('categoria', document.getElementById('categoria').value);
+      fd.append('monto', document.getElementById('monto').value);
+      fd.append('colaborador', document.getElementById('colaborador').value);
+      fd.append('base_url', baseUrlInput.value.trim());
+      fd.append('api_key', apiKeyInput.value.trim());
+      fd.append('comprobante', comprobanteInput.files[0]);
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Subiendo comprobante...';
+
+      try {
+        const res = await fetch('/api/gastos', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) {
+          errorBanner.textContent = data.detail || 'Error al registrar el gasto.';
+          errorBanner.style.display = 'block';
+        } else {
+          document.getElementById('concepto').value = '';
+          document.getElementById('monto').value = '';
+          comprobanteInput.value = '';
+          fileLabel.textContent = 'Adjuntar factura PDF o foto del ticket (PNG / JPEG)';
+          await cargarGastos();
+        }
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Solicitar reembolso';
+      }
+    });
+
+    cargarGastos();
+    setInterval(cargarGastos, 1500);
+  </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # Reporte Final del Proyecto: Gatekeeper
 
-API intermediaria que valida, sanea y analiza los archivos que suben los usuarios antes de que lleguen a la aplicación cliente. Este README sigue el formato del reporte final de la asignatura; la guía de operación (uso local, despliegue, actualización y rollback) está en [`OPERACION.md`](OPERACION.md). El dashboard SecOps y la landing viven en [GateKeeper-Frontend](https://github.com/Rust7730/GateKeeper-Frontend).
+API intermediaria que valida, sanea y analiza los archivos que suben los usuarios antes de que lleguen a la aplicación cliente. Este README sigue el formato del reporte final de la asignatura; la guía de operación (uso local, despliegue, actualización y rollback) está en [`OPERACION.md`](https://github.com/Rust7730/GateKeeper-API/blob/main/OPERACION.md). El dashboard SecOps y la landing viven en [GateKeeper-Frontend](https://github.com/Rust7730/GateKeeper-Frontend).
 
 ## Ficha de Identificación
 
@@ -39,7 +39,7 @@ API intermediaria que valida, sanea y analiza los archivos que suben los usuario
 
 ### 2.1 Tipo de Licencia Seleccionada
 
-- **Licencia Elegida:** Licencia MIT (*MIT License*). El archivo [`LICENSE`](LICENSE) está en la raíz del repositorio.
+- **Licencia Elegida:** Licencia MIT (*MIT License*). El archivo [`LICENSE`](https://github.com/Rust7730/GateKeeper-API/blob/main/LICENSE) está en la raíz del repositorio.
 
 ### 2.2 Justificación de la Licencia
 
@@ -304,34 +304,34 @@ Las capturas de esta sección se tomaron el 23/11/2026 con el sistema completo l
 
 | # | Petición | Resultado | Captura |
 | --- | --- | --- | --- |
-| 1 | Especificación OpenAPI: 22 rutas en los grupos `default` y `admin` | — | [01-swagger-endpoints.png](evidencias/01-swagger-endpoints.png) |
-| 2 | `GET /v1/files/{id}` con la API key de la aplicación dueña | `200`, `estado: limpio`, `image/jpeg` | [02-get-archivo-limpio.png](evidencias/02-get-archivo-limpio.png) |
-| 3 | `GET /v1/files/{id}/content` | `200`, `image/jpeg`, `Content-Disposition: attachment`, 4 949 B (la copia del CDR; el original tenía 5 133 B) | [03-descarga-copia-cdr.png](evidencias/03-descarga-copia-cdr.png) |
-| 4 | `GET /v1/files/{id}/content` del archivo en cuarentena | `409 Conflict` | [04-descarga-bloqueada-409.png](evidencias/04-descarga-bloqueada-409.png) |
-| 5 | `GET /v1/files/{id}` de un archivo que subió la otra aplicación | `404 Not Found`, igual que un id inexistente (anti-IDOR) | [05-idor-otra-app-404.png](evidencias/05-idor-otra-app-404.png) |
-| 6 | `POST /v1/auth/login` con correo y contraseña | `200`, `mfa_requerido: true` y un `desafio_id` | [06-login-pide-totp.png](evidencias/06-login-pide-totp.png) |
-| 7 | `POST /v1/auth/totp` con el código de 6 dígitos | `200`, `token_acceso` de 900 s y el usuario con `mfa_activo: true` | [07-totp-token.png](evidencias/07-totp-token.png) |
-| 8 | `GET /v1/admin/files?tamano_pagina=5` | `200`, listado paginado | [08-admin-listado.png](evidencias/08-admin-listado.png) |
-| 9 | `GET /v1/admin/files/{id}` del EICAR | `200`, `en_cuarentena`, capas `firma`, `cdr`, `clamav: malicioso (Eicar-Test-Signature.UNOFFICIAL)` y `virustotal` | [09-admin-detalle-cuarentena.png](evidencias/09-admin-detalle-cuarentena.png) |
-| 10 | `GET /v1/admin/metrics` | `200`, totales por estado, amenazas por día, bloqueos por capa y aplicaciones con más bloqueos | [10-admin-metricas.png](evidencias/10-admin-metricas.png) |
-| 11 | `GET /v1/admin/audit` | `200`, inicios de sesión con actor e IP | [11-admin-auditoria.png](evidencias/11-admin-auditoria.png) |
+| 1 | Especificación OpenAPI: 22 rutas en los grupos `default` y `admin` | — | [01-swagger-endpoints.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/01-swagger-endpoints.png) |
+| 2 | `GET /v1/files/{id}` con la API key de la aplicación dueña | `200`, `estado: limpio`, `image/jpeg` | [02-get-archivo-limpio.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/02-get-archivo-limpio.png) |
+| 3 | `GET /v1/files/{id}/content` | `200`, `image/jpeg`, `Content-Disposition: attachment`, 4 949 B (la copia del CDR; el original tenía 5 133 B) | [03-descarga-copia-cdr.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/03-descarga-copia-cdr.png) |
+| 4 | `GET /v1/files/{id}/content` del archivo en cuarentena | `409 Conflict` | [04-descarga-bloqueada-409.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/04-descarga-bloqueada-409.png) |
+| 5 | `GET /v1/files/{id}` de un archivo que subió la otra aplicación | `404 Not Found`, igual que un id inexistente (anti-IDOR) | [05-idor-otra-app-404.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/05-idor-otra-app-404.png) |
+| 6 | `POST /v1/auth/login` con correo y contraseña | `200`, `mfa_requerido: true` y un `desafio_id` | [06-login-pide-totp.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/06-login-pide-totp.png) |
+| 7 | `POST /v1/auth/totp` con el código de 6 dígitos | `200`, `token_acceso` de 900 s y el usuario con `mfa_activo: true` | [07-totp-token.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/07-totp-token.png) |
+| 8 | `GET /v1/admin/files?tamano_pagina=5` | `200`, listado paginado | [08-admin-listado.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/08-admin-listado.png) |
+| 9 | `GET /v1/admin/files/{id}` del EICAR | `200`, `en_cuarentena`, capas `firma`, `cdr`, `clamav: malicioso (Eicar-Test-Signature.UNOFFICIAL)` y `virustotal` | [09-admin-detalle-cuarentena.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/09-admin-detalle-cuarentena.png) |
+| 10 | `GET /v1/admin/metrics` | `200`, totales por estado, amenazas por día, bloqueos por capa y aplicaciones con más bloqueos | [10-admin-metricas.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/10-admin-metricas.png) |
+| 11 | `GET /v1/admin/audit` | `200`, inicios de sesión con actor e IP | [11-admin-auditoria.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/11-admin-auditoria.png) |
 
-![Swagger UI: descarga de la copia reconstruida](evidencias/03-descarga-copia-cdr.png)
+![Swagger UI: descarga de la copia reconstruida](https://raw.githubusercontent.com/Rust7730/GateKeeper-API/main/evidencias/03-descarga-copia-cdr.png)
 
-![Swagger UI: detalle de administración del archivo en cuarentena](evidencias/09-admin-detalle-cuarentena.png)
+![Swagger UI: detalle de administración del archivo en cuarentena](https://raw.githubusercontent.com/Rust7730/GateKeeper-API/main/evidencias/09-admin-detalle-cuarentena.png)
 
 **curl.** `POST /v1/files` lee el cuerpo por *streaming* y no declara `requestBody` en OpenAPI, por lo que Swagger UI no puede adjuntar el archivo. Las subidas y los errores se capturaron con `curl` contra la misma API:
 
 | # | Escenario | Resultado | Captura |
 | --- | --- | --- | --- |
-| 12 | Subida válida; consulta posterior; sin API key; API key inválida | `202 pendiente` → `200 limpio`; `401`; `401` | [12-curl-subida-202-y-401.png](evidencias/12-curl-subida-202-y-401.png) |
-| 13 | Archivo de 11 MiB; cuerpo JSON; ejecutable ELF renombrado a `.jpg`; descarga del rechazado | `413`; `415`; `rechazado` con `tipo_detectado: application/x-pie-executable`; `409` | [13-curl-413-415-rechazado-409.png](evidencias/13-curl-413-415-rechazado-409.png) |
-| 14 | Ráfaga de 40 subidas con la misma API key | 20 × `202` y después `429` con `Retry-After` | [14-curl-rate-limit-429.png](evidencias/14-curl-rate-limit-429.png) |
-| 15 | Foto con marca, modelo y coordenadas GPS en EXIF; descarga de la copia | La copia ya no tiene EXIF ni GPS y su SHA-256 cambia | [15-curl-cdr-sin-metadatos.png](evidencias/15-curl-cdr-sin-metadatos.png) |
+| 12 | Subida válida; consulta posterior; sin API key; API key inválida | `202 pendiente` → `200 limpio`; `401`; `401` | [12-curl-subida-202-y-401.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/12-curl-subida-202-y-401.png) |
+| 13 | Archivo de 11 MiB; cuerpo JSON; ejecutable ELF renombrado a `.jpg`; descarga del rechazado | `413`; `415`; `rechazado` con `tipo_detectado: application/x-pie-executable`; `409` | [13-curl-413-415-rechazado-409.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/13-curl-413-415-rechazado-409.png) |
+| 14 | Ráfaga de 40 subidas con la misma API key | 20 × `202` y después `429` con `Retry-After` | [14-curl-rate-limit-429.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/14-curl-rate-limit-429.png) |
+| 15 | Foto con marca, modelo y coordenadas GPS en EXIF; descarga de la copia | La copia ya no tiene EXIF ni GPS y su SHA-256 cambia | [15-curl-cdr-sin-metadatos.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/15-curl-cdr-sin-metadatos.png) |
 
-![curl: el CDR quita EXIF y GPS](evidencias/15-curl-cdr-sin-metadatos.png)
+![curl: el CDR quita EXIF y GPS](https://raw.githubusercontent.com/Rust7730/GateKeeper-API/main/evidencias/15-curl-cdr-sin-metadatos.png)
 
-![curl: 413, 415, ELF disfrazado rechazado y 409](evidencias/13-curl-413-415-rechazado-409.png)
+![curl: 413, 415, ELF disfrazado rechazado y 409](https://raw.githubusercontent.com/Rust7730/GateKeeper-API/main/evidencias/13-curl-413-415-rechazado-409.png)
 
 Respuesta real de `GET /v1/admin/files/{id}` para el archivo EICAR (se omiten algunos campos). VirusTotal queda en `no_evaluada` porque en local no hay salida a internet y se agota su presupuesto de 1 s (K07); el veredicto lo decide ClamAV:
 
@@ -371,20 +371,20 @@ Respuesta real de `GET /v1/admin/files/{id}` para el archivo EICAR (se omiten al
 
 | Herramienta | Dónde se ejecutó | Resultado | Captura |
 | --- | --- | --- | --- |
-| Suite completa (`uv run pytest -q`), Ruff, Bandit y firma `cosign` | GitHub Actions, run [44958196290](https://github.com/Rust7730/GateKeeper-API/actions/runs/44958196290) (PR #25), `ubuntu-24.04` con Landlock ABI 8 | **2078 passed, 36 skipped** en 8 min 14 s; Ruff sin errores; Bandit `-ll` sin hallazgos; imagen firmada en `ghcr.io` | [16-ci-pruebas-bandit-firma.png](evidencias/16-ci-pruebas-bandit-firma.png) |
-| Bandit `-ll` (SAST) | Local, mismo comando que la CI | **0 High, 0 Medium**. Los 1 318 avisos *Low* son en su mayoría `assert` de las pruebas que viven dentro de `api/` | [17-bandit-local.png](evidencias/17-bandit-local.png) |
-| `pip-audit` (SCA) | Local, sobre las 47 dependencias de producción de `uv.lock` | **No known vulnerabilities found** | [18-pip-audit.png](evidencias/18-pip-audit.png) |
+| Suite completa (`uv run pytest -q`), Ruff, Bandit y firma `cosign` | GitHub Actions, run [44958196290](https://github.com/Rust7730/GateKeeper-API/actions/runs/44958196290) (PR #25), `ubuntu-24.04` con Landlock ABI 8 | **2078 passed, 36 skipped** en 8 min 14 s; Ruff sin errores; Bandit `-ll` sin hallazgos; imagen firmada en `ghcr.io` | [16-ci-pruebas-bandit-firma.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/16-ci-pruebas-bandit-firma.png) |
+| Bandit `-ll` (SAST) | Local, mismo comando que la CI | **0 High, 0 Medium**. Los 1 318 avisos *Low* son en su mayoría `assert` de las pruebas que viven dentro de `api/` | [17-bandit-local.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/17-bandit-local.png) |
+| `pip-audit` (SCA) | Local, sobre las 47 dependencias de producción de `uv.lock` | **No known vulnerabilities found** | [18-pip-audit.png](https://github.com/Rust7730/GateKeeper-API/blob/main/evidencias/18-pip-audit.png) |
 | `npm audit` (SCA) | Local, dashboard y landing | Dashboard: **0** en producción y 9 moderadas solo en herramientas de desarrollo (`minimatch` vía ESLint). Landing: 5 avisos en Astro 5 y sus dependencias de compilación; ninguno alcanza al sitio estático publicado (ver la nota) | [17-frontend-npm-audit.png](https://raw.githubusercontent.com/Rust7730/GateKeeper-Frontend/main/docs/evidencias/17-frontend-npm-audit.png) |
 | `npm run verify` | Local, dashboard Angular | ESLint, Stylelint, índices y patrones de seguridad sin errores; **87/87 pruebas**; build correcto | [16-frontend-npm-verify.png](https://raw.githubusercontent.com/Rust7730/GateKeeper-Frontend/main/docs/evidencias/16-frontend-npm-verify.png) |
 | Pruebas manuales de ataque con `curl` | Local, contra la API | `401`, `404` anti-IDOR, `409`, `413`, `415`, `429`, ELF disfrazado rechazado, EICAR en cuarentena, EXIF/GPS eliminados, TOTP reutilizado rechazado y auditado | capturas 12–15 y 05 |
 
 > **Nota sobre `npm audit` en la landing.** El aviso crítico de Astro afecta a `define:vars` y a los parámetros de *server islands*; la landing no usa ninguno y se compila como sitio estático sin adaptador. Los avisos altos (`sharp`/libvips y `zod`) y el bajo (`esbuild`) solo se ejecutan al compilar o en el servidor de desarrollo. Aun así, actualizar a Astro 7 queda como trabajo pendiente.
 
-![CI: pruebas, Bandit y firma de la imagen](evidencias/16-ci-pruebas-bandit-firma.png)
+![CI: pruebas, Bandit y firma de la imagen](https://raw.githubusercontent.com/Rust7730/GateKeeper-API/main/evidencias/16-ci-pruebas-bandit-firma.png)
 
-![Bandit local](evidencias/17-bandit-local.png)
+![Bandit local](https://raw.githubusercontent.com/Rust7730/GateKeeper-API/main/evidencias/17-bandit-local.png)
 
-![pip-audit](evidencias/18-pip-audit.png)
+![pip-audit](https://raw.githubusercontent.com/Rust7730/GateKeeper-API/main/evidencias/18-pip-audit.png)
 
 ![npm audit del frontend](https://raw.githubusercontent.com/Rust7730/GateKeeper-Frontend/main/docs/evidencias/17-frontend-npm-audit.png)
 
@@ -473,7 +473,7 @@ El desarrollo de **Gatekeeper** permitió llevar a producción una arquitectura 
 
 ## Uso y operación
 
-La guía completa para levantar el sistema en local, correr las pruebas, desplegarlo en AWS EC2, actualizarlo, revisar registros y hacer rollback está en [`OPERACION.md`](OPERACION.md). La aplicación cliente de demostración tiene su propia guía en [`demo-client-app/README.md`](demo-client-app/README.md).
+La guía completa para levantar el sistema en local, correr las pruebas, desplegarlo en AWS EC2, actualizarlo, revisar registros y hacer rollback está en [`OPERACION.md`](https://github.com/Rust7730/GateKeeper-API/blob/main/OPERACION.md). La aplicación cliente de demostración tiene su propia guía en [`demo-client-app/README.md`](https://github.com/Rust7730/GateKeeper-API/blob/main/demo-client-app/README.md).
 
 ### Subir, consultar y descargar
 
